@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isChatParticipant(matchId) {
+      return request.auth != null && matchId.matches('.*' + request.auth.uid + '.*');
+    }
+
+    match /chat-images/{matchId}/{fileName} {
+      allow read: if request.auth != null && isChatParticipant(matchId);
+      allow write: if request.auth != null
+        && isChatParticipant(matchId)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /chat-voice/{matchId}/{fileName} {
+      allow read: if request.auth != null && isChatParticipant(matchId);
+      allow write: if request.auth != null
+        && isChatParticipant(matchId)
+        && request.resource.size < 15 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+    }
+  }
+}

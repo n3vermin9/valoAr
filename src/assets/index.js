@@ -1,0 +1,5 @@
+export { default as logo } from './logo.svg'
+export { default as hero } from './hero.png'
+export { default as marks } from './marks.png'
+export { default as sad } from './sad.png'
+export { default as star } from './star.png'

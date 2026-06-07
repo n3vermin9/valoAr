@@ -1,0 +1,662 @@
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import toast from 'react-hot-toast'
+import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconSettings } from '@tabler/icons-react'
+import { useAuth } from '../../contexts/AuthContext'
+import { fetchUser, recordSwipe, removeMatch, updateUserSettings, acceptLike, subscribeIncomingRequest } from '../../services/userService'
+import { subscribeChat } from '../../services/chatService'
+import ConfirmDialog from '../ui/ConfirmDialog'
+import { shareProfile, getMatchId, formatGenderLabel } from '../../utils/helpers'
+import EditProfile from './EditProfile'
+import BlockedList from './BlockedList'
+import MatchHistory from './MatchHistory'
+import Modal from '../ui/Modal'
+import PhotoGallery from '../ui/PhotoGallery'
+import LoadingSpinner from '../ui/LoadingSpinner'
+import CopyableUsername from '../ui/CopyableUsername'
+import ChevronBack from '../ui/ChevronBack'
+import { sad } from '../../assets'
+
+export default function ProfileView() {
+  const { user, profile, logout, removeAccount, refreshProfile, setProfile } = useAuth()
+  const navigate = useNavigate()
+  const [editing, setEditing] = useState(false)
+  const [showBlocked, setShowBlocked] = useState(false)
+  const [showMatches, setShowMatches] = useState(false)
+  const [friendProfileId, setFriendProfileId] = useState(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [allowDirectMessages, setAllowDirectMessages] = useState(false)
+  const [showFriendCount, setShowFriendCount] = useState(true)
+  const [useMilitaryTime, setUseMilitaryTime] = useState(false)
+
+  useEffect(() => {
+    setAllowDirectMessages(profile?.allowDirectMessages === true)
+  }, [profile?.allowDirectMessages])
+
+  useEffect(() => {
+    setShowFriendCount(profile?.showFriendCount !== false)
+  }, [profile?.showFriendCount])
+
+  useEffect(() => {
+    setUseMilitaryTime(profile?.useMilitaryTime === true)
+  }, [profile?.useMilitaryTime])
+
+  if (!profile) return <LoadingSpinner />
+
+  if (editing) return <EditProfile onCancel={() => setEditing(false)} />
+
+  const memberSince = profile.createdAt?.toDate?.()
+    ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : 'Recently'
+
+  const handleShare = async () => {
+    try {
+      await shareProfile(user.uid, profile.username)
+      toast.success('Profile link copied!')
+    } catch {
+      toast.error('Could not share profile')
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await removeAccount()
+      toast.success('Account deleted')
+      navigate('/login')
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleToggleDirectMessages = async () => {
+    if (!user?.uid || savingSettings) return
+    const next = !allowDirectMessages
+    setAllowDirectMessages(next)
+    setSavingSettings(true)
+    try {
+      await updateUserSettings(user.uid, { allowDirectMessages: next })
+      setProfile((prev) => (prev ? { ...prev, allowDirectMessages: next } : prev))
+      toast.success(next ? 'Anyone can message you' : 'Messages require a friend request')
+    } catch {
+      setAllowDirectMessages(!next)
+      toast.error('Failed to update setting')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const handleToggleShowFriendCount = async () => {
+    if (!user?.uid || savingSettings) return
+    const next = !showFriendCount
+    setShowFriendCount(next)
+    setSavingSettings(true)
+    try {
+      await updateUserSettings(user.uid, { showFriendCount: next })
+      setProfile((prev) => (prev ? { ...prev, showFriendCount: next } : prev))
+      toast.success(next ? 'Friend count is visible on your profile' : 'Friend count hidden from your profile')
+    } catch {
+      setShowFriendCount(!next)
+      toast.error('Failed to update setting')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const handleToggleUseMilitaryTime = async () => {
+    if (!user?.uid || savingSettings) return
+    const next = !useMilitaryTime
+    setUseMilitaryTime(next)
+    setSavingSettings(true)
+    try {
+      await updateUserSettings(user.uid, { useMilitaryTime: next })
+      setProfile((prev) => (prev ? { ...prev, useMilitaryTime: next } : prev))
+      toast.success(next ? 'Using 24-hour time' : 'Using 12-hour time')
+    } catch {
+      setUseMilitaryTime(!next)
+      toast.error('Failed to update setting')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  return (
+    <div className="h-full overflow-y-auto pb-24">
+      <div className="flex items-center justify-end px-6 pt-6">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          aria-label="Settings"
+        >
+          <IconSettings size={22} className="text-white/80" />
+        </button>
+      </div>
+
+      <div className="flex flex-col items-center px-6">
+        <button onClick={() => setGalleryOpen(true)} className="rounded-full">
+          <img
+            src={profile.photos?.[0] || sad}
+            alt=""
+            className="w-32 h-32 rounded-full object-cover border-4 border-blue-500/30"
+          />
+        </button>
+        <h2 className="text-2xl font-bold mt-4">
+          <CopyableUsername username={profile.username} className="text-2xl font-bold" />
+        </h2>
+        <p className="text-white/60">{profile.age} years old</p>
+
+        <button
+          onClick={handleShare}
+          className="flex items-center gap-2 px-4 py-2 mt-4 bg-white/10 hover:bg-white/20 rounded-full text-sm transition-colors"
+        >
+          <IconShare size={16} /> Share
+        </button>
+      </div>
+
+      <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
+        <div className="pb-4 mb-4 border-b border-white/10">
+          <p className="text-xs uppercase tracking-wider text-white/40 mb-2">Bio</p>
+          <p className="text-base text-white/90 leading-relaxed">
+            {profile.bio || 'No bio yet'}
+          </p>
+          <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
+        </div>
+        <InfoRow label="Member Since" value={memberSince} small />
+      </div>
+
+      <div className="mx-6 mt-4 flex flex-col gap-2">
+        <button
+          onClick={() => setShowMatches(true)}
+          className="w-full flex items-center justify-between px-4 py-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors text-left"
+        >
+          <span className="font-medium">Friends</span>
+          <span className="text-sm text-white/40">{profile.matches?.length || 0}</span>
+        </button>
+        <button
+          onClick={() => setShowBlocked(true)}
+          className="w-full flex items-center justify-between px-4 py-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors text-left"
+        >
+          <span className="font-medium">Blocked Users</span>
+          <span className="text-sm text-white/40">{profile.blocked?.length || 0}</span>
+        </button>
+      </div>
+
+      <div className="mx-6 mt-6">
+        <button
+          onClick={() => setEditing(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+        >
+          Edit
+        </button>
+      </div>
+
+      {showSettings && (
+        <div className="fixed inset-0 z-[80] bg-black flex flex-col">
+          <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-white/10">
+            <ChevronBack onClick={() => setShowSettings(false)} />
+            <h1 className="text-lg font-semibold">Settings</h1>
+          </div>
+
+          <div className="flex-1 overflow-y-auto pb-8">
+            <div className="px-4 py-4 border-b border-white/10">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">Open to messages</p>
+                  <p className="text-sm text-white/50 mt-1">
+                    Let people message you without sending a friend request first
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={allowDirectMessages}
+                  disabled={savingSettings}
+                  onClick={handleToggleDirectMessages}
+                  className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                    allowDirectMessages ? 'bg-blue-500' : 'bg-white/20'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                      allowDirectMessages ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-4 py-4 border-b border-white/10">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">Show friend count</p>
+                  <p className="text-sm text-white/50 mt-1">
+                    Display how many friends you have on your public profile
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showFriendCount}
+                  disabled={savingSettings}
+                  onClick={handleToggleShowFriendCount}
+                  className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                    showFriendCount ? 'bg-blue-500' : 'bg-white/20'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                      showFriendCount ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-4 py-4 border-b border-white/10">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">24-hour time</p>
+                  <p className="text-sm text-white/50 mt-1">
+                    Show chat times in military format (14:30 instead of 2:30 PM)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={useMilitaryTime}
+                  disabled={savingSettings}
+                  onClick={handleToggleUseMilitaryTime}
+                  className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                    useMilitaryTime ? 'bg-blue-500' : 'bg-white/20'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                      useMilitaryTime ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowSettings(false)
+                logout()
+              }}
+              className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors text-left border-b border-white/10"
+            >
+              <IconLogout size={18} /> Log Out
+            </button>
+            <button
+              onClick={() => {
+                setShowSettings(false)
+                setShowDeleteConfirm(true)
+              }}
+              className="w-full flex items-center gap-3 px-4 py-4 text-red-400 hover:bg-red-500/10 transition-colors text-left"
+            >
+              <IconTrash size={18} /> Delete Account
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Modal isOpen={showBlocked} onClose={() => setShowBlocked(false)} className="max-w-lg">
+        <BlockedList />
+      </Modal>
+
+      <Modal isOpen={showMatches} onClose={() => setShowMatches(false)} className="max-w-lg">
+        <MatchHistory onSelectFriend={setFriendProfileId} />
+      </Modal>
+
+      <Modal isOpen={!!friendProfileId} onClose={() => setFriendProfileId(null)}>
+        {friendProfileId && (
+          <PublicProfileView userId={friendProfileId} onClose={() => setFriendProfileId(null)} />
+        )}
+      </Modal>
+
+      <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+        <div className="p-6 text-center">
+          <h3 className="text-lg font-semibold mb-2">Delete Account?</h3>
+          <p className="text-white/60 mb-6">This action is permanent and cannot be undone.</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="flex-1 py-3 bg-white/10 rounded-full"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex-1 py-3 bg-red-500 rounded-full disabled:opacity-50"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {galleryOpen && (
+        <PhotoGallery photos={profile.photos} onClose={() => setGalleryOpen(false)} />
+      )}
+    </div>
+  )
+}
+
+function ProfileLookingFor({ gender, interestedIn }) {
+  const genderLabel = formatGenderLabel(gender)
+  const genderClass =
+    gender === 'male'
+      ? 'text-blue-400'
+      : gender === 'female'
+        ? 'text-pink-400'
+        : 'text-white/50'
+
+  let lookingFor = null
+  if (interestedIn === 'both') {
+    lookingFor = <span className="text-white/70">friends</span>
+  } else if (interestedIn === 'women') {
+    lookingFor = <span className="text-pink-400">female friends</span>
+  } else if (interestedIn === 'men') {
+    lookingFor = <span className="text-blue-400">male friends</span>
+  }
+
+  if (!lookingFor) return null
+
+  return (
+    <p className="text-sm text-white/50 mt-3">
+      <span className={genderClass}>{genderLabel}</span>
+      {' looking for '}
+      {lookingFor}
+    </p>
+  )
+}
+
+function InfoRow({ label, value, capitalize, small }) {
+  return (
+    <div className={`flex justify-between ${small ? 'text-xs text-white/40' : ''}`}>
+      <span className={small ? '' : 'text-white/50'}>{label}</span>
+      <span className={`${capitalize ? 'capitalize' : ''} ${small ? 'text-white/50' : ''}`}>{value}</span>
+    </div>
+  )
+}
+
+export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }) {
+  const { user, profile: currentProfile, refreshProfile } = useAuth()
+  const navigate = useNavigate()
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  const [requesting, setRequesting] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [confirmRemoveMatch, setConfirmRemoveMatch] = useState(false)
+  const [removeMatchLoading, setRemoveMatchLoading] = useState(false)
+  const [hasActiveChat, setHasActiveChat] = useState(false)
+  const [chatData, setChatData] = useState(null)
+  const [chatResolved, setChatResolved] = useState(false)
+  const [incomingRequest, setIncomingRequest] = useState(null)
+  const [accepting, setAccepting] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    setLoading(true)
+    setProfile(null)
+    setHasActiveChat(false)
+    setChatResolved(false)
+    fetchUser(userId).then((p) => {
+      setProfile(p)
+      setLoading(false)
+    })
+  }, [userId])
+
+  useEffect(() => {
+    if (!user?.uid || user.uid === userId) {
+      setChatResolved(true)
+      return
+    }
+    const matchId = getMatchId(user.uid, userId)
+    return subscribeChat(matchId, (chat) => {
+      setHasActiveChat(!!chat && !chat.hiddenFor?.includes(user.uid))
+      setChatData(chat)
+      setChatResolved(true)
+    })
+  }, [user?.uid, userId])
+
+  useEffect(() => {
+    if (!user?.uid || user.uid === userId) {
+      setIncomingRequest(null)
+      return
+    }
+    return subscribeIncomingRequest(user.uid, userId, setIncomingRequest)
+  }, [user?.uid, userId])
+
+  useEffect(() => {
+    if (!showMenu) return
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMenu])
+
+  if (loading) return <LoadingSpinner />
+  if (!profile) return <p className="p-6 text-center text-white/60">User not found</p>
+
+  const isSelf = user?.uid === userId
+  const isMatched =
+    currentProfile?.matches?.includes(userId) ||
+    currentProfile?.swipes?.[userId] === 'matched'
+  const allowsDirectMessages = profile?.allowDirectMessages === true
+  const canMessage =
+    !fromChat && (isMatched || hasActiveChat || (!isMatched && allowsDirectMessages))
+  const hasIncomingRequest = !!incomingRequest
+  const showFriendRequest = !isMatched && !hasIncomingRequest
+  const showAcceptRequest = !isMatched && hasIncomingRequest
+  const isMuted = chatData?.mutedBy?.includes(user?.uid)
+  const alreadySwiped = currentProfile?.swipes?.[userId]
+  const friendRequestPending = alreadySwiped === 'like'
+  const friendCount = profile.matches?.length || 0
+  const memberSince = profile.createdAt?.toDate?.()
+    ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : 'Recently'
+
+  const handleSendFriendRequest = async () => {
+    if (requesting) return
+    setRequesting(true)
+    try {
+      await recordSwipe(user.uid, userId, 'like')
+      await refreshProfile()
+      toast.success('Friend request sent!')
+    } catch (err) {
+      toast.error(err.message || 'Failed to send request')
+    } finally {
+      setRequesting(false)
+    }
+  }
+
+  const handleAcceptRequest = async () => {
+    if (accepting) return
+    setAccepting(true)
+    try {
+      await acceptLike(user.uid, userId)
+      await refreshProfile()
+      toast.success("You're now friends!")
+      onClose?.()
+    } catch {
+      toast.error('Failed to accept request')
+    } finally {
+      setAccepting(false)
+    }
+  }
+
+  const handleMessage = () => {
+    const matchId = getMatchId(user.uid, userId)
+    navigate(`/chats/${matchId}`, { state: hasActiveChat ? undefined : { draft: true } })
+    onClose?.()
+  }
+
+  const handleRemoveMatch = async () => {
+    setRemoveMatchLoading(true)
+    try {
+      await removeMatch(user.uid, userId)
+      await refreshProfile()
+      toast.success('Friend removed')
+      setConfirmRemoveMatch(false)
+      onClose?.()
+      if (fromChat) navigate('/chats')
+    } catch {
+      toast.error('Failed to remove friend')
+    } finally {
+      setRemoveMatchLoading(false)
+    }
+  }
+
+  return (
+    <div className="p-6 relative">
+      {!isSelf && (isMatched || onBlock) && (
+        <div className="absolute top-6 right-6 z-10" ref={menuRef}>
+          <button
+            onClick={() => setShowMenu((open) => !open)}
+            className="p-2 hover:bg-white/10 rounded-full"
+          >
+            <IconDotsVertical size={20} />
+          </button>
+
+          <AnimatePresence>
+            {showMenu && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-full mt-2 z-50 min-w-[160px] py-2 bg-black/90 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl"
+              >
+                {isMatched && (
+                  <button
+                    onClick={() => {
+                      setShowMenu(false)
+                      setConfirmRemoveMatch(true)
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-white/90 hover:bg-white/5 transition-colors"
+                  >
+                    Remove Friend
+                  </button>
+                )}
+                {onBlock && (
+                  <button
+                    onClick={() => {
+                      setShowMenu(false)
+                      onBlock(userId)
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-400 hover:bg-white/5 transition-colors"
+                  >
+                    Block
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      <div className="flex flex-col items-center">
+        <button onClick={() => setGalleryOpen(true)} className="rounded-full">
+          <img
+            src={profile.photos?.[0] || sad}
+            alt=""
+            className="w-28 h-28 rounded-full object-cover border-4 border-purple-500/30"
+          />
+        </button>
+        <div className="flex items-center gap-2 mt-3">
+          <h2 className="text-xl font-bold">
+            <CopyableUsername username={profile.username} className="text-xl font-bold" />
+          </h2>
+          {isMuted && (
+            <IconBellOff size={18} className="text-white/50 shrink-0" aria-label="Muted" />
+          )}
+        </div>
+        <p className="text-white/60">{profile.age} years old</p>
+      </div>
+
+      <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
+        <div className="pb-4 mb-4 border-b border-white/10">
+          <p className="text-xs uppercase tracking-wider text-white/40 mb-2">Bio</p>
+          <p className="text-base text-white/90 leading-relaxed">
+            {profile.bio || 'No bio yet'}
+          </p>
+          <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
+          {!isSelf && profile.showFriendCount !== false && (
+            <p className="text-sm text-white/50 mt-3">
+              Has {friendCount} {friendCount === 1 ? 'friend' : 'friends'}
+            </p>
+          )}
+        </div>
+        <InfoRow label="Member Since" value={memberSince} small />
+      </div>
+
+      {!isSelf && chatResolved && (
+        <div className="flex gap-3 mt-6 flex-wrap">
+          {onClose && (
+            <button onClick={onClose} className="flex-1 min-w-[88px] py-3 bg-white/10 rounded-full">
+              Close
+            </button>
+          )}
+          {showAcceptRequest && (
+            <button
+              onClick={handleAcceptRequest}
+              disabled={accepting}
+              className="flex-1 min-w-[88px] py-3 bg-green-500 rounded-full disabled:opacity-50"
+            >
+              {accepting ? 'Accepting...' : 'Accept Request'}
+            </button>
+          )}
+          {showFriendRequest && (
+            <button
+              onClick={handleSendFriendRequest}
+              disabled={requesting || friendRequestPending}
+              className="flex-1 min-w-[88px] py-3 bg-white/10 rounded-full disabled:opacity-50"
+            >
+              {friendRequestPending ? 'Request Sent' : 'Add Friend'}
+            </button>
+          )}
+          {canMessage && (
+            <button onClick={handleMessage} className="flex-1 min-w-[88px] py-3 bg-blue-500 rounded-full">
+              Message
+            </button>
+          )}
+        </div>
+      )}
+
+      {isSelf && onClose && (
+        <button onClick={onClose} className="w-full mt-6 py-3 bg-white/10 rounded-full">
+          Close
+        </button>
+      )}
+
+      {galleryOpen && (
+        <PhotoGallery photos={profile.photos} onClose={() => setGalleryOpen(false)} />
+      )}
+
+      <ConfirmDialog
+        isOpen={confirmRemoveMatch}
+        onClose={() => setConfirmRemoveMatch(false)}
+        onConfirm={handleRemoveMatch}
+        title="Remove friend?"
+        message="This will remove them from your friends and delete the chat for both of you. They won't be blocked."
+        confirmLabel="Remove Friend"
+        danger
+        loading={removeMatchLoading}
+      />
+    </div>
+  )
+}
