@@ -12,6 +12,8 @@ const tabs = [
 ]
 
 const pillSpring = { type: 'spring', stiffness: 420, damping: 34 }
+const tabSpring = { type: 'spring', stiffness: 480, damping: 24 }
+const tabTap = { scale: 0.86 }
 
 export default function BottomNav({ badges = {} }) {
   const location = useLocation()
@@ -99,26 +101,48 @@ export default function BottomNav({ badges = {} }) {
             const isChatsTab = tab.path === '/chats'
 
             return (
-              <button
+              <motion.button
                 key={tab.path}
                 ref={(el) => {
                   tabRefs.current[index] = el
                 }}
+                type="button"
                 onClick={() => navigate(tab.path)}
                 onDoubleClick={() => {
                   if (isChatsTab) navigate('/debug')
                 }}
-                className="relative flex-1 flex flex-col items-center justify-center py-3 z-10 min-h-[52px]"
+                whileTap={tabTap}
+                transition={{ type: 'spring', stiffness: 520, damping: 28 }}
+                className="no-tap-scale relative flex-1 flex flex-col items-center justify-center py-3 z-10 min-h-[52px]"
+                aria-label={tab.label}
+                aria-current={isActive ? 'page' : undefined}
               >
-                <motion.div animate={{ scale: isActive ? 1.08 : 1 }} transition={{ duration: 0.2 }}>
-                  <Icon size={26} className={isActive ? 'text-white' : 'text-white/45'} stroke={1.75} />
+                <motion.div
+                  animate={{
+                    scale: isActive ? 1.14 : 1,
+                    y: isActive ? -2 : 0,
+                  }}
+                  transition={tabSpring}
+                >
+                  <Icon
+                    size={26}
+                    className={`transition-colors duration-200 ${
+                      isActive ? 'text-white' : 'text-white/45'
+                    }`}
+                    stroke={1.75}
+                  />
                 </motion.div>
                 {count > 0 && (
-                  <span className="absolute top-1 right-1/4 min-w-[18px] h-[18px] bg-red-500 text-white text-xs rounded-full flex items-center justify-center px-1">
+                  <motion.span
+                    initial={{ scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={tabSpring}
+                    className="absolute top-1 right-1/4 min-w-[18px] h-[18px] bg-red-500 text-white text-xs rounded-full flex items-center justify-center px-1"
+                  >
                     {count > 99 ? '99+' : count}
-                  </span>
+                  </motion.span>
                 )}
-              </button>
+              </motion.button>
             )
           })}
         </div>

@@ -5,8 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { updateUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
 import { normalizeUsername, formatGenderLabel } from '../../utils/helpers'
+import { normalizeSocials } from '../../utils/socialLinks'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
+import SocialLinksEditor from './SocialLinksEditor'
 import Modal from '../ui/Modal'
 import LoadingSpinner from '../ui/LoadingSpinner'
 
@@ -17,6 +19,7 @@ export default function EditProfile({ onCancel }) {
   const [age, setAge] = useState(profile?.age || 25)
   const [interestedIn, setInterestedIn] = useState(profile?.interestedIn || '')
   const [bio, setBio] = useState(profile?.bio || '')
+  const [socials, setSocials] = useState(() => normalizeSocials(profile?.socials))
   const [photos, setPhotos] = useState(initialPhotos)
   const [visiblePhotoSlots, setVisiblePhotoSlots] = useState(
     Math.max(1, initialPhotos.filter(Boolean).length)
@@ -66,6 +69,7 @@ export default function EditProfile({ onCancel }) {
           age,
           interestedIn,
           bio,
+          socials: normalizeSocials(socials),
           photos: photos.filter(Boolean),
         },
         profile.username
@@ -171,6 +175,8 @@ export default function EditProfile({ onCancel }) {
             maxLength={300}
           />
         </div>
+
+        <SocialLinksEditor socials={socials} onChange={setSocials} />
 
         <button
           type="submit"

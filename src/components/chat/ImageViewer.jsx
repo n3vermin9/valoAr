@@ -14,7 +14,8 @@ export default function ImageViewer({ src, onClose }) {
           <img
             src={src}
             alt=""
-            className="max-w-full max-h-full object-contain rounded-lg"
+            draggable={false}
+            className="max-w-full max-h-full object-contain rounded-lg select-none pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
           />
         </motion.div>

@@ -17,6 +17,7 @@ import {
   subscribeTyping,
   getUnreadCount,
   ensureSavedMessagesChat,
+  setMessageReaction,
 } from '../../services/chatService'
 import {
   fetchUser,
@@ -24,8 +25,9 @@ import {
   unblockUser,
   subscribePresence,
   subscribeToUser,
+  getUserIdByUsername,
 } from '../../services/userService'
-import { compressImage, uploadChatImage, uploadChatAudio, formatLastSeen, isSavedMessagesChat, headerMenuGlassClass, contextMenuMotion } from '../../utils/helpers'
+import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, headerMenuGlassClass, contextMenuMotion, normalizeUsername } from '../../utils/helpers'
 import ChevronBack from '../ui/ChevronBack'
 import MessageBubble from './MessageBubble'
 import DeleteMessageOverlay from './DeleteMessageOverlay'
@@ -56,12 +58,16 @@ export default function ChatRoom() {
   const [imagePreview, setImagePreview] = useState(null)
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState(null)
-  const [showProfile, setShowProfile] = useState(false)
+  const [profileViewUserId, setProfileViewUserId] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [savedScrollPosition, setSavedScrollPosition] = useState(0)
+  const [replyTo, setReplyTo] = useState(null)
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null)
   const messagesEndRef = useRef(null)
+  const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
+  const knownMessageIdsRef = useRef(new Set())
   const typingTimeoutRef = useRef(null)
   const menuButtonRef = useRef(null)
   const chatWasVisibleRef = useRef(false)
@@ -72,7 +78,8 @@ export default function ChatRoom() {
   const otherId = isSavedMessages ? null : matchId?.split('_').find((id) => id !== user?.uid)
   const iBlockedThem = !isSavedMessages && profile?.blocked?.includes(otherId)
   const theyBlockedMe = !isSavedMessages && chatMeta?.blockedBy?.includes(otherId) && !iBlockedThem
-  const chatFrozen = !isSavedMessages && (iBlockedThem || theyBlockedMe)
+  const unfriended = !isSavedMessages && chatMeta?.unfriended === true
+  const chatFrozen = !isSavedMessages && (iBlockedThem || theyBlockedMe || unfriended)
   const isMuted = chatMeta?.mutedBy?.includes(user.uid)
   const militaryTime = profile?.useMilitaryTime === true
 
@@ -93,6 +100,8 @@ export default function ChatRoom() {
     setChatAvailable(false)
     setLoading(true)
     setMessages([])
+    setReplyTo(null)
+    knownMessageIdsRef.current = new Set()
   }, [matchId])
 
   useEffect(() => {
@@ -205,8 +214,15 @@ export default function ChatRoom() {
 
   useEffect(() => {
     if (deleteTarget) return
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+
+    const prevIds = knownMessageIdsRef.current
+    const hasNewMessage = messages.some((msg) => !prevIds.has(msg.id))
+    knownMessageIdsRef.current = new Set(messages.map((msg) => msg.id))
+
+    if (hasNewMessage) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages, deleteTarget])
 
   const handleTyping = useCallback(
     (typing) => {
@@ -220,7 +236,7 @@ export default function ChatRoom() {
     [matchId, user?.uid, chatFrozen]
   )
 
-  const handleSend = async ({ text, imageUrl, audioBlob }) => {
+  const handleSend = async ({ text, imageUrl, audioBlob, replyTo: replyPayload }) => {
     if (chatFrozen) return
     try {
       let finalImageUrl = imageUrl
@@ -231,16 +247,55 @@ export default function ChatRoom() {
       if (audioBlob) {
         audioUrl = await uploadChatAudio(user.uid, matchId, audioBlob)
       }
-      await sendMessage(matchId, user.uid, { text, imageUrl: finalImageUrl, audioUrl })
+      await sendMessage(matchId, user.uid, {
+        text,
+        imageUrl: finalImageUrl,
+        audioUrl,
+        replyTo: replyPayload ? buildReplyPayload(replyPayload) : null,
+      })
+      setReplyTo(null)
       setTyping(matchId, user.uid, false)
     } catch (err) {
       toast.error(err.message || 'Failed to send message')
     }
   }
 
-  const handleSendVoice = async (audioBlob) => {
-    await handleSend({ text: '', imageUrl: null, audioBlob })
-  }
+  const handleSendVoice = useCallback(
+    async (audioBlob) => {
+      if (chatFrozen) {
+        throw new Error('You cannot send messages in this chat')
+      }
+      if (!audioBlob?.size) {
+        throw new Error('Recording was empty')
+      }
+      if (!user?.uid || !matchId) {
+        throw new Error('You must be signed in to send voice messages')
+      }
+
+      if (isSavedMessagesChat(matchId, user.uid)) {
+        await ensureSavedMessagesChat(user.uid)
+      }
+
+      const audioUrl = await uploadChatAudio(user.uid, matchId, audioBlob)
+      if (!audioUrl) {
+        throw new Error('Failed to prepare voice message')
+      }
+
+      const replyPayload = replyTo ? buildReplyPayload(replyTo) : null
+      await sendMessage(matchId, user.uid, {
+        text: '',
+        imageUrl: null,
+        audioUrl,
+        replyTo: replyPayload,
+      })
+      setReplyTo(null)
+      setTyping(matchId, user.uid, false)
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      })
+    },
+    [chatFrozen, user?.uid, matchId, replyTo]
+  )
 
   const handleImageSelect = async (file) => {
     try {
@@ -293,8 +348,103 @@ export default function ChatRoom() {
 
   const handleSelectMessageAction = (message, rect) => {
     if (!rect) return
+
     setDeleteTarget({ message, rect })
+
+    const row = messagesContainerRef.current?.querySelector(`[data-message-id="${message.id}"]`)
+    if (!row) return
+
+    const container = messagesContainerRef.current
+    const rowRect = row.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
+    const spaceBelow = containerRect.bottom - rowRect.bottom
+
+    if (spaceBelow < 220) {
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' })
+
+      const updateRect = () => {
+        const bubble = row.querySelector('.message-bubble')
+        const nextRect = bubble?.getBoundingClientRect() || row.getBoundingClientRect()
+        setDeleteTarget((prev) =>
+          prev?.message.id === message.id ? { message, rect: nextRect } : prev
+        )
+      }
+
+      container.addEventListener('scrollend', updateRect, { once: true })
+      setTimeout(updateRect, 450)
+    }
   }
+
+  const handleReplyToMessage = (message) => {
+    setReplyTo(message)
+    setDeleteTarget(null)
+  }
+
+  const handleReactToMessage = async (message, emoji) => {
+    if (!matchId || !user?.uid) return
+    const reactions = { ...(message.reactions || {}) }
+    if (reactions[user.uid] === emoji) {
+      delete reactions[user.uid]
+    } else {
+      reactions[user.uid] = emoji
+    }
+    const nextReactions = Object.keys(reactions).length ? reactions : undefined
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === message.id ? { ...msg, reactions: nextReactions } : msg
+      )
+    )
+
+    setDeleteTarget((prev) => {
+      if (!prev || prev.message.id !== message.id) return prev
+      return { ...prev, message: { ...prev.message, reactions: nextReactions } }
+    })
+
+    try {
+      await setMessageReaction(matchId, message.id, user.uid, emoji)
+    } catch {
+      toast.error('Failed to add reaction')
+    }
+  }
+
+  const getReplyAuthorName = useCallback(
+    (senderId) => {
+      if (senderId === user?.uid) return 'You'
+      if (isSavedMessages) return 'Saved Messages'
+      return otherUser?.username || 'User'
+    },
+    [user?.uid, isSavedMessages, otherUser?.username]
+  )
+
+  useEffect(() => {
+    return () => clearTimeout(highlightTimerRef.current)
+  }, [])
+
+  const scrollToMessage = useCallback((messageId) => {
+    const el = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`)
+    if (!el) return
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    clearTimeout(highlightTimerRef.current)
+    setHighlightedMessageId(null)
+
+    requestAnimationFrame(() => {
+      setHighlightedMessageId(messageId)
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlightedMessageId(null)
+      }, 1000)
+    })
+  }, [])
+
+  const chatStatus = getChatStatusLabel({ isTyping, presence })
+  const statusColor =
+    chatStatus.variant === 'typing'
+      ? 'text-blue-300'
+      : chatStatus.variant === 'online'
+        ? 'text-green-400'
+        : 'text-white/50'
 
   const handleMute = async () => {
     setShowMenu(false)
@@ -321,7 +471,7 @@ export default function ChatRoom() {
       await blockUser(user.uid, targetId)
       await refreshProfile()
       toast.success('User blocked')
-      setShowProfile(false)
+      setProfileViewUserId(null)
     } catch {
       toast.error('Failed to block user')
     }
@@ -352,14 +502,15 @@ export default function ChatRoom() {
   }
 
   const openProfile = () => {
+    if (!otherId) return
     if (messagesContainerRef.current) {
       setSavedScrollPosition(messagesContainerRef.current.scrollTop)
     }
-    setShowProfile(true)
+    setProfileViewUserId(otherId)
   }
 
   const closeProfile = () => {
-    setShowProfile(false)
+    setProfileViewUserId(null)
     requestAnimationFrame(() => {
       if (messagesContainerRef.current) {
         messagesContainerRef.current.scrollTop = savedScrollPosition
@@ -367,13 +518,36 @@ export default function ChatRoom() {
     })
   }
 
-  const statusText = isTyping
-    ? 'typing...'
-    : presence?.online
-      ? 'online'
-      : `last seen ${formatLastSeen(presence?.lastSeen)}`
+  const handleMentionClick = useCallback(
+    async (username) => {
+      const normalized = normalizeUsername(username)
+      if (!normalized) return
 
-  const statusColor = isTyping ? 'text-white/80' : presence?.online ? 'text-green-500' : 'text-white/50'
+      let targetId = null
+      if (normalized === normalizeUsername(profile?.username)) {
+        targetId = user.uid
+      } else if (normalized === normalizeUsername(otherUser?.username)) {
+        targetId = otherId
+      } else {
+        targetId = await getUserIdByUsername(normalized)
+      }
+
+      if (!targetId) {
+        toast.error('User not found')
+        return
+      }
+
+      if (messagesContainerRef.current) {
+        setSavedScrollPosition(messagesContainerRef.current.scrollTop)
+      }
+      setDeleteTarget(null)
+      setProfileViewUserId(targetId)
+    },
+    [profile?.username, user?.uid, otherUser?.username, otherId]
+  )
+
+  const statusText = chatStatus.text
+  const statusColorHeader = statusColor
 
   const headerMenu = createPortal(
     <AnimatePresence onExitComplete={() => setMenuPos(null)}>
@@ -428,11 +602,16 @@ export default function ChatRoom() {
         ) : (
           <>
             <button onClick={openProfile} className="flex items-center gap-3 flex-1 min-w-0">
-              <img
-                src={otherUser?.photos?.[0] || sad}
-                alt=""
-                className="w-10 h-10 rounded-full object-cover"
-              />
+              <div className="relative shrink-0">
+                <img
+                  src={otherUser?.photos?.[0] || sad}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                {presence?.online && !isTyping && (
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-black rounded-full" />
+                )}
+              </div>
               <div className="text-left min-w-0">
                 <div className="flex items-center gap-1">
                   <p className="font-semibold truncate">
@@ -442,7 +621,7 @@ export default function ChatRoom() {
                     <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
                   )}
                 </div>
-                <p className={`text-xs ${statusColor}`}>{statusText}</p>
+                <p className={`text-xs ${statusColorHeader}`}>{statusText}</p>
               </div>
             </button>
             <div className="relative">
@@ -460,7 +639,7 @@ export default function ChatRoom() {
 
       <div
         ref={messagesContainerRef}
-        className={`flex-1 overflow-y-auto px-4 py-4 ${deleteTarget ? 'blur-sm pointer-events-none' : ''}`}
+        className={`flex-1 overflow-y-auto px-4 py-4 ${deleteTarget ? 'pb-52 pointer-events-none' : ''}`}
       >
         {visibleMessages.map((msg) => (
           <MessageBubble
@@ -470,9 +649,16 @@ export default function ChatRoom() {
               onImageClick: setImageViewer,
             }}
             isOwn={msg.senderId === user.uid}
+            currentUserId={user.uid}
             militaryTime={militaryTime}
+            replyAuthorName={msg.replyTo ? getReplyAuthorName(msg.replyTo.senderId) : undefined}
+            highlighted={highlightedMessageId === msg.id}
+            onReply={handleReplyToMessage}
+            onReplyQuoteClick={scrollToMessage}
+            onReactionClick={handleReactToMessage}
             onContextMenu={handleSelectMessageAction}
             onLongPress={handleSelectMessageAction}
+            onMentionClick={handleMentionClick}
           />
         ))}
         <div ref={messagesEndRef} />
@@ -495,17 +681,34 @@ export default function ChatRoom() {
         </div>
       )}
 
+      {!deleteTarget && !iBlockedThem && !theyBlockedMe && unfriended && (
+        <div className="px-4 py-4 border-t border-white/10 bg-black/60 backdrop-blur-xl text-center">
+          <p className="text-white/60 text-sm">You are no longer friends — messaging is disabled</p>
+        </div>
+      )}
+
       {!deleteTarget && !chatFrozen && (
-        <ChatInput
-          key={matchId}
-          focusKey={matchId}
-          onSend={handleSend}
-          onSendVoice={handleSendVoice}
-          onTyping={handleTyping}
-          imagePreview={imagePreview}
-          onImageSelect={handleImageSelect}
-          onClearImage={() => setImagePreview(null)}
-        />
+        <>
+          {isTyping && !isSavedMessages && otherUser && (
+            <div className="px-5 py-2 text-xs text-blue-300/90 italic border-t border-white/[0.06] bg-black/50 backdrop-blur-sm">
+              {otherUser.username} is typing…
+            </div>
+          )}
+          <ChatInput
+            key={matchId}
+            focusKey={matchId}
+            chatId={matchId}
+            onSend={handleSend}
+            onSendVoice={handleSendVoice}
+            onTyping={handleTyping}
+            imagePreview={imagePreview}
+            onImageSelect={handleImageSelect}
+            onClearImage={() => setImagePreview(null)}
+            replyTo={replyTo}
+            replyAuthorName={replyTo ? getReplyAuthorName(replyTo.senderId) : undefined}
+            onClearReply={() => setReplyTo(null)}
+          />
+        </>
       )}
 
       <AnimatePresence>
@@ -515,9 +718,18 @@ export default function ChatRoom() {
             message={deleteTarget.message}
             originRect={deleteTarget.rect}
             isOwn={deleteTarget.message.senderId === user.uid}
+            currentUserId={user.uid}
             militaryTime={militaryTime}
+            replyAuthorName={
+              deleteTarget.message.replyTo
+                ? getReplyAuthorName(deleteTarget.message.replyTo.senderId)
+                : undefined
+            }
             onDelete={handleDeleteMessage}
             onCopy={handleCopyMessage}
+            onReply={handleReplyToMessage}
+            onReact={handleReactToMessage}
+            onMentionClick={handleMentionClick}
             onCancel={() => setDeleteTarget(null)}
           />
         )}
@@ -536,13 +748,13 @@ export default function ChatRoom() {
         loading={confirmLoading}
       />
 
-      <Modal isOpen={showProfile} onClose={closeProfile}>
-        {otherId && (
+      <Modal isOpen={Boolean(profileViewUserId)} onClose={closeProfile}>
+        {profileViewUserId && (
           <PublicProfileView
-            userId={otherId}
+            userId={profileViewUserId}
             onClose={closeProfile}
-            onBlock={handleBlock}
-            fromChat
+            onBlock={profileViewUserId !== user.uid ? handleBlock : undefined}
+            fromChat={profileViewUserId === otherId}
           />
         )}
       </Modal>

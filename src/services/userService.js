@@ -18,6 +18,7 @@ import { ref, set, onDisconnect, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
 import { getCachedUser, setCachedUser, invalidateUser } from './userCache'
 import { buildUsernameBase, normalizeUsername } from '../utils/helpers'
+import { normalizeSocials } from '../utils/socialLinks'
 import { removeChatForUser } from './chatService'
 
 export async function fetchUser(userId) {
@@ -33,6 +34,7 @@ export async function fetchUser(userId) {
     allowDirectMessages: raw.allowDirectMessages === true,
     showFriendCount: raw.showFriendCount !== false,
     useMilitaryTime: raw.useMilitaryTime === true,
+    socials: normalizeSocials(raw.socials),
   }
   setCachedUser(userId, data)
   return data
@@ -48,6 +50,7 @@ export function subscribeToUser(userId, callback) {
         allowDirectMessages: raw.allowDirectMessages === true,
         showFriendCount: raw.showFriendCount !== false,
         useMilitaryTime: raw.useMilitaryTime === true,
+        socials: normalizeSocials(raw.socials),
       }
       setCachedUser(userId, data)
       callback(data)
@@ -63,6 +66,13 @@ export async function checkUsernameAvailable(username, currentUserId) {
   const snap = await getDoc(doc(db, 'usernames', normalized))
   if (!snap.exists()) return true
   return snap.data().userId === currentUserId
+}
+
+export async function getUserIdByUsername(username) {
+  const normalized = normalizeUsername(username)
+  if (normalized.length < 4) return null
+  const snap = await getDoc(doc(db, 'usernames', normalized))
+  return snap.exists() ? snap.data().userId : null
 }
 
 export async function createUserProfile(userId, profileData) {
@@ -180,6 +190,8 @@ export async function recordSwipe(userId, targetId, action, message = null) {
 
 export async function createMatch(uid1, uid2) {
   const matchId = [uid1, uid2].sort().join('_')
+  const chatRef = doc(db, 'chats', matchId)
+  const chatSnap = await getDoc(chatRef)
   const batch = writeBatch(db)
 
   batch.update(doc(db, 'users', uid1), {
@@ -190,12 +202,22 @@ export async function createMatch(uid1, uid2) {
     matches: arrayUnion(uid1),
     [`swipes.${uid1}`]: 'matched',
   })
-  batch.set(doc(db, 'chats', matchId), {
-    participants: [uid1, uid2],
-    createdAt: serverTimestamp(),
-    lastMessage: null,
-    mutedBy: [],
-  })
+
+  if (chatSnap.exists()) {
+    batch.update(chatRef, {
+      unfriended: false,
+      hiddenFor: [],
+    })
+  } else {
+    batch.set(chatRef, {
+      participants: [uid1, uid2],
+      createdAt: serverTimestamp(),
+      lastMessage: null,
+      mutedBy: [],
+      unfriended: false,
+    })
+  }
+
   batch.delete(doc(db, 'users', uid1, 'likesReceived', uid2))
   batch.delete(doc(db, 'users', uid2, 'likesReceived', uid1))
 
@@ -301,6 +323,32 @@ function genderMatchesPreference(userGender, interestedIn) {
 
 function ageInRange(userAge, targetAge, gap = 5) {
   return Math.abs(userAge - targetAge) <= gap
+}
+
+export async function removeMatchKeepChat(userId, targetId) {
+  const matchId = [userId, targetId].sort().join('_')
+  const batch = writeBatch(db)
+
+  batch.update(doc(db, 'users', userId), {
+    matches: arrayRemove(targetId),
+    previousMatches: arrayUnion(targetId),
+    [`swipes.${targetId}`]: deleteField(),
+  })
+  batch.update(doc(db, 'users', targetId), {
+    matches: arrayRemove(userId),
+    previousMatches: arrayUnion(userId),
+    [`swipes.${userId}`]: deleteField(),
+  })
+
+  const chatRef = doc(db, 'chats', matchId)
+  const chatSnap = await getDoc(chatRef)
+  if (chatSnap.exists()) {
+    batch.update(chatRef, { unfriended: true })
+  }
+
+  await batch.commit()
+  invalidateUser(userId)
+  invalidateUser(targetId)
 }
 
 export async function removeMatch(userId, targetId) {

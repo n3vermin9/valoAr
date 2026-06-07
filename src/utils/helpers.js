@@ -2,7 +2,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage, auth } from '../firebase/config'
 
 export const navGlassClass =
-  'rounded-full border border-white/[0.08] bg-white/[0.05] shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]'
+  'rounded-full border border-white/[0.08] bg-white/[0.05] backdrop-blur-lg backdrop-saturate-[1.6] shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]'
 
 export const navGlassMenuClass =
   'border border-white/[0.08] bg-white/[0.05] backdrop-blur-xl backdrop-saturate-[1.8] shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]'
@@ -18,7 +18,7 @@ export const modalGlassClass =
   'rounded-2xl border border-white/[0.08] bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.15)]'
 
 export const navGlassInnerClass =
-  'rounded-full border border-white/[0.18] bg-white/[0.12] backdrop-blur-xl backdrop-saturate-[1.8] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_-1px_0_rgba(255,255,255,0.08),0_2px_12px_rgba(0,0,0,0.15)]'
+  'rounded-full border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm backdrop-saturate-[1.5] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-1px_0_rgba(255,255,255,0.04),0_2px_8px_rgba(0,0,0,0.08)]'
 
 export const contextMenuMotion = {
   initial: { opacity: 0, scale: 0.95, y: -4 },
@@ -26,6 +26,9 @@ export const contextMenuMotion = {
   exit: { opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.08 } },
   transition: { duration: 0.15 },
 }
+
+/** Optional class for non-button tap targets (buttons get tap feedback globally via index.css) */
+export const tapScaleClass = 'tap-scale'
 
 function dataUrlToBlob(dataUrl) {
   const [header, base64] = dataUrl.split(',')
@@ -39,7 +42,7 @@ function dataUrlToBlob(dataUrl) {
 function storageSetupError(error) {
   const code = error?.code || ''
   if (code === 'storage/unauthorized') {
-    return new Error('Photo upload denied. Deploy storage.rules and sign in again.')
+    return new Error('Upload denied. Deploy storage.rules (firebase deploy --only storage) and sign in again.')
   }
   if (code === 'storage/unknown' || code === 'storage/object-not-found' || error?.message?.includes('404')) {
     return new Error(
@@ -52,9 +55,38 @@ function storageSetupError(error) {
 export function formatMessagePreview(data = {}) {
   if (data.text) return data.text
   if (data.imageUrl) return '📷 Photo'
-  if (data.audioUrl) return '🎤 Voice'
+  if (data.audioUrl) return 'Voice message'
   return ''
 }
+
+export function getMessagePreviewText(message = {}) {
+  if (message.text) return message.text
+  if (message.imageUrl) return 'Photo'
+  if (message.audioUrl) return 'Voice message'
+  return 'Message'
+}
+
+export function buildReplyPayload(message) {
+  if (!message?.id) return null
+  return {
+    id: message.id,
+    senderId: message.senderId,
+    text: message.text || null,
+    imageUrl: message.imageUrl || null,
+    audioUrl: message.audioUrl || null,
+  }
+}
+
+export function getChatStatusLabel({ isTyping, presence }) {
+  if (isTyping) return { text: 'typing…', variant: 'typing' }
+  if (presence?.online) return { text: 'online', variant: 'online' }
+  if (presence?.lastSeen) {
+    return { text: `last seen ${formatLastSeen(presence.lastSeen)}`, variant: 'offline' }
+  }
+  return { text: 'offline', variant: 'offline' }
+}
+
+export const MESSAGE_REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🔥']
 
 export function getVoiceMimeType() {
   const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
@@ -199,23 +231,58 @@ export async function uploadChatImage(userId, matchId, base64Image) {
   }
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('Failed to encode voice message'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms)
+    }),
+  ])
+}
+
+async function uploadChatAudioToStorage(userId, matchId, blob) {
+  const ext = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm'
+  const fileName = `${userId}_${Date.now()}.${ext}`
+  const storageRef = ref(storage, `chat-voice/${matchId}/${fileName}`)
+  const contentType = (blob.type || 'audio/webm').split(';')[0]
+
+  return withTimeout(
+    (async () => {
+      await uploadBytes(storageRef, blob, { contentType })
+      return getDownloadURL(storageRef)
+    })(),
+    20000,
+    'Voice upload timed out'
+  )
+}
+
 export async function uploadChatAudio(userId, matchId, blob) {
   if (!auth.currentUser) {
     throw new Error('You must be signed in to send voice messages')
   }
 
-  const bucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET?.trim().replace(/^gs:\/\//, '')
-  if (!bucket) {
-    throw new Error('VITE_FIREBASE_STORAGE_BUCKET is not set in .env')
+  const MAX_INLINE_AUDIO_BYTES = 700_000
+
+  if (blob.size <= MAX_INLINE_AUDIO_BYTES) {
+    return withTimeout(blobToDataUrl(blob), 10000, 'Encoding voice message timed out')
   }
 
-  const ext = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm'
-  const fileName = `${userId}_${Date.now()}.${ext}`
-  const storageRef = ref(storage, `chat-voice/${matchId}/${fileName}`)
+  const bucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET?.trim().replace(/^gs:\/\//, '')
+  if (!bucket) {
+    throw new Error('Recording is too large. Set up Firebase Storage or record a shorter message.')
+  }
 
   try {
-    await uploadBytes(storageRef, blob, { contentType: blob.type || 'audio/webm' })
-    return getDownloadURL(storageRef)
+    return await uploadChatAudioToStorage(userId, matchId, blob)
   } catch (error) {
     throw storageSetupError(error)
   }

@@ -14,6 +14,7 @@ import {
   getDoc,
   writeBatch,
   increment,
+  deleteField,
 } from 'firebase/firestore'
 import { ref, set, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
@@ -218,6 +219,9 @@ export function subscribeChats(userId, callback) {
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((c) => c.participants?.includes(userId) && !c.hiddenFor?.includes(userId))
       .sort((a, b) => {
+        const aPinned = a.pinnedBy?.includes(userId)
+        const bPinned = b.pinnedBy?.includes(userId)
+        if (aPinned !== bPinned) return aPinned ? -1 : 1
         const aTime = a.lastMessage?.createdAt?.toMillis?.() || 0
         const bTime = b.lastMessage?.createdAt?.toMillis?.() || 0
         return bTime - aTime
@@ -234,21 +238,46 @@ export function subscribeMessages(matchId, callback) {
   })
 }
 
-export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl }) {
+export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl, replyTo }) {
   await ensureChatVisible(matchId)
 
   const chatRef = doc(db, 'chats', matchId)
   const chatSnap = await getDoc(chatRef)
-  const isSaved = chatSnap.data()?.isSavedMessages === true
+  const chatData = chatSnap.data()
+  const isSaved = chatData?.isSavedMessages === true
 
-  const msgRef = await addDoc(collection(db, 'chats', matchId, 'messages'), {
+  if (!isSaved && chatData?.unfriended === true) {
+    throw new Error('You can no longer message this user')
+  }
+
+  const otherId = matchId.split('_').find((id) => id !== senderId)
+  if (otherId && chatData?.blockedBy?.includes(otherId)) {
+    throw new Error('You can no longer message this user')
+  }
+  if (otherId && chatData?.blockedBy?.includes(senderId)) {
+    throw new Error('You can no longer message this user')
+  }
+
+  const messageData = {
     senderId,
     text: text || null,
     imageUrl: imageUrl || null,
     audioUrl: audioUrl || null,
     createdAt: serverTimestamp(),
     read: isSaved,
-  })
+  }
+
+  if (replyTo?.id) {
+    messageData.replyTo = {
+      id: replyTo.id,
+      senderId: replyTo.senderId,
+      text: replyTo.text || null,
+      imageUrl: replyTo.imageUrl || null,
+      audioUrl: replyTo.audioUrl || null,
+    }
+  }
+
+  const msgRef = await addDoc(collection(db, 'chats', matchId, 'messages'), messageData)
 
   const recipientId = isSaved ? null : matchId.split('_').find((id) => id !== senderId)
   const preview = formatMessagePreview({ text, imageUrl, audioUrl })
@@ -447,6 +476,36 @@ export async function toggleMuteChat(matchId, userId) {
   return !isMuted
 }
 
+export async function togglePinChat(matchId, userId) {
+  const chatRef = doc(db, 'chats', matchId)
+  const chatSnap = await getDoc(chatRef)
+  const pinnedBy = chatSnap.data()?.pinnedBy || []
+  const isPinned = pinnedBy.includes(userId)
+  await updateDoc(chatRef, {
+    pinnedBy: isPinned ? pinnedBy.filter((id) => id !== userId) : [...pinnedBy, userId],
+  })
+  return !isPinned
+}
+
+export async function setMessageReaction(matchId, messageId, userId, emoji) {
+  const messageRef = doc(db, 'chats', matchId, 'messages', messageId)
+  const snap = await getDoc(messageRef)
+  if (!snap.exists()) return null
+
+  const reactions = { ...(snap.data().reactions || {}) }
+  if (reactions[userId] === emoji) {
+    delete reactions[userId]
+  } else {
+    reactions[userId] = emoji
+  }
+
+  await updateDoc(messageRef, {
+    reactions: Object.keys(reactions).length ? reactions : deleteField(),
+  })
+
+  return reactions[userId] || null
+}
+
 export function setTyping(matchId, userId, isTyping) {
   set(ref(rtdb, `typing/${matchId}/${userId}`), isTyping)
 }
@@ -459,6 +518,54 @@ export function subscribeTyping(matchId, userId, callback) {
   const typingRef = ref(rtdb, `typing/${matchId}/${otherId}`)
   onValue(typingRef, (snap) => callback(!!snap.val()))
   return () => off(typingRef)
+}
+
+export function subscribeChatListActivity(userId, chats, callback) {
+  const typingState = {}
+  const presenceState = {}
+  const cleanups = []
+  const presenceSubscribed = new Set()
+
+  const emit = () => {
+    const result = {}
+    for (const chat of chats) {
+      if (chat.isSavedMessages || chat.id?.startsWith('saved_')) continue
+      const otherId = chat.participants?.find((id) => id !== userId)
+      if (!otherId) continue
+      result[chat.id] = {
+        typing: !!typingState[chat.id],
+        presence: presenceState[otherId] || null,
+      }
+    }
+    callback(result)
+  }
+
+  for (const chat of chats) {
+    const chatId = chat.id
+    if (chat.isSavedMessages || chatId?.startsWith('saved_')) continue
+    const otherId = chat.participants?.find((id) => id !== userId)
+    if (!otherId) continue
+
+    if (!presenceSubscribed.has(otherId)) {
+      presenceSubscribed.add(otherId)
+      const presenceRef = ref(rtdb, `presence/${otherId}`)
+      onValue(presenceRef, (snap) => {
+        presenceState[otherId] = snap.val()
+        emit()
+      })
+      cleanups.push(() => off(presenceRef))
+    }
+
+    const typingRef = ref(rtdb, `typing/${chatId}/${otherId}`)
+    onValue(typingRef, (snap) => {
+      typingState[chatId] = !!snap.val()
+      emit()
+    })
+    cleanups.push(() => off(typingRef))
+  }
+
+  emit()
+  return () => cleanups.forEach((fn) => fn())
 }
 
 export { getMatchId, getSavedMessagesChatId }

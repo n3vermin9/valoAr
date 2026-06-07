@@ -3,13 +3,15 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconCheck, IconChecks, IconBellOff, IconBookmark } from '@tabler/icons-react'
+import { IconCheck, IconChecks, IconBellOff, IconBookmark, IconPin } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeChats,
   getUnreadCount,
   toggleMuteChat,
+  togglePinChat,
   removeChatForUser,
+  subscribeChatListActivity,
 } from '../../services/chatService'
 import { fetchUser, blockUser } from '../../services/userService'
 import { formatChatTime, navGlassMenuClass, isSavedMessagesChat, contextMenuMotion } from '../../utils/helpers'
@@ -28,6 +30,7 @@ export default function ChatList() {
   const [menuPos, setMenuPos] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [chatActivity, setChatActivity] = useState({})
   const listRef = useRef(null)
   const rowRefs = useRef({})
 
@@ -49,6 +52,15 @@ export default function ChatList() {
       setLoading(false)
     })
   }, [user?.uid])
+
+  useEffect(() => {
+    if (!user?.uid || chats.length === 0) {
+      setChatActivity({})
+      return
+    }
+
+    return subscribeChatListActivity(user.uid, chats, setChatActivity)
+  }, [user?.uid, chats])
 
   const updateMenuPosition = useCallback((chatId) => {
     const el = rowRefs.current[chatId]
@@ -92,6 +104,7 @@ export default function ChatList() {
   const selectedChat = chats.find((c) => c.id === selectedChatId)
   const selectedOtherId = selectedChat?.participants.find((id) => id !== user.uid)
   const selectedIsMuted = selectedChat?.mutedBy?.includes(user.uid)
+  const selectedIsPinned = selectedChat?.pinnedBy?.includes(user.uid)
   const selectedOtherUser = selectedOtherId ? users[selectedOtherId] : null
   const selectedIsSaved = isSavedMessagesChat(selectedChat, user?.uid)
   const selectedIsRemoved = !selectedIsSaved && (selectedChat?.opponentRemoved || !selectedOtherUser)
@@ -122,6 +135,26 @@ export default function ChatList() {
     )
     toggleMuteChat(chatId, user.uid).catch(() => {
       toast.error('Failed to update mute')
+    })
+  }
+
+  const handlePinToggle = () => {
+    const chatId = selectedChatId
+    if (!chatId || !user?.uid) return
+    const wasPinned = selectedIsPinned
+    closeMenu()
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c
+        const pinnedBy = c.pinnedBy || []
+        return {
+          ...c,
+          pinnedBy: wasPinned ? pinnedBy.filter((id) => id !== user.uid) : [...pinnedBy, user.uid],
+        }
+      })
+    )
+    togglePinChat(chatId, user.uid).catch(() => {
+      toast.error('Failed to update pin')
     })
   }
 
@@ -172,6 +205,9 @@ export default function ChatList() {
               {selectedIsMuted ? 'Unmute' : 'Mute'}
             </ContextMenuItem>
           )}
+          <ContextMenuItem onClick={handlePinToggle}>
+            {selectedIsPinned ? 'Unpin' : 'Pin chat'}
+          </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {
               closeMenu()
@@ -226,11 +262,15 @@ export default function ChatList() {
             const otherUser = otherId ? users[otherId] : null
             const isRemoved = !isSaved && (chat.opponentRemoved || !otherUser)
             const isMuted = chat.mutedBy?.includes(user.uid)
+            const isPinned = chat.pinnedBy?.includes(user.uid)
             const lastMsg = chat.lastMessage
             const sentByYou = lastMsg?.senderId === user.uid
             const unreadCount = getUnreadCount(chat, user.uid)
             const isSelected = selectedChatId === chat.id
             const menuOpen = !!selectedChatId
+            const activity = chatActivity[chat.id]
+            const isTyping = activity?.typing
+            const isOnline = activity?.presence?.online
 
             return (
               <div
@@ -265,11 +305,16 @@ export default function ChatList() {
                         <IconBookmark size={26} className="text-blue-400" stroke={1.75} />
                       </div>
                     ) : (
-                      <img
-                        src={otherUser?.photos?.[0] || sad}
-                        alt=""
-                        className="w-14 h-14 rounded-full object-cover"
-                      />
+                      <>
+                        <img
+                          src={otherUser?.photos?.[0] || sad}
+                          alt=""
+                          className="w-14 h-14 rounded-full object-cover"
+                        />
+                        {isOnline && !isTyping && (
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-black rounded-full" />
+                        )}
+                      </>
                     )}
                     {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-blue-500 text-white text-xs font-semibold rounded-full flex items-center justify-center">
@@ -288,6 +333,9 @@ export default function ChatList() {
                         {isMuted && (
                           <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
                         )}
+                        {isPinned && (
+                          <IconPin size={14} className="text-blue-400 shrink-0" aria-label="Pinned" />
+                        )}
                       </div>
                       {lastMsg?.createdAt && (
                         <span
@@ -299,25 +347,35 @@ export default function ChatList() {
                     </div>
                     <p
                       className={`text-sm truncate mt-0.5 flex items-center gap-1 ${
-                        unreadCount > 0 ? 'text-white/80 font-medium' : 'text-white/50'
+                        isTyping
+                          ? 'text-blue-300 font-medium italic'
+                          : unreadCount > 0
+                            ? 'text-white/80 font-medium'
+                            : 'text-white/50'
                       }`}
                     >
-                      {sentByYou && (
-                        <span className="inline-flex shrink-0">
-                          {lastMsg?.read ? (
-                            <IconChecks size={14} className="text-blue-400" stroke={2} />
-                          ) : (
-                            <IconCheck size={14} className="text-white/40" stroke={2} />
+                      {isTyping ? (
+                        'typing…'
+                      ) : (
+                        <>
+                          {sentByYou && (
+                            <span className="inline-flex shrink-0 not-italic">
+                              {lastMsg?.read ? (
+                                <IconChecks size={14} className="text-blue-400" stroke={2} />
+                              ) : (
+                                <IconCheck size={14} className="text-white/40" stroke={2} />
+                              )}
+                            </span>
                           )}
-                        </span>
+                          <span className="truncate">
+                            {isSaved
+                              ? lastMsg?.text || 'Save notes and messages here'
+                              : isRemoved
+                                ? 'This account is no longer available'
+                                : lastMsg?.text || 'Start a conversation'}
+                          </span>
+                        </>
                       )}
-                      <span className="truncate">
-                        {isSaved
-                          ? lastMsg?.text || 'Save notes and messages here'
-                          : isRemoved
-                            ? 'This account is no longer available'
-                            : lastMsg?.text || 'Start a conversation'}
-                      </span>
                     </p>
                   </div>
                 </button>

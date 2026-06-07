@@ -2,20 +2,22 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconSettings } from '@tabler/icons-react'
+import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconSettings, IconUserMinus, IconBan } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { fetchUser, recordSwipe, removeMatch, updateUserSettings, acceptLike, subscribeIncomingRequest } from '../../services/userService'
+import { fetchUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, subscribeIncomingRequest, subscribeToUser } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import { shareProfile, getMatchId, formatGenderLabel } from '../../utils/helpers'
+import { shareProfile, getMatchId } from '../../utils/helpers'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
 import MatchHistory from './MatchHistory'
+import ProfileLookingFor from './ProfileLookingFor'
 import Modal from '../ui/Modal'
 import PhotoGallery from '../ui/PhotoGallery'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import CopyableUsername from '../ui/CopyableUsername'
 import ChevronBack from '../ui/ChevronBack'
+import SocialLinksDisplay from './SocialLinksDisplay'
 import { sad } from '../../assets'
 
 export default function ProfileView() {
@@ -167,6 +169,7 @@ export default function ProfileView() {
             {profile.bio || 'No bio yet'}
           </p>
           <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
+          <SocialLinksDisplay socials={profile.socials} />
         </div>
         <InfoRow label="Member Since" value={memberSince} small />
       </div>
@@ -351,35 +354,6 @@ export default function ProfileView() {
   )
 }
 
-function ProfileLookingFor({ gender, interestedIn }) {
-  const genderLabel = formatGenderLabel(gender)
-  const genderClass =
-    gender === 'male'
-      ? 'text-blue-400'
-      : gender === 'female'
-        ? 'text-pink-400'
-        : 'text-white/50'
-
-  let lookingFor = null
-  if (interestedIn === 'both') {
-    lookingFor = <span className="text-white/70">friends</span>
-  } else if (interestedIn === 'women') {
-    lookingFor = <span className="text-pink-400">female friends</span>
-  } else if (interestedIn === 'men') {
-    lookingFor = <span className="text-blue-400">male friends</span>
-  }
-
-  if (!lookingFor) return null
-
-  return (
-    <p className="text-sm text-white/50 mt-3">
-      <span className={genderClass}>{genderLabel}</span>
-      {' looking for '}
-      {lookingFor}
-    </p>
-  )
-}
-
 function InfoRow({ label, value, capitalize, small }) {
   return (
     <div className={`flex justify-between ${small ? 'text-xs text-white/40' : ''}`}>
@@ -390,9 +364,10 @@ function InfoRow({ label, value, capitalize, small }) {
 }
 
 export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }) {
-  const { user, profile: currentProfile, refreshProfile } = useAuth()
+  const { user, profile: currentProfile, refreshProfile, setProfile: setAuthProfile } = useAuth()
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
+  const [viewerProfile, setViewerProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [requesting, setRequesting] = useState(false)
@@ -409,19 +384,32 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
   useEffect(() => {
     setLoading(true)
     setProfile(null)
-    setHasActiveChat(false)
-    setChatResolved(false)
-    fetchUser(userId).then((p) => {
+    const unsub = subscribeToUser(userId, (p) => {
       setProfile(p)
       setLoading(false)
     })
+    return unsub
   }, [userId])
 
   useEffect(() => {
     if (!user?.uid || user.uid === userId) {
+      setViewerProfile(null)
+      return
+    }
+    return subscribeToUser(user.uid, (p) => {
+      setViewerProfile(p)
+      if (p) setAuthProfile(p)
+    })
+  }, [user?.uid, userId, setAuthProfile])
+
+  useEffect(() => {
+    if (!user?.uid || user.uid === userId) {
+      setHasActiveChat(false)
       setChatResolved(true)
       return
     }
+    setChatResolved(false)
+    setHasActiveChat(false)
     const matchId = getMatchId(user.uid, userId)
     return subscribeChat(matchId, (chat) => {
       setHasActiveChat(!!chat && !chat.hiddenFor?.includes(user.uid))
@@ -453,18 +441,18 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
   if (!profile) return <p className="p-6 text-center text-white/60">User not found</p>
 
   const isSelf = user?.uid === userId
+  const me = viewerProfile ?? currentProfile
   const isMatched =
-    currentProfile?.matches?.includes(userId) ||
-    currentProfile?.swipes?.[userId] === 'matched'
+    me?.matches?.includes(userId) ||
+    me?.swipes?.[userId] === 'matched' ||
+    profile?.matches?.includes(user?.uid)
   const allowsDirectMessages = profile?.allowDirectMessages === true
-  const canMessage =
-    !fromChat && (isMatched || hasActiveChat || (!isMatched && allowsDirectMessages))
+  const showMessage = isMatched || hasActiveChat || allowsDirectMessages
   const hasIncomingRequest = !!incomingRequest
-  const showFriendRequest = !isMatched && !hasIncomingRequest
   const showAcceptRequest = !isMatched && hasIncomingRequest
+  const showSendRequest = !isMatched && !hasIncomingRequest && !allowsDirectMessages
   const isMuted = chatData?.mutedBy?.includes(user?.uid)
-  const alreadySwiped = currentProfile?.swipes?.[userId]
-  const friendRequestPending = alreadySwiped === 'like'
+  const friendRequestPending = !isMatched && me?.swipes?.[userId] === 'like'
   const friendCount = profile.matches?.length || 0
   const memberSince = profile.createdAt?.toDate?.()
     ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -505,15 +493,20 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
     onClose?.()
   }
 
-  const handleRemoveMatch = async () => {
+  const handleRemoveMatch = async (mode) => {
     setRemoveMatchLoading(true)
     try {
-      await removeMatch(user.uid, userId)
+      if (mode === 'keep') {
+        await removeMatchKeepChat(user.uid, userId)
+        toast.success('Friend removed — chat history kept')
+      } else {
+        await removeMatch(user.uid, userId)
+        toast.success('Friend removed and chat deleted')
+      }
       await refreshProfile()
-      toast.success('Friend removed')
       setConfirmRemoveMatch(false)
       onClose?.()
-      if (fromChat) navigate('/chats')
+      if (fromChat && mode === 'remove') navigate('/chats')
     } catch {
       toast.error('Failed to remove friend')
     } finally {
@@ -547,8 +540,9 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
                       setShowMenu(false)
                       setConfirmRemoveMatch(true)
                     }}
-                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-white/90 hover:bg-white/5 transition-colors"
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-white/90 hover:bg-white/5 transition-colors flex items-center gap-3"
                   >
+                    <IconUserMinus size={18} stroke={1.75} className="shrink-0 text-white/55" />
                     Remove Friend
                   </button>
                 )}
@@ -558,8 +552,9 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
                       setShowMenu(false)
                       onBlock(userId)
                     }}
-                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-400 hover:bg-white/5 transition-colors"
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-400 hover:bg-white/5 transition-colors flex items-center gap-3"
                   >
+                    <IconBan size={18} stroke={1.75} className="shrink-0 text-red-400" />
                     Block
                   </button>
                 )}
@@ -595,6 +590,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
             {profile.bio || 'No bio yet'}
           </p>
           <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
+          <SocialLinksDisplay socials={profile.socials} />
           {!isSelf && profile.showFriendCount !== false && (
             <p className="text-sm text-white/50 mt-3">
               Has {friendCount} {friendCount === 1 ? 'friend' : 'friends'}
@@ -605,33 +601,36 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
       </div>
 
       {!isSelf && chatResolved && (
-        <div className="flex gap-3 mt-6 flex-wrap">
-          {onClose && (
-            <button onClick={onClose} className="flex-1 min-w-[88px] py-3 bg-white/10 rounded-full">
-              Close
-            </button>
-          )}
+        <div className="flex flex-col gap-3 mt-6">
           {showAcceptRequest && (
             <button
               onClick={handleAcceptRequest}
               disabled={accepting}
-              className="flex-1 min-w-[88px] py-3 bg-green-500 rounded-full disabled:opacity-50"
+              className="w-full py-3 bg-green-500 hover:bg-green-600 rounded-full font-medium disabled:opacity-50"
             >
               {accepting ? 'Accepting...' : 'Accept Request'}
             </button>
           )}
-          {showFriendRequest && (
+          {!showAcceptRequest && showMessage && (
+            <button
+              onClick={handleMessage}
+              className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium"
+            >
+              Message
+            </button>
+          )}
+          {!showAcceptRequest && showSendRequest && (
             <button
               onClick={handleSendFriendRequest}
               disabled={requesting || friendRequestPending}
-              className="flex-1 min-w-[88px] py-3 bg-white/10 rounded-full disabled:opacity-50"
+              className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium disabled:opacity-50"
             >
-              {friendRequestPending ? 'Request Sent' : 'Add Friend'}
+              {friendRequestPending ? 'Request Sent' : requesting ? 'Sending...' : 'Send Request'}
             </button>
           )}
-          {canMessage && (
-            <button onClick={handleMessage} className="flex-1 min-w-[88px] py-3 bg-blue-500 rounded-full">
-              Message
+          {onClose && (
+            <button onClick={onClose} className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-full font-medium">
+              Close
             </button>
           )}
         </div>
@@ -647,16 +646,44 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
         <PhotoGallery photos={profile.photos} onClose={() => setGalleryOpen(false)} />
       )}
 
-      <ConfirmDialog
-        isOpen={confirmRemoveMatch}
-        onClose={() => setConfirmRemoveMatch(false)}
-        onConfirm={handleRemoveMatch}
-        title="Remove friend?"
-        message="This will remove them from your friends and delete the chat for both of you. They won't be blocked."
-        confirmLabel="Remove Friend"
-        danger
-        loading={removeMatchLoading}
-      />
+      <Modal isOpen={confirmRemoveMatch} onClose={() => !removeMatchLoading && setConfirmRemoveMatch(false)} glass>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-2">Remove friend?</h3>
+          <p className="text-white/60 mb-5">Choose what happens to your chat with this person.</p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => handleRemoveMatch('keep')}
+              disabled={removeMatchLoading}
+              className="w-full py-3 rounded-full bg-blue-500/90 border border-blue-400/25 hover:bg-blue-500 transition-colors disabled:opacity-50 font-medium"
+            >
+              {removeMatchLoading ? 'Please wait...' : 'Unfriend — keep chat'}
+            </button>
+            <p className="text-xs text-white/45 -mt-1 px-1">
+              Chat stays visible but neither of you can send new messages.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleRemoveMatch('remove')}
+              disabled={removeMatchLoading}
+              className="w-full py-3 rounded-full bg-red-500/90 border border-red-400/25 hover:bg-red-500 transition-colors disabled:opacity-50 font-medium"
+            >
+              {removeMatchLoading ? 'Please wait...' : 'Unfriend & remove chat'}
+            </button>
+            <p className="text-xs text-white/45 -mt-1 px-1">
+              Deletes the conversation for both of you.
+            </p>
+            <button
+              type="button"
+              onClick={() => setConfirmRemoveMatch(false)}
+              disabled={removeMatchLoading}
+              className="w-full py-3 rounded-full border border-white/[0.1] bg-white/[0.08] hover:bg-white/[0.12] transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -5,18 +5,25 @@ service firebase.storage {
       return request.auth != null && matchId.matches('.*' + request.auth.uid + '.*');
     }
 
+    function isSavedMessagesChat(matchId) {
+      return request.auth != null && matchId == 'saved_' + request.auth.uid;
+    }
+
+    function canAccessChatMedia(matchId) {
+      return request.auth != null
+        && (isChatParticipant(matchId) || isSavedMessagesChat(matchId));
+    }
+
     match /chat-images/{matchId}/{fileName} {
-      allow read: if request.auth != null && isChatParticipant(matchId);
-      allow write: if request.auth != null
-        && isChatParticipant(matchId)
+      allow read: if canAccessChatMedia(matchId);
+      allow write: if canAccessChatMedia(matchId)
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
 
     match /chat-voice/{matchId}/{fileName} {
-      allow read: if request.auth != null && isChatParticipant(matchId);
-      allow write: if request.auth != null
-        && isChatParticipant(matchId)
+      allow read: if canAccessChatMedia(matchId);
+      allow write: if canAccessChatMedia(matchId)
         && request.resource.size < 15 * 1024 * 1024
         && request.resource.contentType.matches('audio/.*');
     }

@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import EmojiPicker from 'emoji-picker-react'
 import toast from 'react-hot-toast'
-import { IconMoodSmile, IconPhoto, IconSend, IconMicrophone } from '@tabler/icons-react'
-import { getVoiceMimeType } from '../../utils/helpers'
+import { IconMoodSmile, IconPhoto, IconSend, IconMicrophone, IconX } from '@tabler/icons-react'
+import { getVoiceMimeType, getMessagePreviewText } from '../../utils/helpers'
+import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
 
 const glassClass =
   'border border-white/[0.06] bg-white/[0.08] backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]'
@@ -10,8 +11,58 @@ const glassClass =
 const actionButtonClass = `${glassClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
 const MAX_VOICE_SECONDS = 180
-const MIN_VOICE_BYTES = 200
-const VOICE_TIMESLICE_MS = 250
+const MIN_VOICE_BYTES = 100
+const STOP_TIMEOUT_MS = 4000
+
+function focusTextarea(ref) {
+  requestAnimationFrame(() => {
+    const el = ref.current
+    if (!el || el.disabled) return
+    el.focus()
+  })
+}
+
+function stopRecorder(recorder, chunks) {
+  return new Promise((resolve) => {
+    if (!recorder || recorder.state === 'inactive') {
+      resolve(new Blob(chunks, { type: 'audio/webm' }))
+      return
+    }
+
+    const mimeType = (recorder.mimeType || getVoiceMimeType() || 'audio/webm').split(';')[0]
+    const collected = [...chunks]
+    let settled = false
+
+    const done = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      recorder.removeEventListener('dataavailable', onData)
+      recorder.removeEventListener('stop', onStop)
+      resolve(new Blob(collected, { type: mimeType }))
+    }
+
+    const onData = (e) => {
+      if (e.data.size > 0) collected.push(e.data)
+    }
+
+    const onStop = () => done()
+
+    const timeout = setTimeout(done, STOP_TIMEOUT_MS)
+
+    recorder.addEventListener('dataavailable', onData)
+    recorder.addEventListener('stop', onStop)
+
+    try {
+      if (typeof recorder.requestData === 'function') {
+        recorder.requestData()
+      }
+      recorder.stop()
+    } catch {
+      done()
+    }
+  })
+}
 
 export default function ChatInput({
   onSend,
@@ -21,6 +72,10 @@ export default function ChatInput({
   onImageSelect,
   onClearImage,
   focusKey,
+  chatId,
+  replyTo,
+  replyAuthorName,
+  onClearReply,
 }) {
   const [text, setText] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -34,113 +89,138 @@ export default function ChatInput({
   const streamRef = useRef(null)
   const chunksRef = useRef([])
   const timerRef = useRef(null)
-  const finishingRef = useRef(false)
+  const busyRef = useRef(false)
+  const draftTimerRef = useRef(null)
 
   const showSend = Boolean(text.trim() || imagePreview)
+
+  useEffect(() => {
+    setText(chatId ? getChatDraft(chatId) : '')
+  }, [chatId, focusKey])
+
+  useEffect(() => {
+    if (!chatId) return
+    clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = setTimeout(() => {
+      setChatDraft(chatId, text)
+    }, 300)
+    return () => clearTimeout(draftTimerRef.current)
+  }, [chatId, text])
 
   const releaseStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
   }, [])
 
-  const resetRecordingState = useCallback(() => {
+  const resetVoiceUi = useCallback(() => {
     clearInterval(timerRef.current)
     timerRef.current = null
+    busyRef.current = false
     mediaRecorderRef.current = null
-    finishingRef.current = false
+    chunksRef.current = []
     setRecording(false)
     setRecordingSeconds(0)
-  }, [])
-
-  const cancelRecording = useCallback(() => {
-    const recorder = mediaRecorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      recorder.onstop = () => {
-        chunksRef.current = []
-        releaseStream()
-        resetRecordingState()
-      }
-      try {
-        recorder.stop()
-      } catch {
-        chunksRef.current = []
-        releaseStream()
-        resetRecordingState()
-      }
-      return
-    }
-    chunksRef.current = []
+    setSendingVoice(false)
     releaseStream()
-    resetRecordingState()
-  }, [releaseStream, resetRecordingState])
+    focusTextarea(textareaRef)
+  }, [releaseStream])
 
   const finishRecording = useCallback(
     async (send) => {
-      if (finishingRef.current) return
+      if (busyRef.current) return
+      busyRef.current = true
 
       const recorder = mediaRecorderRef.current
-      if (!recorder || recorder.state === 'inactive') {
-        if (!send) cancelRecording()
-        return
-      }
+      const chunks = chunksRef.current
 
-      finishingRef.current = true
-      clearInterval(timerRef.current)
-      timerRef.current = null
-
-      const mimeType = recorder.mimeType || getVoiceMimeType() || 'audio/webm'
-
-      const blob = await new Promise((resolve) => {
-        recorder.onstop = () => {
-          const recorded = new Blob(chunksRef.current, { type: mimeType })
-          chunksRef.current = []
-          resolve(recorded)
-        }
-        try {
-          if (typeof recorder.requestData === 'function') {
-            recorder.requestData()
-          }
-          recorder.stop()
-        } catch {
-          resolve(new Blob([], { type: mimeType }))
-        }
-      })
-
-      releaseStream()
-      mediaRecorderRef.current = null
-      setRecording(false)
-      setRecordingSeconds(0)
-      finishingRef.current = false
-
-      if (!send) return
-
-      if (blob.size < MIN_VOICE_BYTES) {
-        toast.error('Recording too short')
-        return
-      }
-
-      setSendingVoice(true)
       try {
-        await onSendVoice?.(blob)
+        clearInterval(timerRef.current)
+        timerRef.current = null
+        setRecording(false)
+
+        const blob = await stopRecorder(recorder, chunks)
+
+        if (!send) return
+
+        if (blob.size < MIN_VOICE_BYTES) {
+          toast.error('Recording too short — hold a little longer')
+          return
+        }
+
+        setSendingVoice(true)
+        if (!onSendVoice) {
+          throw new Error('Voice messages are not available in this chat')
+        }
+        await onSendVoice(blob)
       } catch (err) {
         toast.error(err?.message || 'Failed to send voice message')
       } finally {
-        setSendingVoice(false)
+        resetVoiceUi()
       }
     },
-    [cancelRecording, onSendVoice, releaseStream]
+    [onSendVoice, resetVoiceUi]
   )
 
+  const startRecording = useCallback(async () => {
+    if (busyRef.current || recording || sendingVoice) return
+
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      toast.error('Voice recording is not supported in this browser')
+      return
+    }
+
+    busyRef.current = true
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = getVoiceMimeType()
+      let recorder
+      try {
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      } catch {
+        recorder = new MediaRecorder(stream)
+      }
+
+      chunksRef.current = []
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      streamRef.current = stream
+      mediaRecorderRef.current = recorder
+      recorder.start(200)
+
+      setRecording(true)
+      setRecordingSeconds(0)
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1)
+      }, 1000)
+    } catch {
+      toast.error('Microphone access denied')
+      resetVoiceUi()
+    } finally {
+      busyRef.current = false
+    }
+  }, [recording, sendingVoice, resetVoiceUi])
+
   useEffect(() => {
-    const timer = setTimeout(() => textareaRef.current?.focus(), 0)
+    const timer = setTimeout(() => focusTextarea(textareaRef), 0)
     return () => clearTimeout(timer)
-  }, [focusKey])
+  }, [focusKey, replyTo?.id])
 
   useEffect(() => {
     return () => {
-      cancelRecording()
+      clearInterval(timerRef.current)
+      releaseStream()
+      if (mediaRecorderRef.current?.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop()
+        } catch {
+          // ignore
+        }
+      }
     }
-  }, [cancelRecording])
+  }, [releaseStream])
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -161,65 +241,28 @@ export default function ChatInput({
   }, [text])
 
   useEffect(() => {
-    if (!recording) return
-    if (text.trim()) {
-      cancelRecording()
-    }
-  }, [text, recording, cancelRecording])
-
-  useEffect(() => {
     if (recording && recordingSeconds >= MAX_VOICE_SECONDS) {
       finishRecording(true)
     }
   }, [recording, recordingSeconds, finishRecording])
 
-  const startRecording = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      toast.error('Voice recording is not supported in this browser')
-      return
-    }
-    if (!MediaRecorder) {
-      toast.error('Voice recording is not supported in this browser')
-      return
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = getVoiceMimeType()
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-      chunksRef.current = []
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-      streamRef.current = stream
-      mediaRecorderRef.current = recorder
-      recorder.start(VOICE_TIMESLICE_MS)
-      setRecording(true)
-      setRecordingSeconds(0)
-      timerRef.current = setInterval(() => {
-        setRecordingSeconds((seconds) => seconds + 1)
-      }, 1000)
-    } catch {
-      toast.error('Microphone access denied')
-      cancelRecording()
-    }
-  }
-
   const handleVoiceClick = () => {
-    if (sendingVoice) return
     if (recording) {
       finishRecording(true)
-      return
+    } else {
+      startRecording()
     }
-    startRecording()
   }
 
   const handleSend = () => {
     if (!text.trim() && !imagePreview) return
-    onSend({ text: text.trim(), imageUrl: imagePreview })
+    onSend({ text: text.trim(), imageUrl: imagePreview, replyTo })
     setText('')
+    if (chatId) clearChatDraft(chatId)
     onClearImage?.()
+    onClearReply?.()
     setShowEmoji(false)
+    focusTextarea(textareaRef)
   }
 
   const handleKeyDown = (e) => {
@@ -237,6 +280,27 @@ export default function ChatInput({
 
   return (
     <div className="relative">
+      {replyTo && (
+        <div className="px-4 pb-2">
+          <div className={`${glassClass} flex items-center gap-2 rounded-2xl px-3 py-2`}>
+            <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-2.5">
+              <p className="text-xs font-semibold text-blue-300 truncate">
+                Replying to {replyAuthorName}
+              </p>
+              <p className="text-xs text-white/55 truncate">{getMessagePreviewText(replyTo)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClearReply}
+              className="shrink-0 self-center p-1 text-white/50 hover:text-white rounded-full transition-colors"
+              aria-label="Cancel reply"
+            >
+              <IconX size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {imagePreview && (
         <div className="px-4 pb-2">
           <div className="relative inline-block">
@@ -264,11 +328,11 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="flex items-center gap-2 px-4 py-3">
+      <div className="flex items-end gap-2 px-4 py-3">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className={`${actionButtonClass} text-white/70 hover:text-white`}
+          className={`${actionButtonClass} self-end text-white/70 hover:text-white`}
           disabled={recording || sendingVoice}
         >
           <IconPhoto size={22} />
@@ -285,7 +349,7 @@ export default function ChatInput({
           }}
         />
 
-        <div className={`${glassClass} flex flex-1 items-center gap-1.5 rounded-[30px] pl-2 pr-3 py-2 min-h-11`}>
+        <div className={`${glassClass} flex flex-1 items-end gap-1.5 rounded-[30px] pl-2 pr-3 py-2 min-h-11`}>
           <button
             type="button"
             onClick={() => setShowEmoji(!showEmoji)}
@@ -305,9 +369,14 @@ export default function ChatInput({
             }}
             onBlur={() => onTyping?.(false)}
             onKeyDown={handleKeyDown}
-            placeholder={recording ? `Recording ${formatRecordingTime(recordingSeconds)}…` : 'Type a message...'}
-            className="flex-1 min-w-0 py-0 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto leading-5 max-h-32"
-            disabled={sendingVoice}
+            placeholder={
+              sendingVoice
+                ? 'Sending voice…'
+                : recording
+                  ? `Recording ${formatRecordingTime(recordingSeconds)}… tap mic to send`
+                  : 'Type a message...'
+            }
+            className="flex-1 min-w-0 py-1.5 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto leading-5 max-h-32"
           />
         </div>
 
@@ -315,7 +384,7 @@ export default function ChatInput({
           <button
             type="button"
             onClick={handleSend}
-            className={`${actionButtonClass} text-blue-400 hover:text-blue-300`}
+            className={`${actionButtonClass} self-end text-blue-400 hover:text-blue-300`}
           >
             <IconSend size={20} />
           </button>
@@ -324,7 +393,7 @@ export default function ChatInput({
             type="button"
             onClick={handleVoiceClick}
             disabled={sendingVoice}
-            className={`${actionButtonClass} ${
+            className={`${actionButtonClass} self-end ${
               recording
                 ? 'text-red-400 hover:text-red-300 animate-pulse'
                 : 'text-white/70 hover:text-white'
