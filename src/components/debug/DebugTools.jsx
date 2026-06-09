@@ -10,10 +10,7 @@ import {
   resetAllMatchesForUser,
   suggestUniqueUsername,
 } from '../../services/userService'
-
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min
-}
+import { randomInt, generateRandomCredentials } from '../../utils/devAuth'
 
 function randomPick(list) {
   return list[randomInt(0, list.length - 1)]
@@ -34,9 +31,9 @@ function randomUserData() {
     'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800',
   ]
   const base = randomPick(names) + randomInt(100, 999)
+  const credentials = generateRandomCredentials()
   return {
-    email: `arvolio_${Date.now()}_${randomInt(100, 999)}@mailinator.com`,
-    password: `Arv${randomInt(100000, 999999)}!`,
+    ...credentials,
     usernameSeed: base,
     age: randomInt(18, 40),
     gender: randomPick(['male', 'female']),

@@ -7,7 +7,7 @@ import {
   deleteUser,
 } from 'firebase/auth'
 import { auth } from '../firebase/config'
-import { fetchUser, setupPresence, deleteAccount } from '../services/userService'
+import { fetchUser, fetchDeletedUser, setupPresence, deleteAccount } from '../services/userService'
 import { clearCache } from '../services/userCache'
 
 const AuthContext = createContext(null)
@@ -20,8 +20,27 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser(firebaseUser)
         const userProfile = await fetchUser(firebaseUser.uid)
+        if (!userProfile) {
+          const deleted = await fetchDeletedUser(firebaseUser.uid)
+          if (deleted) {
+            try {
+              await signOut(auth)
+            } catch {
+              // Session may already be cleared.
+            }
+            setUser(null)
+            setProfile(null)
+            clearCache()
+            setLoading(false)
+            return
+          }
+          setUser(firebaseUser)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+        setUser(firebaseUser)
         setProfile(userProfile)
         setupPresence(firebaseUser.uid)
       } else {
@@ -33,7 +52,6 @@ export function AuthProvider({ children }) {
     })
     return unsub
   }, [])
-
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password)
 
   const register = (email, password) => createUserWithEmailAndPassword(auth, email, password)
@@ -50,9 +68,27 @@ export function AuthProvider({ children }) {
   }
 
   const removeAccount = async () => {
-    if (!user || !profile) return
-    await deleteAccount(user.uid, profile.username)
-    await deleteUser(user)
+    if (!user || !profile) throw new Error('Not signed in')
+
+    const currentUser = user
+    await deleteAccount(currentUser.uid, profile.username)
+
+    // Firestore data is gone — always end the session even if auth deletion fails.
+    try {
+      await deleteUser(currentUser)
+    } catch {
+      // e.g. auth/requires-recent-login — sign out below instead.
+    }
+
+    try {
+      await signOut(auth)
+    } catch {
+      // Clear local state even if sign-out fails.
+    }
+
+    setUser(null)
+    setProfile(null)
+    clearCache()
   }
 
   return (

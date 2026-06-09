@@ -14,11 +14,11 @@ import {
   subscribeChatListActivity,
 } from '../../services/chatService'
 import { fetchUser, blockUser } from '../../services/userService'
-import { formatChatTime, navGlassMenuClass, isSavedMessagesChat, contextMenuMotion } from '../../utils/helpers'
+import { formatChatTime, navGlassMenuClass, isSavedMessagesChat, contextMenuMotion, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import { sad } from '../../assets'
+import { sad, logo } from '../../assets'
 
 export default function ChatList() {
   const { user, profile, refreshProfile } = useAuth()
@@ -34,7 +34,7 @@ export default function ChatList() {
   const listRef = useRef(null)
   const rowRefs = useRef({})
 
-  const militaryTime = profile?.useMilitaryTime === true
+  const militaryTime = usesMilitaryTime(profile)
 
   useEffect(() => {
     if (!user?.uid) return
@@ -106,8 +106,11 @@ export default function ChatList() {
   const selectedIsMuted = selectedChat?.mutedBy?.includes(user.uid)
   const selectedIsPinned = selectedChat?.pinnedBy?.includes(user.uid)
   const selectedOtherUser = selectedOtherId ? users[selectedOtherId] : null
+  const selectedOtherUserLoaded = !selectedOtherId || Object.hasOwn(users, selectedOtherId)
   const selectedIsSaved = isSavedMessagesChat(selectedChat, user?.uid)
-  const selectedIsRemoved = !selectedIsSaved && (selectedChat?.opponentRemoved || !selectedOtherUser)
+  const selectedIsRemoved =
+    !selectedIsSaved &&
+    isRemovedChatOpponent(selectedChat, selectedOtherId, selectedOtherUser, selectedOtherUserLoaded)
 
   const closeMenu = () => setSelectedChatId(null)
 
@@ -260,7 +263,12 @@ export default function ChatList() {
             const isSaved = isSavedMessagesChat(chat, user?.uid)
             const otherId = isSaved ? null : chat.participants.find((id) => id !== user.uid)
             const otherUser = otherId ? users[otherId] : null
-            const isRemoved = !isSaved && (chat.opponentRemoved || !otherUser)
+            const otherUserLoaded = !otherId || Object.hasOwn(users, otherId)
+            const isRemoved =
+              !isSaved && isRemovedChatOpponent(chat, otherId, otherUser, otherUserLoaded)
+            const displayName = isRemoved
+              ? getRemovedChatUsername(chat, otherId)
+              : otherUser?.username || 'User'
             const isMuted = chat.mutedBy?.includes(user.uid)
             const isPinned = chat.pinnedBy?.includes(user.uid)
             const lastMsg = chat.lastMessage
@@ -302,16 +310,16 @@ export default function ChatList() {
                   <div className="relative shrink-0">
                     {isSaved ? (
                       <div className="w-14 h-14 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
-                        <IconBookmark size={26} className="text-blue-400" stroke={1.75} />
+                        <img src={logo} alt="Logo" className="w-10 h-10 object-cover" />
                       </div>
                     ) : (
                       <>
                         <img
-                          src={otherUser?.photos?.[0] || sad}
+                          src={isRemoved ? sad : otherUser?.photos?.[0] || sad}
                           alt=""
                           className="w-14 h-14 rounded-full object-cover"
                         />
-                        {isOnline && !isTyping && (
+                        {isOnline && !isTyping && !isRemoved && (
                           <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-black rounded-full" />
                         )}
                       </>
@@ -328,7 +336,7 @@ export default function ChatList() {
                         <p
                           className={`truncate ${unreadCount > 0 ? 'font-bold' : 'font-semibold'} ${isRemoved ? 'text-white/50' : ''}`}
                         >
-                          {isSaved ? 'Saved Messages' : isRemoved ? 'Deleted user' : otherUser.username}
+                          {isSaved ? 'Saved Messages' : displayName}
                         </p>
                         {isMuted && (
                           <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />

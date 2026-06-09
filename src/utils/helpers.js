@@ -1,6 +1,9 @@
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { storage, auth } from '../firebase/config'
 
+export const APP_NAME = 'valoAr'
+export const APP_SLUG = 'valoar'
+
 export const navGlassClass =
   'rounded-full border border-white/[0.08] bg-white/[0.05] backdrop-blur-lg backdrop-saturate-[1.6] shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]'
 
@@ -107,6 +110,22 @@ export function isSavedMessagesChat(chatOrId, userId) {
   return chatOrId?.isSavedMessages === true || chatOrId?.id === getSavedMessagesChatId(userId)
 }
 
+export function isRemovedChatOpponent(chat, otherUserId, otherUser, userLoaded = true) {
+  if (!otherUserId || chat?.isSavedMessages) return false
+  if (chat?.opponentRemoved === true) return true
+  if (chat?.removedUsers?.[otherUserId]) return true
+  if (!userLoaded) return false
+  return otherUser === null
+}
+
+export function getRemovedChatUsername(chat, otherUserId, fallback = 'User') {
+  if (!otherUserId) return fallback
+  const removed = chat?.removedUsers?.[otherUserId]
+  if (typeof removed === 'string' && removed) return removed
+  if (removed?.username) return removed.username
+  return fallback
+}
+
 export function validateUsername(username) {
   if (!username || username.length < 4 || username.length > 20) {
     return 'Username must be 4-20 characters'
@@ -146,7 +165,11 @@ export function formatLastSeen(timestamp) {
   return `${days}d ago`
 }
 
-export function formatChatTime(timestamp, militaryTime = false) {
+export function usesMilitaryTime(profile) {
+  return profile?.useMilitaryTime !== false
+}
+
+export function formatChatTime(timestamp, militaryTime = true) {
   if (!timestamp) return ''
   const date = timestamp.toDate?.() ?? new Date(timestamp)
   const now = new Date()
@@ -175,7 +198,7 @@ export function formatChatTime(timestamp, militaryTime = false) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-export function formatMessageTime(timestamp, militaryTime = false) {
+export function formatMessageTime(timestamp, militaryTime = true) {
   if (!timestamp) return ''
   const date = timestamp.toDate?.() ?? new Date(timestamp)
   const timeOpts = militaryTime
@@ -291,7 +314,7 @@ export async function uploadChatAudio(userId, matchId, blob) {
 export function shareProfile(userId, username) {
   const url = `${window.location.origin}/profile/${userId}`
   if (navigator.share) {
-    return navigator.share({ title: `${username} on ArvoliO`, url })
+    return navigator.share({ title: `${username} on ${APP_NAME}`, url })
   }
   return navigator.clipboard.writeText(url)
 }

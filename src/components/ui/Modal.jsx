@@ -21,20 +21,18 @@ export default function Modal({ isOpen, onClose, children, className = '', glass
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={false}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${
             glass ? 'bg-black/40 backdrop-blur-md' : 'bg-black/50 backdrop-blur-sm'
           }`}
         >
-          <motion.div
-            ref={ref}
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className={panelClass}
-          >
+        <motion.div
+          ref={ref}
+          initial={false}
+          animate={{ scale: 1, opacity: 1 }}
+          className={panelClass}
+        >
             {children}
           </motion.div>
         </motion.div>

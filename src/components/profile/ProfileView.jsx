@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconSettings, IconUserMinus, IconBan } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { fetchUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, subscribeIncomingRequest, subscribeToUser } from '../../services/userService'
+import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, subscribeIncomingRequest, subscribeToUser } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { shareProfile, getMatchId } from '../../utils/helpers'
@@ -34,7 +34,7 @@ export default function ProfileView() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [allowDirectMessages, setAllowDirectMessages] = useState(false)
   const [showFriendCount, setShowFriendCount] = useState(true)
-  const [useMilitaryTime, setUseMilitaryTime] = useState(false)
+  const [useMilitaryTime, setUseMilitaryTime] = useState(true)
 
   useEffect(() => {
     setAllowDirectMessages(profile?.allowDirectMessages === true)
@@ -45,7 +45,7 @@ export default function ProfileView() {
   }, [profile?.showFriendCount])
 
   useEffect(() => {
-    setUseMilitaryTime(profile?.useMilitaryTime === true)
+    setUseMilitaryTime(profile?.useMilitaryTime !== false)
   }, [profile?.useMilitaryTime])
 
   if (!profile) return <LoadingSpinner />
@@ -69,13 +69,14 @@ export default function ProfileView() {
     setDeleting(true)
     try {
       await removeAccount()
-      toast.success('Account deleted')
-      navigate('/login')
     } catch (err) {
-      toast.error(err.message)
-    } finally {
+      toast.error(err.message || 'Failed to delete account')
       setDeleting(false)
+      return
     }
+    setShowDeleteConfirm(false)
+    setShowSettings(false)
+    window.location.href = '/login'
   }
 
   const handleToggleDirectMessages = async () => {
@@ -367,6 +368,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
   const { user, profile: currentProfile, refreshProfile, setProfile: setAuthProfile } = useAuth()
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
+  const [deletedProfile, setDeletedProfile] = useState(null)
   const [viewerProfile, setViewerProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [galleryOpen, setGalleryOpen] = useState(false)
@@ -384,8 +386,17 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
   useEffect(() => {
     setLoading(true)
     setProfile(null)
-    const unsub = subscribeToUser(userId, (p) => {
-      setProfile(p)
+    setDeletedProfile(null)
+    const unsub = subscribeToUser(userId, async (p) => {
+      if (p) {
+        setProfile(p)
+        setDeletedProfile(null)
+        setLoading(false)
+        return
+      }
+      const deleted = await fetchDeletedUser(userId)
+      setProfile(null)
+      setDeletedProfile(deleted)
       setLoading(false)
     })
     return unsub
@@ -438,7 +449,34 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
   }, [showMenu])
 
   if (loading) return <LoadingSpinner />
-  if (!profile) return <p className="p-6 text-center text-white/60">User not found</p>
+  if (!profile && !deletedProfile) return <p className="p-6 text-center text-white/60">User not found</p>
+
+  const isDeleted = !profile && !!deletedProfile
+
+  if (isDeleted) {
+    return (
+      <div className="p-6 relative">
+        <div className="flex flex-col items-center">
+          <img
+            src={sad}
+            alt=""
+            className="w-28 h-28 rounded-full object-cover border-4 border-white/10"
+          />
+          <div className="flex items-center gap-2 mt-3">
+            <h2 className="text-xl font-bold">
+              <CopyableUsername username={deletedProfile.username} className="text-xl font-bold" />
+            </h2>
+          </div>
+          <p className="text-sm text-white/50 mt-1">Account deleted</p>
+        </div>
+        {onClose && (
+          <button onClick={onClose} className="w-full mt-6 py-3 bg-white/10 hover:bg-white/15 rounded-full font-medium">
+            Close
+          </button>
+        )}
+      </div>
+    )
+  }
 
   const isSelf = user?.uid === userId
   const me = viewerProfile ?? currentProfile

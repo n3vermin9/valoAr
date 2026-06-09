@@ -7,6 +7,8 @@ import {
   deleteField,
   collection,
   getDocs,
+  query,
+  where,
   onSnapshot,
   arrayUnion,
   arrayRemove,
@@ -33,7 +35,7 @@ export async function fetchUser(userId) {
     ...raw,
     allowDirectMessages: raw.allowDirectMessages === true,
     showFriendCount: raw.showFriendCount !== false,
-    useMilitaryTime: raw.useMilitaryTime === true,
+    useMilitaryTime: raw.useMilitaryTime !== false,
     socials: normalizeSocials(raw.socials),
   }
   setCachedUser(userId, data)
@@ -49,7 +51,7 @@ export function subscribeToUser(userId, callback) {
         ...raw,
         allowDirectMessages: raw.allowDirectMessages === true,
         showFriendCount: raw.showFriendCount !== false,
-        useMilitaryTime: raw.useMilitaryTime === true,
+        useMilitaryTime: raw.useMilitaryTime !== false,
         socials: normalizeSocials(raw.socials),
       }
       setCachedUser(userId, data)
@@ -96,7 +98,7 @@ export async function createUserProfile(userId, profileData) {
       genderLocked: true,
       allowDirectMessages: false,
       showFriendCount: true,
-      useMilitaryTime: false,
+      useMilitaryTime: true,
       createdAt: serverTimestamp(),
       swipeCount: 0,
     })
@@ -401,24 +403,72 @@ export async function unmatchUser(userId, targetId) {
   await removeMatch(userId, targetId)
 }
 
+export async function fetchDeletedUser(userId) {
+  const snap = await getDoc(doc(db, 'deletedUsers', userId))
+  if (!snap.exists()) return null
+  const data = snap.data()
+  return {
+    id: userId,
+    username: data.username || 'User',
+    deleted: true,
+  }
+}
+
 export async function deleteAccount(userId, username) {
   const userSnap = await getDoc(doc(db, 'users', userId))
-  const matches = userSnap.data()?.matches || []
+  const userData = userSnap.data() || {}
+  const normalizedUsername = normalizeUsername(username || userData.username || '')
+
+  const chatsSnap = await getDocs(
+    query(collection(db, 'chats'), where('participants', 'array-contains', userId))
+  )
 
   const batch = writeBatch(db)
   batch.delete(doc(db, 'users', userId))
-  if (username) batch.delete(doc(db, 'usernames', username))
+  if (normalizedUsername) batch.delete(doc(db, 'usernames', normalizedUsername))
 
-  for (const matchUserId of matches) {
-    const matchId = [userId, matchUserId].sort().join('_')
-    batch.delete(doc(db, 'chats', matchId))
-    batch.update(doc(db, 'users', matchUserId), {
+  batch.set(doc(db, 'deletedUsers', userId), {
+    username: normalizedUsername || 'User',
+    deletedAt: serverTimestamp(),
+  })
+
+  const affectedParticipants = new Set()
+
+  for (const chatDoc of chatsSnap.docs) {
+    const chatData = chatDoc.data()
+    if (chatData.isSavedMessages) continue
+
+    const chatUpdates = {
+      opponentRemoved: true,
+      [`removedUsers.${userId}`]: normalizedUsername || 'User',
+      [`unreadCount.${userId}`]: 0,
+    }
+
+    if (chatData.lastMessage?.senderId === userId) {
+      chatUpdates['lastMessage.read'] = true
+      for (const participantId of chatData.participants || []) {
+        if (participantId !== userId) {
+          chatUpdates[`unreadCount.${participantId}`] = 0
+        }
+      }
+    }
+
+    batch.update(chatDoc.ref, chatUpdates)
+
+    for (const participantId of chatData.participants || []) {
+      if (participantId !== userId) affectedParticipants.add(participantId)
+    }
+  }
+
+  for (const participantId of affectedParticipants) {
+    batch.update(doc(db, 'users', participantId), {
       matches: arrayRemove(userId),
       previousMatches: arrayUnion(userId),
     })
   }
 
   await batch.commit()
+  invalidateUser(userId)
 }
 
 export function setupPresence(userId) {

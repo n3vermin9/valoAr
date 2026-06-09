@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom'
-import { AnimatePresence } from 'framer-motion'
 import { useAuth } from './contexts/AuthContext'
 import BottomNav from './components/layout/BottomNav'
-import PageTransition from './components/layout/PageTransition'
 import Login from './components/auth/Login'
 import Register from './components/auth/Register'
 import ProfileSetup from './components/profile/ProfileSetup'
@@ -50,19 +48,17 @@ function AppLayout() {
   return (
     <div className="h-full">
       <ChatNotifications />
-      <AnimatePresence mode="wait">
-        <PageTransition key={location.pathname}>
-          <Routes location={location}>
-            <Route path="/discover" element={<Discover />} />
-            <Route path="/chats" element={<ChatList />} />
-            <Route path="/chats/:matchId" element={<ChatRoom />} />
-            <Route path="/liked" element={<LikedYou />} />
-            <Route path="/profile" element={<ProfileView />} />
-            <Route path="/debug" element={<DebugTools />} />
-            <Route path="*" element={<Navigate to="/discover" replace />} />
-          </Routes>
-        </PageTransition>
-      </AnimatePresence>
+      <div className="h-full">
+        <Routes location={location}>
+          <Route path="/discover" element={<Discover />} />
+          <Route path="/chats" element={<ChatList />} />
+          <Route path="/chats/:matchId" element={<ChatRoom />} />
+          <Route path="/liked" element={<LikedYou />} />
+          <Route path="/profile" element={<ProfileView />} />
+          <Route path="/debug" element={<DebugTools />} />
+          <Route path="*" element={<Navigate to="/discover" replace />} />
+        </Routes>
+      </div>
       {!hideNav && <BottomNav badges={badges} />}
     </div>
   )

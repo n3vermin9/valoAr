@@ -8,10 +8,12 @@ import {
   declineLike,
   markLikeAsRead,
   fetchUser,
+  fetchDeletedUser,
   getOutgoingRequestIds,
   cancelFriendRequest,
 } from '../../services/userService'
 import { sad, star } from '../../assets'
+import { APP_NAME } from '../../utils/helpers'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import Modal from '../ui/Modal'
@@ -39,14 +41,14 @@ export default function LikedYou() {
       const profileMap = {}
       for (const like of receivedLikes) {
         const fromId = like.fromUserId || like.id
-        profileMap[fromId] = await fetchUser(fromId)
+        profileMap[fromId] = (await fetchUser(fromId)) || (await fetchDeletedUser(fromId))
       }
       setProfiles(profileMap)
       setLoading(false)
 
       if (document.hidden && receivedLikes.some((l) => !l.read)) {
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('ArvoliO', {
+          new Notification(APP_NAME, {
             body: 'Someone wants to be your friend!',
             icon: star,
           })
@@ -77,7 +79,7 @@ export default function LikedYou() {
       setOutgoingLoading(true)
       const profileMap = {}
       for (const id of outgoingIds) {
-        profileMap[id] = await fetchUser(id)
+        profileMap[id] = (await fetchUser(id)) || (await fetchDeletedUser(id))
       }
       if (!cancelled) {
         setOutgoingProfiles(profileMap)
@@ -151,6 +153,7 @@ export default function LikedYou() {
             const fromId = like.fromUserId || like.id
             const p = profiles[fromId]
             if (!p) return null
+            const isDeleted = p.deleted === true
 
             return (
               <div key={fromId} className="p-4 bg-white/5 rounded-2xl border border-white/10">
@@ -160,13 +163,15 @@ export default function LikedYou() {
                     className="flex items-center gap-4 flex-1 min-w-0 text-left"
                   >
                     <img
-                      src={p.photos?.[0] || sad}
+                      src={isDeleted ? sad : p.photos?.[0] || sad}
                       alt=""
                       className="w-16 h-16 rounded-full object-cover shrink-0"
                     />
                     <div className="min-w-0">
                       <p className="font-semibold truncate">{p.username}</p>
-                      <p className="text-sm text-white/50">{p.age} years old</p>
+                      <p className="text-sm text-white/50">
+                        {isDeleted ? 'Account deleted' : `${p.age} years old`}
+                      </p>
                     </div>
                   </button>
                   <div className="flex gap-2 shrink-0">
@@ -177,13 +182,15 @@ export default function LikedYou() {
                     >
                       <IconX size={22} className="text-red-400" />
                     </button>
-                    <button
-                      onClick={() => handleAccept(fromId)}
-                      className="w-12 h-12 rounded-full bg-white/10 hover:bg-green-500/20 flex items-center justify-center border border-white/10"
-                      aria-label="Accept"
-                    >
-                      <IconHeart size={22} className="text-green-400" />
-                    </button>
+                    {!isDeleted && (
+                      <button
+                        onClick={() => handleAccept(fromId)}
+                        className="w-12 h-12 rounded-full bg-white/10 hover:bg-green-500/20 flex items-center justify-center border border-white/10"
+                        aria-label="Accept"
+                      >
+                        <IconHeart size={22} className="text-green-400" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -218,6 +225,7 @@ export default function LikedYou() {
               {outgoingIds.map((targetId) => {
                 const p = outgoingProfiles[targetId]
                 if (!p) return null
+                const isDeleted = p.deleted === true
                 return (
                   <div
                     key={targetId}
@@ -231,13 +239,15 @@ export default function LikedYou() {
                       className="flex items-center gap-3 flex-1 min-w-0 text-left"
                     >
                       <img
-                        src={p.photos?.[0] || sad}
+                        src={isDeleted ? sad : p.photos?.[0] || sad}
                         alt=""
                         className="w-12 h-12 rounded-full object-cover shrink-0"
                       />
                       <div className="min-w-0">
                         <p className="font-medium truncate">{p.username}</p>
-                        <p className="text-xs text-white/50">Pending</p>
+                        <p className="text-xs text-white/50">
+                          {isDeleted ? 'Account deleted' : 'Pending'}
+                        </p>
                       </div>
                     </button>
                     <button

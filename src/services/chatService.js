@@ -47,9 +47,16 @@ export async function syncRemovedOpponentChat(matchId, userId, otherUserId) {
 
   if (!hasUnread && data?.opponentRemoved) return null
 
+  let removedUsername = data?.removedUsers?.[otherUserId]
+  if (!removedUsername) {
+    const deletedSnap = await getDoc(doc(db, 'deletedUsers', otherUserId))
+    removedUsername = deletedSnap.data()?.username || 'User'
+  }
+
   const updates = {
     [`unreadCount.${userId}`]: 0,
     opponentRemoved: true,
+    [`removedUsers.${otherUserId}`]: removedUsername,
   }
   if (data?.lastMessage?.senderId === otherUserId) {
     updates['lastMessage.read'] = true
@@ -61,6 +68,7 @@ export async function syncRemovedOpponentChat(matchId, userId, otherUserId) {
     id: matchId,
     unreadCount: { ...data?.unreadCount, [userId]: 0 },
     opponentRemoved: true,
+    removedUsers: { ...data?.removedUsers, [otherUserId]: removedUsername },
     lastMessage: data?.lastMessage?.senderId === otherUserId
       ? { ...data.lastMessage, read: true }
       : data?.lastMessage,
@@ -248,6 +256,9 @@ export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl,
 
   if (!isSaved && chatData?.unfriended === true) {
     throw new Error('You can no longer message this user')
+  }
+  if (!isSaved && chatData?.opponentRemoved === true) {
+    throw new Error('This account has been deleted')
   }
 
   const otherId = matchId.split('_').find((id) => id !== senderId)

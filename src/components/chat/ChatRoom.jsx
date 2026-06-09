@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconDotsVertical, IconBellOff, IconBookmark } from '@tabler/icons-react'
+import { IconDotsVertical, IconBellOff } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeMessages,
@@ -27,7 +27,7 @@ import {
   subscribeToUser,
   getUserIdByUsername,
 } from '../../services/userService'
-import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, headerMenuGlassClass, contextMenuMotion, normalizeUsername } from '../../utils/helpers'
+import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, headerMenuGlassClass, contextMenuMotion, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
 import ChevronBack from '../ui/ChevronBack'
 import MessageBubble from './MessageBubble'
 import DeleteMessageOverlay from './DeleteMessageOverlay'
@@ -37,7 +37,7 @@ import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { PublicProfileView } from '../profile/ProfileView'
 import LoadingSpinner from '../ui/LoadingSpinner'
-import { sad } from '../../assets'
+import { sad, logo } from '../../assets'
 
 export default function ChatRoom() {
   const { matchId } = useParams()
@@ -47,6 +47,7 @@ export default function ChatRoom() {
   const { user, profile, refreshProfile } = useAuth()
   const [messages, setMessages] = useState([])
   const [otherUser, setOtherUser] = useState(null)
+  const [otherUserLoaded, setOtherUserLoaded] = useState(false)
   const [chatMeta, setChatMeta] = useState(null)
   const [chatAvailable, setChatAvailable] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -79,9 +80,15 @@ export default function ChatRoom() {
   const iBlockedThem = !isSavedMessages && profile?.blocked?.includes(otherId)
   const theyBlockedMe = !isSavedMessages && chatMeta?.blockedBy?.includes(otherId) && !iBlockedThem
   const unfriended = !isSavedMessages && chatMeta?.unfriended === true
-  const chatFrozen = !isSavedMessages && (iBlockedThem || theyBlockedMe || unfriended)
+  const opponentRemoved =
+    !isSavedMessages &&
+    isRemovedChatOpponent(chatMeta, otherId, otherUser, otherUserLoaded)
+  const otherDisplayName = opponentRemoved
+    ? getRemovedChatUsername(chatMeta, otherId)
+    : otherUser?.username || 'User'
+  const chatFrozen = !isSavedMessages && (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)
   const isMuted = chatMeta?.mutedBy?.includes(user.uid)
-  const militaryTime = profile?.useMilitaryTime === true
+  const militaryTime = usesMilitaryTime(profile)
 
   useEffect(() => {
     if (!matchId || !user?.uid) return
@@ -92,7 +99,11 @@ export default function ChatRoom() {
 
   useEffect(() => {
     if (!otherId || isSavedMessages) return
-    return subscribeToUser(otherId, setOtherUser)
+    setOtherUserLoaded(false)
+    return subscribeToUser(otherId, (userData) => {
+      setOtherUser(userData)
+      setOtherUserLoaded(true)
+    })
   }, [otherId, isSavedMessages])
 
   useEffect(() => {
@@ -412,9 +423,9 @@ export default function ChatRoom() {
     (senderId) => {
       if (senderId === user?.uid) return 'You'
       if (isSavedMessages) return 'Saved Messages'
-      return otherUser?.username || 'User'
+      return otherDisplayName
     },
-    [user?.uid, isSavedMessages, otherUser?.username]
+    [user?.uid, isSavedMessages, otherDisplayName]
   )
 
   useEffect(() => {
@@ -438,7 +449,9 @@ export default function ChatRoom() {
     })
   }, [])
 
-  const chatStatus = getChatStatusLabel({ isTyping, presence })
+  const chatStatus = opponentRemoved
+    ? { text: 'Account deleted', variant: 'offline' }
+    : getChatStatusLabel({ isTyping, presence })
   const statusColor =
     chatStatus.variant === 'typing'
       ? 'text-blue-300'
@@ -592,7 +605,7 @@ export default function ChatRoom() {
         {isSavedMessages ? (
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="w-10 h-10 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center shrink-0">
-              <IconBookmark size={20} className="text-blue-400" stroke={1.75} />
+              <img src={logo} alt="Logo" className="w-8 h-8 object-cover" />
             </div>
             <div className="text-left min-w-0">
               <p className="font-semibold truncate">Saved Messages</p>
@@ -604,18 +617,18 @@ export default function ChatRoom() {
             <button onClick={openProfile} className="flex items-center gap-3 flex-1 min-w-0">
               <div className="relative shrink-0">
                 <img
-                  src={otherUser?.photos?.[0] || sad}
+                  src={opponentRemoved ? sad : otherUser?.photos?.[0] || sad}
                   alt=""
                   className="w-10 h-10 rounded-full object-cover"
                 />
-                {presence?.online && !isTyping && (
+                {presence?.online && !isTyping && !opponentRemoved && (
                   <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-black rounded-full" />
                 )}
               </div>
               <div className="text-left min-w-0">
                 <div className="flex items-center gap-1">
                   <p className="font-semibold truncate">
-                    {otherUser?.username || 'User'}
+                    {otherDisplayName}
                   </p>
                   {isMuted && (
                     <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
@@ -681,15 +694,21 @@ export default function ChatRoom() {
         </div>
       )}
 
-      {!deleteTarget && !iBlockedThem && !theyBlockedMe && unfriended && (
+      {!deleteTarget && !iBlockedThem && !theyBlockedMe && unfriended && !opponentRemoved && (
         <div className="px-4 py-4 border-t border-white/10 bg-black/60 backdrop-blur-xl text-center">
           <p className="text-white/60 text-sm">You are no longer friends — messaging is disabled</p>
         </div>
       )}
 
+      {!deleteTarget && opponentRemoved && (
+        <div className="px-4 py-4 border-t border-white/10 bg-black/60 backdrop-blur-xl text-center">
+          <p className="text-white/60 text-sm">This account has been deleted — messaging is disabled</p>
+        </div>
+      )}
+
       {!deleteTarget && !chatFrozen && (
         <>
-          {isTyping && !isSavedMessages && otherUser && (
+          {isTyping && !isSavedMessages && otherUser && !opponentRemoved && (
             <div className="px-5 py-2 text-xs text-blue-300/90 italic border-t border-white/[0.06] bg-black/50 backdrop-blur-sm">
               {otherUser.username} is typing…
             </div>

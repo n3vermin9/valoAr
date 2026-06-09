@@ -13,7 +13,6 @@ const tabs = [
 
 const pillSpring = { type: 'spring', stiffness: 420, damping: 34 }
 const tabSpring = { type: 'spring', stiffness: 480, damping: 24 }
-const tabTap = { scale: 0.86 }
 
 export default function BottomNav({ badges = {} }) {
   const location = useLocation()
@@ -111,7 +110,6 @@ export default function BottomNav({ badges = {} }) {
                 onDoubleClick={() => {
                   if (isChatsTab) navigate('/debug')
                 }}
-                whileTap={tabTap}
                 transition={{ type: 'spring', stiffness: 520, damping: 28 }}
                 className="no-tap-scale relative flex-1 flex flex-col items-center justify-center py-3 z-10 min-h-[52px]"
                 aria-label={tab.label}

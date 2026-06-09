@@ -1,4 +1,4 @@
-# ArvoliO
+# valoAr
 
 A modern dating app built with React, Vite, Tailwind CSS, and Firebase.
 

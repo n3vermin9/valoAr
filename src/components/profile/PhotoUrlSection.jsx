@@ -1,6 +1,38 @@
 import { useState, useEffect } from 'react'
 import { IconPlus } from '@tabler/icons-react'
 
+export const SAMPLE_PROFILE_PHOTOS = [
+  'https://uztag.info/upload/resize_cache/iblock/734/554_350_2/734006f0c865c4cb23f0fca35ac72f63.jpg',
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT2kaC5zyrWmhTzl6TPzIvI5USiu08kBMKCHw&s',
+  'https://toc.h-cdn.co/assets/16/09/1600x1600/square-1456787230-gettyimages-168599144-1.jpg',
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSUpXk8E9Jo-5ep79TH13BTxFXIWTMem-3Mug&s',
+]
+
+function SamplePhotoPicker({ photos, updatePhoto }) {
+  return (
+    <div className="mb-4">
+      <p className="text-xs text-white/40 mb-2">Sample photos</p>
+      <div className="grid grid-cols-4 gap-2">
+        {SAMPLE_PROFILE_PHOTOS.map((url) => {
+          const selected = photos[0] === url
+          return (
+            <button
+              key={url}
+              type="button"
+              onClick={() => updatePhoto(0, url)}
+              className={`rounded-xl overflow-hidden border-2 transition-colors ${
+                selected ? 'border-blue-500' : 'border-white/10 hover:border-white/25'
+              }`}
+            >
+              <img src={url} alt="" className="w-full aspect-square object-cover" />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function PhotoPreview({ url, single, onRemove, onError }) {
   if (!url.trim()) return null
 
@@ -59,12 +91,15 @@ export default function PhotoUrlSection({
   updatePhoto,
   visiblePhotoSlots,
   setVisiblePhotoSlots,
+  showSamplePhotos = false,
 }) {
   const filledInVisible = photos.slice(0, visiblePhotoSlots).filter((url) => url.trim()).length
 
   return (
     <div>
       <label className="text-sm text-white/60 mb-3 block">Profile Photo</label>
+
+      {showSamplePhotos && <SamplePhotoPicker photos={photos} updatePhoto={updatePhoto} />}
 
       {Array.from({ length: visiblePhotoSlots }).map((_, i) => {
         const hasPreview = photos[i]?.trim()

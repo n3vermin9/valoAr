@@ -95,6 +95,7 @@ export default function ProfileSetup() {
           updatePhoto={updatePhoto}
           visiblePhotoSlots={visiblePhotoSlots}
           setVisiblePhotoSlots={setVisiblePhotoSlots}
+          showSamplePhotos
         />
 
         <div>
