@@ -21,6 +21,17 @@ import { db, rtdb } from '../firebase/config'
 import { getMatchId, getSavedMessagesChatId, formatMessagePreview } from '../utils/helpers'
 import { invalidateUser } from './userCache'
 
+export function getChatSortTime(chat, userId) {
+  const lastMsgTime = chat.lastMessage?.createdAt?.toMillis?.()
+  if (lastMsgTime) return lastMsgTime
+
+  const openedAt = chat.lastOpenedAt?.[userId]
+  const openedTime = openedAt?.toMillis?.() ?? (typeof openedAt === 'number' ? openedAt : 0)
+  if (openedTime) return openedTime
+
+  return chat.createdAt?.toMillis?.() ?? 0
+}
+
 export function getUnreadCount(chat, userId) {
   if (chat.isSavedMessages) return 0
   if (chat.opponentRemoved) return 0
@@ -95,13 +106,15 @@ async function buildChatPreviewFromMessages(matchId, participants) {
     return { lastMessage: null, unreadCount }
   }
 
-  const latest = allSnap.docs[allSnap.docs.length - 1].data()
+  const latestDoc = allSnap.docs[allSnap.docs.length - 1]
+  const latest = latestDoc.data()
   return {
     lastMessage: {
       text: formatMessagePreview(latest),
       senderId: latest.senderId,
       createdAt: latest.createdAt,
       read: latest.read ?? false,
+      messageId: latestDoc.id,
     },
     unreadCount,
   }
@@ -222,6 +235,8 @@ export async function ensureSavedMessagesChat(userId) {
 export function subscribeChats(userId, callback) {
   ensureSavedMessagesChat(userId).catch(() => {})
 
+  let hydrateGeneration = 0
+
   return onSnapshot(collection(db, 'chats'), (snap) => {
     const chats = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
@@ -230,12 +245,14 @@ export function subscribeChats(userId, callback) {
         const aPinned = a.pinnedBy?.includes(userId)
         const bPinned = b.pinnedBy?.includes(userId)
         if (aPinned !== bPinned) return aPinned ? -1 : 1
-        const aTime = a.lastMessage?.createdAt?.toMillis?.() || 0
-        const bTime = b.lastMessage?.createdAt?.toMillis?.() || 0
-        return bTime - aTime
+        return getChatSortTime(b, userId) - getChatSortTime(a, userId)
       })
 
-    hydrateChatsForUser(userId, chats).then(callback)
+    const generation = ++hydrateGeneration
+    hydrateChatsForUser(userId, chats).then((hydrated) => {
+      if (generation !== hydrateGeneration) return
+      callback(hydrated)
+    })
   })
 }
 
@@ -415,14 +432,6 @@ export async function removeChatForUser(matchId, userId) {
   await batch.commit()
 }
 
-export async function restoreChat(matchId) {
-  const chatRef = doc(db, 'chats', matchId)
-  const chatSnap = await getDoc(chatRef)
-  if (!chatSnap.exists()) return false
-  await updateDoc(chatRef, { hiddenFor: [] })
-  return true
-}
-
 async function ensureChatVisible(matchId) {
   const chatRef = doc(db, 'chats', matchId)
   const chatSnap = await getDoc(chatRef)
@@ -459,6 +468,29 @@ async function ensureChatVisible(matchId) {
   if (hiddenFor.length > 0) {
     await updateDoc(chatRef, { hiddenFor: [] })
   }
+}
+
+export async function restoreChat(matchId) {
+  const chatRef = doc(db, 'chats', matchId)
+  const chatSnap = await getDoc(chatRef)
+  if (!chatSnap.exists()) return false
+  await updateDoc(chatRef, { hiddenFor: [] })
+  return true
+}
+
+/** Bump empty chats to the top of the list when starting a conversation. */
+export async function touchChatActivity(matchId, userId) {
+  if (!matchId || !userId || matchId.startsWith('saved_')) return
+
+  await ensureChatVisible(matchId)
+
+  const chatRef = doc(db, 'chats', matchId)
+  const chatSnap = await getDoc(chatRef)
+  if (!chatSnap.exists() || chatSnap.data()?.lastMessage) return
+
+  await updateDoc(chatRef, {
+    [`lastOpenedAt.${userId}`]: serverTimestamp(),
+  })
 }
 
 export function subscribeChat(matchId, callback) {

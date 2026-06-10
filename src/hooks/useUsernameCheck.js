@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { checkUsernameAvailable } from '../services/userService'
+import { getUsernameAvailability } from '../services/userService'
 import { normalizeUsername, validateUsername } from '../utils/helpers'
 
 export function useUsernameCheck(username, currentUserId, enabled = true) {
@@ -25,9 +25,12 @@ export function useUsernameCheck(username, currentUserId, enabled = true) {
     setStatus('checking')
     const timer = setTimeout(async () => {
       try {
-        const available = await checkUsernameAvailable(normalized, currentUserId)
+        const { available, error: availabilityError } = await getUsernameAvailability(
+          normalized,
+          currentUserId
+        )
         setStatus(available ? 'available' : 'taken')
-        setError(available ? null : 'Username is taken')
+        setError(available ? null : availabilityError || 'Username is taken')
       } catch {
         setStatus('error')
         setError('Could not check username')

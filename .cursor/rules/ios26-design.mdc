@@ -1,0 +1,47 @@
+---
+description: iOS/iPadOS 26 Liquid Glass design system — tokens, structure, and Figma reference
+alwaysApply: true
+---
+
+# iOS 26 Design System (ArvoliO)
+
+**Reference Figma kit:** https://www.figma.com/community/file/1527721578857867021/ios-and-ipados-26
+
+Use Apple's iOS & iPadOS 26 UI kit as the source of truth for layout, materials, radii, and typography.
+
+## Architecture
+
+| Layer | Material | Examples |
+|-------|----------|----------|
+| Navigation | Liquid Glass | Tab bar, toolbars, menus, toasts, modals |
+| Content | Solid backgrounds | Lists, messages, cards, media |
+
+- Tokens: `src/styles/ios26-tokens.css` (CSS variables)
+- Class compositions: `src/utils/designSystem.js`
+- Layout: `PageShell`, `GlassNavBar`, `BottomNav`
+- Controls: `Button`, `TextField` in `src/components/ui/`
+
+## Rules
+
+1. **Liquid Glass only on navigation** — never glass on list rows, message bubbles, or media.
+2. **Concentric radii** — capsules for buttons/tab bar; 16–20px for menus/cards; use `--ios-radius-*` tokens.
+3. **Spacing** — 16–20px horizontal page inset (`--ios-page-x`, `--ios-page-x-lg`); 44px min touch targets.
+4. **Typography** — SF system stack (`--ios-font`); Large Title 28–34px for page headers; Body 17px; Subhead 15px.
+5. **Colors** — use `--ios-blue`, `--ios-red`, `--ios-label-*`; avoid ad-hoc hex in components.
+6. **Safe areas** — respect `--ios-safe-top/bottom`; floating tab bar uses `--ios-nav-clearance`.
+
+## Import pattern
+
+```js
+// UI classes
+import { navGlassMenuClass, btnFilledClass, listRowClass } from '../utils/designSystem'
+// App logic stays in helpers
+import { formatChatTime } from '../utils/helpers'
+```
+
+## New screens
+
+- Wrap tab screens in `PageShell` with `title` prop.
+- Use `GlassNavBar` for in-flow navigation headers (chat room, etc.).
+- Dropdowns: `dropdownMenuClass` + `navGlassMenuClass` + icon menu item classes.
+- Primary actions: `Button` variant `filled`; destructive: `danger`; secondary: `bordered`.

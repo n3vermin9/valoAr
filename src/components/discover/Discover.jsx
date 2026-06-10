@@ -7,6 +7,7 @@ import {
   recordSwipe,
   searchUsersByUsername,
   subscribeLikesReceived,
+  patchProfileAfterSwipe,
 } from '../../services/userService'
 import SwipeCard from './SwipeCard'
 import LikeMessageModal from './LikeMessageModal'
@@ -18,7 +19,7 @@ import { PublicProfileView } from '../profile/ProfileView'
 import ChevronBack from '../ui/ChevronBack'
 
 export default function Discover() {
-  const { user, profile, refreshProfile } = useAuth()
+  const { user, profile, setProfile } = useAuth()
   const [profiles, setProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -57,7 +58,7 @@ export default function Discover() {
   const alreadyLikedYou = currentProfile && likedYouIds.has(currentProfile.id)
   const alreadyMatched = currentProfile && profile?.matches?.includes(currentProfile.id)
 
-  const handleSwipe = async (action, message = null) => {
+  const handleSwipe = (action, message = null) => {
     if (!currentProfile) return
     if (alreadyMatched) {
       toast.error('You are already friends with this user!')
@@ -67,14 +68,15 @@ export default function Discover() {
       toast.error('They already sent you a request! Check Friend Requests.')
       return
     }
-    try {
-      await recordSwipe(user.uid, currentProfile.id, action, message)
-      await refreshProfile()
-      setCurrentIndex((i) => i + 1)
-      if (action === 'like') toast.success('Friend request sent!')
-    } catch (err) {
-      toast.error(err.message)
-    }
+
+    const targetId = currentProfile.id
+    setCurrentIndex((i) => i + 1)
+    setProfile((prev) => patchProfileAfterSwipe(prev, targetId, action))
+    if (action === 'like') toast.success('Friend request sent!')
+
+    recordSwipe(user.uid, targetId, action, message).catch((err) => {
+      toast.error(err.message || 'Failed to save swipe')
+    })
   }
 
   const handleLikeWithMessage = (message) => {
@@ -126,7 +128,7 @@ export default function Discover() {
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
-        const results = await searchUsersByUsername(normalized)
+        const results = await searchUsersByUsername(normalized, profile)
         if (!cancelled) setSearchResults(results)
       } catch {
         if (!cancelled) setSearchResults([])

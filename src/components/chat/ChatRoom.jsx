@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconDotsVertical, IconBellOff } from '@tabler/icons-react'
+import { IconDotsVertical, IconBellOff, IconBell, IconTrash } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeMessages,
@@ -18,6 +18,7 @@ import {
   getUnreadCount,
   ensureSavedMessagesChat,
   setMessageReaction,
+  touchChatActivity,
 } from '../../services/chatService'
 import {
   fetchUser,
@@ -27,7 +28,9 @@ import {
   subscribeToUser,
   getUserIdByUsername,
 } from '../../services/userService'
-import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, headerMenuGlassClass, contextMenuMotion, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
+import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass } from '../../utils/designSystem'
+import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
 import MessageBubble from './MessageBubble'
 import DeleteMessageOverlay from './DeleteMessageOverlay'
@@ -96,6 +99,11 @@ export default function ChatRoom() {
       ensureSavedMessagesChat(user.uid).catch(() => {})
     }
   }, [matchId, user?.uid])
+
+  useEffect(() => {
+    if (!matchId || !user?.uid || isSavedMessages) return
+    touchChatActivity(matchId, user.uid).catch(() => {})
+  }, [matchId, user?.uid, isSavedMessages, isDraft])
 
   useEffect(() => {
     if (!otherId || isSavedMessages) return
@@ -569,12 +577,15 @@ export default function ChatRoom() {
           key="chat-header-menu"
           data-chat-header-menu
           {...contextMenuMotion}
-          className={`fixed z-[80] min-w-[200px] py-1 rounded-xl overflow-hidden ${headerMenuGlassClass}`}
+          className={`fixed z-[80] ${dropdownMenuClass} ${navGlassMenuClass}`}
           style={{ top: menuPos.top, right: menuPos.right }}
           onClick={(e) => e.stopPropagation()}
         >
-          <MenuItem onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</MenuItem>
+          <MenuItem icon={isMuted ? IconBell : IconBellOff} onClick={handleMute}>
+            {isMuted ? 'Unmute' : 'Mute'}
+          </MenuItem>
           <MenuItem
+            icon={IconTrash}
             onClick={() => {
               setShowMenu(false)
               setConfirmAction('removeChat')
@@ -600,7 +611,7 @@ export default function ChatRoom() {
   return (
     <div className="h-full flex flex-col pb-4">
       {headerMenu}
-      <div className="relative z-20 flex items-center gap-2 px-4 py-3 bg-black/60 backdrop-blur-xl border-b border-white/10">
+      <GlassNavBar>
         <ChevronBack onClick={() => navigate('/chats')} />
         {isSavedMessages ? (
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -642,13 +653,14 @@ export default function ChatRoom() {
                 ref={menuButtonRef}
                 onClick={() => setShowMenu((open) => !open)}
                 className="p-2 hover:bg-white/10 rounded-full"
+                aria-label="Chat options"
               >
                 <IconDotsVertical size={20} />
               </button>
             </div>
           </>
         )}
-      </div>
+      </GlassNavBar>
 
       <div
         ref={messagesContainerRef}
@@ -781,16 +793,15 @@ export default function ChatRoom() {
   )
 }
 
-function MenuItem({ children, onClick, danger = false }) {
+function MenuItem({ children, onClick, icon: Icon, danger = false }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full px-4 py-2.5 text-left text-sm font-medium transition-colors duration-75 ${
-        danger
-          ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10 active:bg-red-500/20 active:text-red-200'
-          : 'text-white/90 hover:text-white hover:bg-white/[0.08] active:bg-white/[0.14]'
-      }`}
+      className={danger ? dropdownMenuItemWithIconDangerClass : dropdownMenuItemWithIconClass}
     >
+      {Icon && (
+        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-red-400' : 'text-white/55'}`} />
+      )}
       {children}
     </button>
   )

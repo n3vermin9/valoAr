@@ -4,34 +4,35 @@ import { storage, auth } from '../firebase/config'
 export const APP_NAME = 'valoAr'
 export const APP_SLUG = 'valoar'
 
-export const navGlassClass =
-  'rounded-full border border-white/[0.08] bg-white/[0.05] backdrop-blur-lg backdrop-saturate-[1.6] shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]'
-
-export const navGlassMenuClass =
-  'border border-white/[0.08] bg-white/[0.05] backdrop-blur-xl backdrop-saturate-[1.8] shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]'
-
-/** Chat header ⋮ menu — darker glass so blur reads over message content */
-export const headerMenuGlassClass =
-  'border border-white/[0.08] bg-black/70 backdrop-blur-xl backdrop-saturate-[1.8] shadow-[0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.15)]'
-
-export const notificationGlassClass =
-  'rounded-full border border-white/[0.08] bg-black/45 backdrop-blur-lg shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]'
-
-export const modalGlassClass =
-  'rounded-2xl border border-white/[0.08] bg-white/[0.06] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.15)]'
-
-export const navGlassInnerClass =
-  'rounded-full border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm backdrop-saturate-[1.5] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-1px_0_rgba(255,255,255,0.04),0_2px_8px_rgba(0,0,0,0.08)]'
-
-export const contextMenuMotion = {
-  initial: { opacity: 0, scale: 0.95, y: -4 },
-  animate: { opacity: 1, scale: 1, y: 0 },
-  exit: { opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.08 } },
-  transition: { duration: 0.15 },
-}
-
-/** Optional class for non-button tap targets (buttons get tap feedback globally via index.css) */
-export const tapScaleClass = 'tap-scale'
+export {
+  navGlassClass,
+  navGlassInnerClass,
+  navGlassMenuClass,
+  headerMenuGlassClass,
+  dropdownMenuItemClass,
+  dropdownMenuItemDangerClass,
+  dropdownMenuItemWithIconClass,
+  dropdownMenuItemWithIconDangerClass,
+  notificationGlassClass,
+  modalGlassClass,
+  modalScrimClass,
+  glassNavBarClass,
+  glassInputBarClass,
+  glassActionButtonClass,
+  dropdownMenuClass,
+  contextMenuMotion,
+  tapScaleClass,
+  pageTitleClass,
+  pageHeaderClass,
+  listRowClass,
+  listRowSelectedClass,
+  textFieldClass,
+  btnFilledClass,
+  btnFilledDangerClass,
+  btnBorderedClass,
+  btnPlainClass,
+  iconButtonClass,
+} from './designSystem'
 
 function dataUrlToBlob(dataUrl) {
   const [header, base64] = dataUrl.split(',')

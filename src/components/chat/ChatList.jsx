@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconCheck, IconChecks, IconBellOff, IconBookmark, IconPin } from '@tabler/icons-react'
+import { IconCheck, IconChecks, IconBellOff, IconBell, IconPin, IconPinnedOff, IconTrash, IconBan } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeChats,
@@ -14,7 +14,9 @@ import {
   subscribeChatListActivity,
 } from '../../services/chatService'
 import { fetchUser, blockUser } from '../../services/userService'
-import { formatChatTime, navGlassMenuClass, isSavedMessagesChat, contextMenuMotion, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
+import { formatChatTime, isSavedMessagesChat, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass } from '../../utils/designSystem'
+import PageShell from '../layout/PageShell'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -198,20 +200,27 @@ export default function ChatList() {
           key={selectedChatId}
           data-chat-context
           {...contextMenuMotion}
-          className={`fixed z-[80] w-44 rounded-xl overflow-hidden ${navGlassMenuClass}`}
+          className={`fixed z-[80] ${dropdownMenuClass} ${navGlassMenuClass}`}
           style={{ top: menuPos.top, left: menuPos.left }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
         >
           {!selectedIsSaved && (
-            <ContextMenuItem onClick={handleMuteToggle}>
+            <ContextMenuItem
+              icon={selectedIsMuted ? IconBell : IconBellOff}
+              onClick={handleMuteToggle}
+            >
               {selectedIsMuted ? 'Unmute' : 'Mute'}
             </ContextMenuItem>
           )}
-          <ContextMenuItem onClick={handlePinToggle}>
+          <ContextMenuItem
+            icon={selectedIsPinned ? IconPinnedOff : IconPin}
+            onClick={handlePinToggle}
+          >
             {selectedIsPinned ? 'Unpin' : 'Pin chat'}
           </ContextMenuItem>
           <ContextMenuItem
+            icon={IconTrash}
             onClick={() => {
               closeMenu()
               setConfirmAction('removeChat')
@@ -222,6 +231,7 @@ export default function ChatList() {
           </ContextMenuItem>
           {!selectedIsRemoved && !selectedIsSaved && (
             <ContextMenuItem
+              icon={IconBan}
               onClick={() => {
                 closeMenu()
                 setConfirmAction('block')
@@ -246,19 +256,11 @@ export default function ChatList() {
   }
 
   return (
-    <div className="h-full flex flex-col pb-24 relative">
-      <h1
-        className={`text-xl font-bold px-6 pt-6 relative z-10 ${
-          selectedChatId ? 'blur-[5px] pointer-events-none transition-[filter] duration-300 ease-out' : ''
-        }`}
-      >
-        Chats
-      </h1>
-
+    <PageShell title="Chats" blurTitle={!!selectedChatId}>
       {chats.length === 0 ? (
         <EmptyState message="No friends yet. Start discovering people!" className="flex-1" />
       ) : (
-        <div ref={listRef} className="mt-4 overflow-y-auto relative z-10">
+        <div ref={listRef} className="mt-2 overflow-y-auto relative z-10">
           {chats.map((chat) => {
             const isSaved = isSavedMessagesChat(chat, user?.uid)
             const otherId = isSaved ? null : chat.participants.find((id) => id !== user.uid)
@@ -303,9 +305,9 @@ export default function ChatList() {
                     if (menuOpen) return
                     navigate(`/chats/${chat.id}`)
                   }}
-                  className={`w-full flex items-center gap-3 px-6 py-4 transition-colors ${
+                  className={`${listRowClass} ${
                     menuOpen && !isSelected ? 'pointer-events-none' : ''
-                  } ${isSelected ? 'bg-white/[0.06]' : 'hover:bg-white/5'}`}
+                  } ${isSelected ? listRowSelectedClass : ''}`}
                 >
                   <div className="relative shrink-0">
                     {isSaved ? (
@@ -420,21 +422,20 @@ export default function ChatList() {
         danger
         loading={actionLoading}
       />
-    </div>
+    </PageShell>
   )
 }
 
-function ContextMenuItem({ children, onClick, danger = false }) {
+function ContextMenuItem({ children, onClick, icon: Icon, danger = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full px-4 py-2.5 text-left text-sm font-medium transition-colors duration-75 ${
-        danger
-          ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10 active:bg-red-500/20 active:text-red-200'
-          : 'text-white/90 hover:text-white hover:bg-white/[0.08] active:bg-white/[0.14]'
-      }`}
+      className={danger ? dropdownMenuItemWithIconDangerClass : dropdownMenuItemWithIconClass}
     >
+      {Icon && (
+        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-red-400' : 'text-white/55'}`} />
+      )}
       {children}
     </button>
   )

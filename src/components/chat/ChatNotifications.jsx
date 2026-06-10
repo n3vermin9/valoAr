@@ -12,13 +12,13 @@ const DRAG_THRESHOLD = 10
 
 function getMessageKey(lastMessage) {
   if (!lastMessage) return null
+  if (lastMessage.messageId) return `msg_${lastMessage.messageId}`
   const ts = lastMessage.createdAt?.toMillis?.() ?? lastMessage.createdAt ?? ''
   return `${lastMessage.senderId}_${ts}_${lastMessage.text || ''}`
 }
 
 function getLikeKey(like) {
-  const fromId = like.fromUserId || like.id
-  return `${fromId}_${like.timestamp || ''}`
+  return like.fromUserId || like.id
 }
 
 function SwipeableNotification({ notification, onDismiss, onOpen }) {
@@ -97,19 +97,20 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
     onOpen(notification)
   }
 
-  const dragOpacity = Math.max(0, 1 + offsetY / 120)
-  const y = autoExit ? -90 : offsetY
-  const opacity = autoExit ? 0 : dragOpacity
+  const y = autoExit ? -72 : offsetY
+  const slideTransition = autoExit
+    ? { duration: 0.28, ease: [0.4, 0, 0.2, 1] }
+    : { type: 'spring', stiffness: 420, damping: 34, mass: 0.75 }
 
   return (
     <motion.div
-      layout
       role="button"
       tabIndex={0}
-      initial={{ opacity: 0, y: -20, scale: 0.97 }}
-      animate={{ opacity, y, scale: autoExit ? 0.98 : 1 }}
-      exit={{ opacity: 0, y: -90, scale: 0.98 }}
-      transition={{ duration: autoExit ? 0.38 : 0.22, ease: autoExit ? [0.4, 0, 0.2, 1] : 'easeOut' }}
+      initial={{ y: -18 }}
+      animate={{ y }}
+      exit={{ y: -72 }}
+      transition={slideTransition}
+      style={{ willChange: 'transform' }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -120,8 +121,13 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
           onOpen(notification)
         }
       }}
-      className={`mx-4 mb-2 overflow-hidden cursor-pointer select-none ${notificationGlassClass}`}
+      className="mx-4 mb-2 cursor-pointer select-none"
     >
+      <motion.div
+        animate={{ opacity: autoExit ? 0 : 1 }}
+        transition={{ duration: autoExit ? 0.22 : 0 }}
+        className={`overflow-hidden ${notificationGlassClass}`}
+      >
       <div className="flex items-center gap-3 px-4 py-3">
         <img
           src={notification.photo || sad}
@@ -133,11 +139,14 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
           <p className="text-xs text-white/70 truncate mt-0.5">{notification.preview}</p>
         </div>
       </div>
+      </motion.div>
     </motion.div>
   )
 }
 
-function pushNotification(setNotifications, item) {
+function pushNotification(setNotifications, notifiedIds, item) {
+  if (notifiedIds.has(item.id)) return
+  notifiedIds.add(item.id)
   setNotifications((prev) => {
     if (prev.some((n) => n.id === item.id)) return prev
     return [item, ...prev].slice(0, 3)
@@ -151,9 +160,19 @@ export default function ChatNotifications() {
   const [notifications, setNotifications] = useState([])
   const knownMessagesRef = useRef(new Map())
   const knownLikesRef = useRef(new Set())
+  const notifiedIdsRef = useRef(new Set())
   const chatsInitializedRef = useRef(false)
   const likesInitializedRef = useRef(false)
   const usersRef = useRef({})
+
+  useEffect(() => {
+    knownMessagesRef.current = new Map()
+    knownLikesRef.current = new Set()
+    notifiedIdsRef.current = new Set()
+    chatsInitializedRef.current = false
+    likesInitializedRef.current = false
+    usersRef.current = {}
+  }, [user?.uid])
 
   const dismiss = useCallback((id) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id))
@@ -186,24 +205,41 @@ export default function ChatNotifications() {
       for (const chat of chats) {
         const prevKey = knownMessagesRef.current.get(chat.id)
         const newKey = getMessageKey(chat.lastMessage)
-        knownMessagesRef.current.set(chat.id, newKey)
 
-        if (!chat.lastMessage || !newKey || prevKey === newKey) continue
+        if (!chat.lastMessage || !newKey || prevKey === newKey) {
+          if (newKey) knownMessagesRef.current.set(chat.id, newKey)
+          continue
+        }
         if (chat.isSavedMessages) continue
-        if (chat.lastMessage.senderId === user.uid) continue
-        if (chat.mutedBy?.includes(user.uid)) continue
-        if (location.pathname === `/chats/${chat.id}`) continue
+        if (chat.lastMessage.senderId === user.uid) {
+          knownMessagesRef.current.set(chat.id, newKey)
+          continue
+        }
+        if (chat.mutedBy?.includes(user.uid)) {
+          knownMessagesRef.current.set(chat.id, newKey)
+          continue
+        }
+        if (location.pathname === `/chats/${chat.id}`) {
+          knownMessagesRef.current.set(chat.id, newKey)
+          continue
+        }
 
         const otherId = chat.participants.find((id) => id !== user.uid)
-        if (!otherId) continue
+        if (!otherId) {
+          knownMessagesRef.current.set(chat.id, newKey)
+          continue
+        }
+
+        const notificationId = `chat_${newKey}`
+        knownMessagesRef.current.set(chat.id, newKey)
 
         if (!usersRef.current[otherId]) {
           usersRef.current[otherId] = await fetchUser(otherId)
         }
         const otherUser = usersRef.current[otherId]
 
-        pushNotification(setNotifications, {
-          id: `chat_${chat.id}_${newKey}`,
+        pushNotification(setNotifications, notifiedIdsRef.current, {
+          id: notificationId,
           type: 'chat',
           chatId: chat.id,
           username: otherUser?.username || 'User',
@@ -240,7 +276,7 @@ export default function ChatNotifications() {
         }
         const fromUser = usersRef.current[fromId]
 
-        pushNotification(setNotifications, {
+        pushNotification(setNotifications, notifiedIdsRef.current, {
           id: `like_${likeKey}`,
           type: 'friend_request',
           username: fromUser?.username || 'User',
@@ -251,12 +287,14 @@ export default function ChatNotifications() {
     })
   }, [user?.uid, location.pathname])
 
-  if (notifications.length === 0) return null
-
   return (
-    <div className="fixed top-12 left-0 right-0 z-[70] pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-md mx-auto">
-        <AnimatePresence mode="popLayout">
+    <div className="fixed top-12 left-0 right-0 z-[70] pointer-events-none isolate">
+      <div
+        className={`pointer-events-auto w-full max-w-md mx-auto ${
+          notifications.length === 0 ? 'invisible' : ''
+        }`}
+      >
+        <AnimatePresence initial={false}>
           {notifications.map((notification) => (
             <SwipeableNotification
               key={notification.id}

@@ -4,10 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconSettings, IconUserMinus, IconBan } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, subscribeIncomingRequest, subscribeToUser } from '../../services/userService'
+import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, subscribeIncomingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { shareProfile, getMatchId } from '../../utils/helpers'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass } from '../../utils/designSystem'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
 import MatchHistory from './MatchHistory'
@@ -132,7 +133,14 @@ export default function ProfileView() {
 
   return (
     <div className="h-full overflow-y-auto pb-24">
-      <div className="flex items-center justify-end px-6 pt-6">
+      <div className="flex items-center justify-between px-6 pt-6">
+        <button
+          onClick={handleShare}
+          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          aria-label="Share profile"
+        >
+          <IconShare size={22} className="text-white/80" />
+        </button>
         <button
           onClick={() => setShowSettings(true)}
           className="p-2 hover:bg-white/10 rounded-full transition-colors"
@@ -154,13 +162,6 @@ export default function ProfileView() {
           <CopyableUsername username={profile.username} className="text-2xl font-bold" />
         </h2>
         <p className="text-white/60">{profile.age} years old</p>
-
-        <button
-          onClick={handleShare}
-          className="flex items-center gap-2 px-4 py-2 mt-4 bg-white/10 hover:bg-white/20 rounded-full text-sm transition-colors"
-        >
-          <IconShare size={16} /> Share
-        </button>
       </div>
 
       <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
@@ -496,33 +497,29 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
     ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently'
 
-  const handleSendFriendRequest = async () => {
+  const handleSendFriendRequest = () => {
     if (requesting) return
     setRequesting(true)
-    try {
-      await recordSwipe(user.uid, userId, 'like')
-      await refreshProfile()
-      toast.success('Friend request sent!')
-    } catch (err) {
+    setAuthProfile((prev) => patchProfileAfterSwipe(prev, userId, 'like'))
+    toast.success('Friend request sent!')
+    setRequesting(false)
+
+    recordSwipe(user.uid, userId, 'like').catch((err) => {
       toast.error(err.message || 'Failed to send request')
-    } finally {
-      setRequesting(false)
-    }
+    })
   }
 
-  const handleAcceptRequest = async () => {
+  const handleAcceptRequest = () => {
     if (accepting) return
     setAccepting(true)
-    try {
-      await acceptLike(user.uid, userId)
-      await refreshProfile()
-      toast.success("You're now friends!")
-      onClose?.()
-    } catch {
+    setAuthProfile((prev) => patchProfileAfterMatch(prev, userId))
+    toast.success("You're now friends!")
+    onClose?.()
+    setAccepting(false)
+
+    acceptLike(user.uid, userId).catch(() => {
       toast.error('Failed to accept request')
-    } finally {
-      setAccepting(false)
-    }
+    })
   }
 
   const handleMessage = () => {
@@ -566,11 +563,8 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
           <AnimatePresence>
             {showMenu && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-full mt-2 z-50 min-w-[160px] py-2 bg-black/90 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl"
+                {...contextMenuMotion}
+                className={`absolute right-0 top-full mt-2 z-50 ${dropdownMenuClass} ${navGlassMenuClass}`}
               >
                 {isMatched && (
                   <button
@@ -578,7 +572,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
                       setShowMenu(false)
                       setConfirmRemoveMatch(true)
                     }}
-                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-white/90 hover:bg-white/5 transition-colors flex items-center gap-3"
+                    className={dropdownMenuItemWithIconClass}
                   >
                     <IconUserMinus size={18} stroke={1.75} className="shrink-0 text-white/55" />
                     Remove Friend
@@ -590,7 +584,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
                       setShowMenu(false)
                       onBlock(userId)
                     }}
-                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-400 hover:bg-white/5 transition-colors flex items-center gap-3"
+                    className={dropdownMenuItemWithIconDangerClass}
                   >
                     <IconBan size={18} stroke={1.75} className="shrink-0 text-red-400" />
                     Block
@@ -628,7 +622,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
             {profile.bio || 'No bio yet'}
           </p>
           <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
-          <SocialLinksDisplay socials={profile.socials} />
+          <SocialLinksDisplay socials={profile.socials} visible={isSelf || isMatched} />
           {!isSelf && profile.showFriendCount !== false && (
             <p className="text-sm text-white/50 mt-3">
               Has {friendCount} {friendCount === 1 ? 'friend' : 'friends'}

@@ -12,6 +12,7 @@ import {
   onSnapshot,
   arrayUnion,
   arrayRemove,
+  increment,
   serverTimestamp,
   writeBatch,
   runTransaction,
@@ -20,7 +21,7 @@ import { ref, set, onDisconnect, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
 import { getCachedUser, setCachedUser, invalidateUser } from './userCache'
 import { buildUsernameBase, normalizeUsername } from '../utils/helpers'
-import { normalizeSocials } from '../utils/socialLinks'
+import { normalizeSocials, sanitizeProfileSocials, stripSocials } from '../utils/socialLinks'
 import { removeChatForUser } from './chatService'
 
 export async function fetchUser(userId) {
@@ -67,14 +68,31 @@ export async function checkUsernameAvailable(username, currentUserId) {
   const normalized = normalizeUsername(username)
   const snap = await getDoc(doc(db, 'usernames', normalized))
   if (!snap.exists()) return true
-  return snap.data().userId === currentUserId
+  const data = snap.data()
+  if (data.deleted === true) return false
+  return data.userId === currentUserId
+}
+
+export async function getUsernameAvailability(username, currentUserId) {
+  const normalized = normalizeUsername(username)
+  const snap = await getDoc(doc(db, 'usernames', normalized))
+  if (!snap.exists()) return { available: true }
+  const data = snap.data()
+  if (data.deleted === true) {
+    return { available: false, error: 'This username is not available' }
+  }
+  if (data.userId === currentUserId) return { available: true }
+  return { available: false, error: 'Username is taken' }
 }
 
 export async function getUserIdByUsername(username) {
   const normalized = normalizeUsername(username)
   if (normalized.length < 4) return null
   const snap = await getDoc(doc(db, 'usernames', normalized))
-  return snap.exists() ? snap.data().userId : null
+  if (!snap.exists()) return null
+  const data = snap.data()
+  if (data.deleted === true || !data.userId) return null
+  return data.userId
 }
 
 export async function createUserProfile(userId, profileData) {
@@ -84,8 +102,14 @@ export async function createUserProfile(userId, profileData) {
 
   await runTransaction(db, async (transaction) => {
     const usernameSnap = await transaction.get(usernameRef)
-    if (usernameSnap.exists() && usernameSnap.data().userId !== userId) {
-      throw new Error('Username is already taken')
+    if (usernameSnap.exists()) {
+      const data = usernameSnap.data()
+      if (data.deleted === true) {
+        throw new Error('This username is not available')
+      }
+      if (data.userId !== userId) {
+        throw new Error('Username is already taken')
+      }
     }
 
     transaction.set(userRef, {
@@ -125,8 +149,14 @@ export async function updateUserProfile(userId, updates, oldUsername) {
     if (nextUsername && nextUsername !== prevUsername) {
       const nextUsernameRef = doc(db, 'usernames', nextUsername)
       const nextUsernameSnap = await transaction.get(nextUsernameRef)
-      if (nextUsernameSnap.exists() && nextUsernameSnap.data().userId !== userId) {
-        throw new Error('Username is already taken')
+      if (nextUsernameSnap.exists()) {
+        const data = nextUsernameSnap.data()
+        if (data.deleted === true) {
+          throw new Error('This username is not available')
+        }
+        if (data.userId !== userId) {
+          throw new Error('Username is already taken')
+        }
       }
 
       if (prevUsername) {
@@ -161,31 +191,52 @@ export async function suggestUniqueUsername(seed, currentUserId) {
   return `${base.slice(0, 16)}${Date.now().toString().slice(-4)}`
 }
 
+export function patchProfileAfterSwipe(profile, targetId, action) {
+  if (!profile) return profile
+  return {
+    ...profile,
+    swipes: { ...(profile.swipes || {}), [targetId]: action },
+    swipeCount: (profile.swipeCount || 0) + 1,
+  }
+}
+
+export function patchProfileAfterMatch(profile, otherId) {
+  if (!profile) return profile
+  const matches = profile.matches || []
+  if (matches.includes(otherId)) return profile
+  return {
+    ...profile,
+    matches: [...matches, otherId],
+    swipes: { ...(profile.swipes || {}), [otherId]: 'matched' },
+  }
+}
+
 export async function recordSwipe(userId, targetId, action, message = null) {
   const userRef = doc(db, 'users', userId)
-  const targetRef = doc(db, 'users', targetId)
-
-  const userSnap = await getDoc(userRef)
-  const currentCount = userSnap.data()?.swipeCount || 0
-  await updateDoc(userRef, {
-    [`swipes.${targetId}`]: action,
-    swipeCount: currentCount + 1,
-  })
 
   if (action === 'like') {
-    const likeData = {
+    const batch = writeBatch(db)
+    batch.update(userRef, {
+      [`swipes.${targetId}`]: action,
+      swipeCount: increment(1),
+    })
+    batch.set(doc(db, 'users', targetId, 'likesReceived', userId), {
       fromUserId: userId,
       message: message || null,
       timestamp: Date.now(),
       read: false,
-    }
-    await setDoc(doc(db, 'users', targetId, 'likesReceived', userId), likeData)
+    })
+    await batch.commit()
 
-    const targetSnap = await getDoc(targetRef)
-    const targetSwipes = targetSnap.data()?.swipes || {}
-    if (targetSwipes[userId] === 'like') {
+    const targetSnap = await getDoc(doc(db, 'users', targetId))
+    if (targetSnap.data()?.swipes?.[userId] === 'like') {
       await createMatch(userId, targetId)
     }
+  } else {
+    await updateDoc(userRef, {
+      [`swipes.${targetId}`]: action,
+      swipeCount: increment(1),
+    })
   }
   invalidateUser(userId)
 }
@@ -293,12 +344,12 @@ export async function getDiscoverProfiles(currentUser) {
     if (!genderMatchesPreference(currentUser.gender, profile.interestedIn)) continue
     if (!ageInRange(currentUser.age, profile.age)) continue
 
-    profiles.push(profile)
+    profiles.push(stripSocials(profile))
   }
   return profiles
 }
 
-export async function searchUsersByUsername(queryText) {
+export async function searchUsersByUsername(queryText, currentUser = null) {
   const normalized = normalizeUsername(queryText)
   if (!normalized) return []
 
@@ -313,7 +364,9 @@ export async function searchUsersByUsername(queryText) {
       return (a.username || '').localeCompare(b.username || '')
     })
 
-  return results.slice(0, 50)
+  return results
+    .slice(0, 50)
+    .map((profile) => sanitizeProfileSocials(profile, currentUser))
 }
 
 function genderMatchesPreference(userGender, interestedIn) {
@@ -425,7 +478,13 @@ export async function deleteAccount(userId, username) {
 
   const batch = writeBatch(db)
   batch.delete(doc(db, 'users', userId))
-  if (normalizedUsername) batch.delete(doc(db, 'usernames', normalizedUsername))
+  if (normalizedUsername) {
+    batch.set(doc(db, 'usernames', normalizedUsername), {
+      userId: null,
+      deleted: true,
+      deletedAt: serverTimestamp(),
+    })
+  }
 
   batch.set(doc(db, 'deletedUsers', userId), {
     username: normalizedUsername || 'User',

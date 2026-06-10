@@ -10,7 +10,8 @@ const SOCIAL_ICONS = {
 const iconButtonClass =
   'inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/10 border border-white/10 text-white/85 hover:bg-white/15 hover:text-white transition-colors'
 
-export default function SocialLinksDisplay({ socials: rawSocials, compact = false }) {
+export default function SocialLinksDisplay({ socials: rawSocials, compact = false, visible = true }) {
+  if (!visible) return null
   const socials = normalizeSocials(rawSocials)
   if (!hasSocialLinks(socials)) return null
 
@@ -28,6 +29,7 @@ export default function SocialLinksDisplay({ socials: rawSocials, compact = fals
           const Icon = SOCIAL_ICONS[id]
           const title = `${label} · ${formatSocialLabel(id, value)}`
           const iconSize = compact ? 16 : 20
+          const iconClassName = id === 'telegram' ? 'mr-1 block shrink-0' : 'block shrink-0'
 
           if (href) {
             return (
@@ -40,14 +42,14 @@ export default function SocialLinksDisplay({ socials: rawSocials, compact = fals
                 aria-label={title}
                 title={title}
               >
-                <Icon size={iconSize} />
+                <Icon size={iconSize} className={iconClassName} />
               </a>
             )
           }
 
           return (
             <span key={id} className={buttonClass} title={title} aria-label={title}>
-              <Icon size={iconSize} />
+              <Icon size={iconSize} className={iconClassName} />
             </span>
           )
         })}

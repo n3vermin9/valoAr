@@ -1,0 +1,89 @@
+/*
+ * iOS & iPadOS 26 design tokens
+ * Reference: https://www.figma.com/community/file/1527721578857867021/ios-and-ipados-26
+ * Principles: Liquid Glass on navigation layer only; concentric radii; SF system typography.
+ */
+
+:root {
+  /* Labels */
+  --ios-label: #ffffff;
+  --ios-label-secondary: rgba(235, 235, 245, 0.6);
+  --ios-label-tertiary: rgba(235, 235, 245, 0.3);
+  --ios-label-quaternary: rgba(235, 235, 245, 0.18);
+
+  /* Backgrounds */
+  --ios-bg: #000000;
+  --ios-bg-elevated: #1c1c1e;
+  --ios-bg-secondary: #1c1c1e;
+  --ios-bg-tertiary: #2c2c2e;
+  --ios-fill: rgba(120, 120, 128, 0.36);
+  --ios-fill-secondary: rgba(120, 120, 128, 0.32);
+  --ios-fill-tertiary: rgba(118, 118, 128, 0.24);
+
+  /* Separators */
+  --ios-separator: rgba(84, 84, 88, 0.65);
+  --ios-separator-opaque: #38383a;
+
+  /* System accents (dark) */
+  --ios-blue: #0a84ff;
+  --ios-green: #30d158;
+  --ios-red: #ff453a;
+  --ios-orange: #ff9f0a;
+  --ios-yellow: #ffd60a;
+
+  /* Liquid Glass — navigation / controls layer */
+  --ios-glass-bg: rgba(255, 255, 255, 0.05);
+  --ios-glass-bg-inner: rgba(255, 255, 255, 0.04);
+  --ios-glass-bg-input: rgba(255, 255, 255, 0.08);
+  --ios-glass-border: rgba(255, 255, 255, 0.08);
+  --ios-glass-blur: 24px;
+  --ios-glass-blur-lg: 32px;
+  --ios-glass-saturate: 1.8;
+  --ios-glass-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --ios-glass-shadow-modal:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+
+  /* Layout */
+  --ios-page-x: 16px;
+  --ios-page-x-lg: 20px;
+  --ios-nav-float-bottom: 16px;
+  --ios-nav-clearance: 96px;
+  --ios-safe-top: env(safe-area-inset-top, 0px);
+  --ios-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ios-safe-left: env(safe-area-inset-left, 0px);
+  --ios-safe-right: env(safe-area-inset-right, 0px);
+
+  /* Corner radii — concentric scale */
+  --ios-radius-sm: 8px;
+  --ios-radius-md: 12px;
+  --ios-radius-lg: 16px;
+  --ios-radius-xl: 20px;
+  --ios-radius-2xl: 22px;
+  --ios-radius-sheet: 38px;
+
+  /* Typography */
+  --ios-font:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+
+  /* Control sizes */
+  --ios-control-min: 44px;
+  --ios-control-lg: 50px;
+
+  /* Motion */
+  --ios-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ios-duration-fast: 0.15s;
+  --ios-duration-normal: 0.2s;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --ios-glass-bg: rgba(28, 28, 30, 0.94);
+    --ios-glass-bg-inner: rgba(44, 44, 46, 0.94);
+    --ios-glass-bg-input: rgba(44, 44, 46, 0.94);
+    --ios-glass-blur: 0px;
+    --ios-glass-blur-lg: 0px;
+  }
+}

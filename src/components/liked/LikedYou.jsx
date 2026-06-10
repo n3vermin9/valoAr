@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { IconHeart, IconX } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -11,6 +11,7 @@ import {
   fetchDeletedUser,
   getOutgoingRequestIds,
   cancelFriendRequest,
+  patchProfileAfterMatch,
 } from '../../services/userService'
 import { sad, star } from '../../assets'
 import { APP_NAME } from '../../utils/helpers'
@@ -20,7 +21,7 @@ import Modal from '../ui/Modal'
 import { PublicProfileView } from '../profile/ProfileView'
 
 export default function LikedYou() {
-  const { user, profile, refreshProfile } = useAuth()
+  const { user, profile, setProfile } = useAuth()
   const [likes, setLikes] = useState([])
   const [profiles, setProfiles] = useState({})
   const [loading, setLoading] = useState(true)
@@ -28,9 +29,15 @@ export default function LikedYou() {
   const [showOutgoing, setShowOutgoing] = useState(false)
   const [outgoingProfiles, setOutgoingProfiles] = useState({})
   const [outgoingLoading, setOutgoingLoading] = useState(false)
-  const [cancelingId, setCancelingId] = useState(null)
 
   const outgoingIds = useMemo(() => getOutgoingRequestIds(profile), [profile])
+  const knownLikesRef = useRef(new Set())
+  const likesInitializedRef = useRef(false)
+
+  useEffect(() => {
+    knownLikesRef.current = new Set()
+    likesInitializedRef.current = false
+  }, [user?.uid])
 
   useEffect(() => {
     if (!user?.uid) return
@@ -39,20 +46,33 @@ export default function LikedYou() {
       setLikes(receivedLikes)
 
       const profileMap = {}
-      for (const like of receivedLikes) {
-        const fromId = like.fromUserId || like.id
-        profileMap[fromId] = (await fetchUser(fromId)) || (await fetchDeletedUser(fromId))
-      }
+      await Promise.all(
+        receivedLikes.map(async (like) => {
+          const fromId = like.fromUserId || like.id
+          profileMap[fromId] = (await fetchUser(fromId)) || (await fetchDeletedUser(fromId))
+        })
+      )
       setProfiles(profileMap)
       setLoading(false)
 
-      if (document.hidden && receivedLikes.some((l) => !l.read)) {
-        if ('Notification' in window && Notification.permission === 'granted') {
+      if (!likesInitializedRef.current) {
+        receivedLikes.forEach((like) => knownLikesRef.current.add(like.fromUserId || like.id))
+        likesInitializedRef.current = true
+        return
+      }
+
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        for (const like of receivedLikes) {
+          const fromId = like.fromUserId || like.id
+          if (knownLikesRef.current.has(fromId)) continue
+          knownLikesRef.current.add(fromId)
           new Notification(APP_NAME, {
             body: 'Someone wants to be your friend!',
             icon: star,
           })
         }
+      } else {
+        receivedLikes.forEach((like) => knownLikesRef.current.add(like.fromUserId || like.id))
       }
     })
 
@@ -93,36 +113,47 @@ export default function LikedYou() {
     }
   }, [showOutgoing, outgoingIds])
 
-  const handleAccept = async (fromUserId) => {
-    try {
-      await acceptLike(user.uid, fromUserId)
-      await refreshProfile()
-      toast.success("You're now friends!")
-    } catch {
+  const handleAccept = (fromUserId) => {
+    setLikes((prev) => prev.filter((l) => (l.fromUserId || l.id) !== fromUserId))
+    setProfiles((prev) => {
+      const next = { ...prev }
+      delete next[fromUserId]
+      return next
+    })
+    setProfile((prev) => patchProfileAfterMatch(prev, fromUserId))
+    toast.success("You're now friends!")
+
+    acceptLike(user.uid, fromUserId).catch(() => {
       toast.error('Failed to accept')
-    }
+    })
   }
 
-  const handleDecline = async (fromUserId) => {
-    try {
-      await declineLike(user.uid, fromUserId)
-      toast.success('Declined')
-    } catch {
+  const handleDecline = (fromUserId) => {
+    setLikes((prev) => prev.filter((l) => (l.fromUserId || l.id) !== fromUserId))
+    setProfiles((prev) => {
+      const next = { ...prev }
+      delete next[fromUserId]
+      return next
+    })
+    toast.success('Declined')
+
+    declineLike(user.uid, fromUserId).catch(() => {
       toast.error('Failed to decline')
-    }
+    })
   }
 
-  const handleCancelRequest = async (targetId) => {
-    setCancelingId(targetId)
-    try {
-      await cancelFriendRequest(user.uid, targetId)
-      await refreshProfile()
-      toast.success('Request cancelled')
-    } catch {
+  const handleCancelRequest = (targetId) => {
+    setProfile((prev) => {
+      if (!prev?.swipes) return prev
+      const swipes = { ...prev.swipes }
+      delete swipes[targetId]
+      return { ...prev, swipes }
+    })
+    toast.success('Request cancelled')
+
+    cancelFriendRequest(user.uid, targetId).catch(() => {
       toast.error('Failed to cancel request')
-    } finally {
-      setCancelingId(null)
-    }
+    })
   }
 
   if (loading) {
@@ -252,10 +283,9 @@ export default function LikedYou() {
                     </button>
                     <button
                       onClick={() => handleCancelRequest(targetId)}
-                      disabled={cancelingId === targetId}
-                      className="px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-full border border-red-500/30 disabled:opacity-50 shrink-0"
+                      className="px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-full border border-red-500/30 shrink-0"
                     >
-                      {cancelingId === targetId ? '...' : 'Cancel'}
+                      Cancel
                     </button>
                   </div>
                 )

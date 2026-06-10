@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { modalGlassClass } from '../../utils/helpers'
+import { modalGlassClass, modalScrimClass } from '../../utils/designSystem'
 
 export default function Modal({ isOpen, onClose, children, className = '', glass = false }) {
   const ref = useRef(null)
@@ -15,7 +15,7 @@ export default function Modal({ isOpen, onClose, children, className = '', glass
 
   const panelClass = glass
     ? `${modalGlassClass} max-w-md w-full max-h-[90vh] overflow-y-auto ${className}`
-    : `bg-black/80 backdrop-blur-xl rounded-2xl border border-white/10 max-w-md w-full max-h-[90vh] overflow-y-auto ${className}`
+    : `bg-[var(--ios-bg-elevated)] backdrop-blur-xl rounded-[var(--ios-radius-xl)] border border-[var(--ios-separator)] max-w-md w-full max-h-[90vh] overflow-y-auto ${className}`
 
   return (
     <AnimatePresence>
@@ -24,7 +24,7 @@ export default function Modal({ isOpen, onClose, children, className = '', glass
           initial={false}
           animate={{ opacity: 1 }}
           className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${
-            glass ? 'bg-black/40 backdrop-blur-md' : 'bg-black/50 backdrop-blur-sm'
+            glass ? modalScrimClass : 'bg-black/50 backdrop-blur-sm'
           }`}
         >
         <motion.div

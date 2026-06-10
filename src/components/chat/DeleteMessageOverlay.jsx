@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
 import { IconCheck, IconChecks, IconArrowBackUp, IconCopy, IconTrash } from '@tabler/icons-react'
-import { formatMessageTime, navGlassMenuClass } from '../../utils/helpers'
+import { formatMessageTime } from '../../utils/helpers'
+import { navGlassMenuClass, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass } from '../../utils/designSystem'
 import VoiceMessagePlayer from './VoiceMessagePlayer'
 import ReplyQuote from './ReplyQuote'
 import MessageReactions, { ReactionPicker } from './MessageReactions'
@@ -180,7 +181,7 @@ export default function MessageActionOverlay({
               initial={{ opacity: 1, y: 0 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`mt-2 shrink-0 py-1 rounded-xl overflow-hidden w-full min-w-[140px] ${navGlassMenuClass}`}
+              className={`mt-2 shrink-0 w-full min-w-[140px] ${dropdownMenuClass} ${navGlassMenuClass}`}
             >
               <ActionItem
                 icon={IconArrowBackUp}
@@ -224,9 +225,7 @@ function ActionItem({ children, onClick, icon: Icon, danger = false }) {
         e.stopPropagation()
         onClick()
       }}
-      className={`w-full px-4 py-2.5 text-left text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-3 ${
-        danger ? 'text-red-400 hover:text-red-300' : 'text-white/90 hover:text-white'
-      }`}
+      className={danger ? dropdownMenuItemWithIconDangerClass : dropdownMenuItemWithIconClass}
     >
       {Icon && (
         <Icon

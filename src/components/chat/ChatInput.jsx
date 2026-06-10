@@ -3,12 +3,10 @@ import EmojiPicker from 'emoji-picker-react'
 import toast from 'react-hot-toast'
 import { IconMoodSmile, IconPhoto, IconSend, IconMicrophone, IconX } from '@tabler/icons-react'
 import { getVoiceMimeType, getMessagePreviewText } from '../../utils/helpers'
+import { glassInputBarClass, glassActionButtonClass } from '../../utils/designSystem'
 import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
 
-const glassClass =
-  'border border-white/[0.06] bg-white/[0.08] backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]'
-
-const actionButtonClass = `${glassClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
+const actionButtonClass = glassActionButtonClass
 
 const MAX_VOICE_SECONDS = 180
 const MIN_VOICE_BYTES = 100
@@ -282,7 +280,7 @@ export default function ChatInput({
     <div className="relative">
       {replyTo && (
         <div className="px-4 pb-2">
-          <div className={`${glassClass} flex items-center gap-2 rounded-2xl px-3 py-2`}>
+          <div className={`${glassInputBarClass} flex items-center gap-2 rounded-2xl px-3 py-2`}>
             <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-2.5">
               <p className="text-xs font-semibold text-blue-300 truncate">
                 Replying to {replyAuthorName}
@@ -349,7 +347,7 @@ export default function ChatInput({
           }}
         />
 
-        <div className={`${glassClass} flex flex-1 items-end gap-1.5 rounded-[30px] pl-2 pr-3 py-2 min-h-11`}>
+        <div className={`${glassInputBarClass} flex flex-1 items-end gap-1.5 rounded-[30px] pl-2 pr-3 py-2 min-h-11`}>
           <button
             type="button"
             onClick={() => setShowEmoji(!showEmoji)}

@@ -21,9 +21,9 @@ export default function SwipeCard({
   const handleDragEnd = (_, info) => {
     if (alreadyMatched) return
     if (info.offset.x > 100) {
-      animate(x, 300, { duration: 0.3 }).then(() => onSwipe('like'))
+      onSwipe('like')
     } else if (info.offset.x < -100) {
-      animate(x, -300, { duration: 0.3 }).then(() => onSwipe('pass'))
+      onSwipe('pass')
     } else {
       animate(x, 0, { type: 'spring', stiffness: 300 })
     }
@@ -83,7 +83,7 @@ export default function SwipeCard({
             </p>
           )}
 
-          <SocialLinksDisplay socials={profile.socials} compact />
+          <SocialLinksDisplay socials={profile.socials} compact visible={alreadyMatched} />
         </div>
 
         <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-6">

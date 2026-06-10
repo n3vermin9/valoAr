@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useRef, useLayoutEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { IconFlame, IconMessage, IconInbox, IconUser } from '@tabler/icons-react'
-import { navGlassClass, navGlassInnerClass } from '../../utils/helpers'
+import { navGlassClass, navGlassInnerClass } from '../../utils/designSystem'
 
 const tabs = [
   { path: '/discover', icon: IconFlame, label: 'Discover' },
@@ -58,7 +58,10 @@ export default function BottomNav({ badges = {} }) {
   }, [activeIndex, location.pathname])
 
   return (
-    <nav className="fixed bottom-4 left-4 right-4 z-40">
+    <nav
+      className="fixed left-4 right-4 z-40"
+      style={{ bottom: 'calc(var(--ios-safe-bottom) + var(--ios-nav-float-bottom))' }}
+    >
       <div ref={containerRef} className={`relative overflow-visible ${navGlassClass}`}>
         <div
           className="absolute inset-0 nav-blur-sides rounded-full pointer-events-none overflow-hidden"
