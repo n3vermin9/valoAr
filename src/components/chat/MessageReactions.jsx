@@ -1,6 +1,6 @@
 import { MESSAGE_REACTIONS } from '../../utils/helpers'
 
-export function groupReactions(reactions = {}) {
+function groupReactions(reactions = {}) {
   const groups = {}
   for (const [userId, emoji] of Object.entries(reactions)) {
     if (!emoji) continue

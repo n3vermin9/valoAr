@@ -20,6 +20,19 @@ import {
 import { ref, set, onDisconnect, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
 import { getCachedUser, setCachedUser, invalidateUser } from './userCache'
+import { setProfileSnapshot } from './profileSnapshotCache'
+import { preloadAvatarImage } from './avatarImageCache'
+
+export { getCachedUser }
+
+function syncProfileSnapshot(userId, data) {
+  if (!data) return
+  setProfileSnapshot(userId, {
+    username: data.username,
+    photo: data.photos?.[0] || null,
+  })
+  preloadAvatarImage(data.photos?.[0], 128).catch(() => {})
+}
 import { buildUsernameBase, normalizeUsername } from '../utils/helpers'
 import { normalizeSocials, sanitizeProfileSocials, stripSocials } from '../utils/socialLinks'
 import { removeChatForUser } from './chatService'
@@ -44,6 +57,7 @@ export async function fetchUser(userId) {
     socials: normalizeSocials(raw.socials),
   }
   setCachedUser(userId, data)
+  syncProfileSnapshot(userId, data)
   return data
 }
 
@@ -74,6 +88,7 @@ export function subscribeToUser(userId, callback) {
         socials: normalizeSocials(raw.socials),
       }
       setCachedUser(userId, data)
+      syncProfileSnapshot(userId, data)
       callback(data)
     } else {
       invalidateUser(userId)

@@ -1,16 +1,23 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import EmojiPicker from 'emoji-picker-react'
 import toast from 'react-hot-toast'
 import { IconMoodSmile, IconPhoto, IconSend, IconMicrophone, IconX } from '@tabler/icons-react'
 import { getVoiceMimeType, getMessagePreviewText } from '../../utils/helpers'
-import { glassInputBarClass, glassActionButtonClass } from '../../utils/designSystem'
+import {
+  chatFloatingButtonClass,
+  chatFloatingInputBarClass,
+  chatFloatingPanelClass,
+} from '../../utils/designSystem'
+import ChatSearchControls from './ChatSearchControls'
 import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
 
-const actionButtonClass = glassActionButtonClass
+const actionButtonClass = chatFloatingButtonClass
 
 const MAX_VOICE_SECONDS = 180
 const MIN_VOICE_BYTES = 100
 const STOP_TIMEOUT_MS = 4000
+const composerTransition = { type: 'spring', stiffness: 260, damping: 30, mass: 1.05 }
 
 function focusTextarea(ref) {
   requestAnimationFrame(() => {
@@ -74,12 +81,20 @@ export default function ChatInput({
   replyTo,
   replyAuthorName,
   onClearReply,
+  searchActive = false,
+  searchMatchIndex = 0,
+  searchMatchCount = 0,
+  onSearchPrev,
+  onSearchNext,
+  onOpenSearchResults,
 }) {
   const [text, setText] = useState('')
+  const [trackedDraftKey, setTrackedDraftKey] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [recording, setRecording] = useState(false)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [sendingVoice, setSendingVoice] = useState(false)
+  const wasSearchActiveRef = useRef(false)
   const emojiRef = useRef(null)
   const fileRef = useRef(null)
   const textareaRef = useRef(null)
@@ -91,10 +106,12 @@ export default function ChatInput({
   const draftTimerRef = useRef(null)
 
   const showSend = Boolean(text.trim() || imagePreview)
+  const draftKey = `${chatId ?? ''}:${focusKey ?? ''}`
 
-  useEffect(() => {
+  if (draftKey !== trackedDraftKey) {
+    setTrackedDraftKey(draftKey)
     setText(chatId ? getChatDraft(chatId) : '')
-  }, [chatId, focusKey])
+  }
 
   useEffect(() => {
     if (!chatId) return
@@ -191,7 +208,13 @@ export default function ChatInput({
       setRecording(true)
       setRecordingSeconds(0)
       timerRef.current = setInterval(() => {
-        setRecordingSeconds((s) => s + 1)
+        setRecordingSeconds((s) => {
+          const next = s + 1
+          if (next >= MAX_VOICE_SECONDS) {
+            queueMicrotask(() => finishRecording(true))
+          }
+          return next
+        })
       }, 1000)
     } catch {
       toast.error('Microphone access denied')
@@ -199,7 +222,7 @@ export default function ChatInput({
     } finally {
       busyRef.current = false
     }
-  }, [recording, sendingVoice, resetVoiceUi])
+  }, [recording, sendingVoice, resetVoiceUi, finishRecording])
 
   useEffect(() => {
     const timer = setTimeout(() => focusTextarea(textareaRef), 0)
@@ -230,6 +253,15 @@ export default function ChatInput({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showEmoji])
 
+  const showEmojiPicker = showEmoji && !searchActive
+
+  useEffect(() => {
+    if (wasSearchActiveRef.current && !searchActive) {
+      focusTextarea(textareaRef)
+    }
+    wasSearchActiveRef.current = searchActive
+  }, [searchActive])
+
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
@@ -237,12 +269,6 @@ export default function ChatInput({
     const nextHeight = Math.min(el.scrollHeight, 128)
     el.style.height = `${nextHeight}px`
   }, [text])
-
-  useEffect(() => {
-    if (recording && recordingSeconds >= MAX_VOICE_SECONDS) {
-      finishRecording(true)
-    }
-  }, [recording, recordingSeconds, finishRecording])
 
   const handleVoiceClick = () => {
     if (recording) {
@@ -277,10 +303,10 @@ export default function ChatInput({
   }
 
   return (
-    <div className="relative">
+    <div className="relative bg-transparent">
       {replyTo && (
         <div className="px-4 pb-2">
-          <div className={`${glassInputBarClass} flex items-center gap-2 rounded-2xl px-3 py-2`}>
+          <div className={`${chatFloatingPanelClass} flex items-center gap-2 rounded-2xl px-3 py-2`}>
             <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-2.5">
               <p className="text-xs font-semibold text-blue-300 truncate">
                 Replying to {replyAuthorName}
@@ -313,7 +339,7 @@ export default function ChatInput({
         </div>
       )}
 
-      {showEmoji && (
+      {showEmojiPicker && (
         <div ref={emojiRef} className="absolute bottom-full left-4 mb-2 z-20">
           <EmojiPicker
             onEmojiClick={(emojiData) => setText((t) => t + emojiData.emoji)}
@@ -326,80 +352,126 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="flex items-end gap-2 px-4 py-3">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className={`${actionButtonClass} self-end text-white/70 hover:text-white`}
-          disabled={recording || sendingVoice}
-        >
-          <IconPhoto size={22} />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) onImageSelect?.(file)
-            e.target.value = ''
-          }}
-        />
-
-        <div className={`${glassInputBarClass} flex flex-1 items-end gap-1.5 rounded-[30px] pl-2 pr-3 py-2 min-h-11`}>
-          <button
-            type="button"
-            onClick={() => setShowEmoji(!showEmoji)}
-            className="h-8 w-8 shrink-0 flex items-center justify-center text-white/60 hover:text-white rounded-full transition-colors"
-            disabled={recording || sendingVoice}
-          >
-            <IconMoodSmile size={20} />
-          </button>
-          <textarea
-            ref={textareaRef}
-            value={text}
-            rows={1}
-            data-allow-copy
-            onChange={(e) => {
-              setText(e.target.value)
-              onTyping?.(true)
-            }}
-            onBlur={() => onTyping?.(false)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              sendingVoice
-                ? 'Sending voice…'
-                : recording
-                  ? `Recording ${formatRecordingTime(recordingSeconds)}… tap mic to send`
-                  : 'Type a message...'
-            }
-            className="flex-1 min-w-0 py-1.5 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto leading-5 max-h-32"
+      <div className="overflow-hidden px-4 py-3 shrink-0 min-h-[68px]">
+        {searchActive ? (
+          <ChatSearchControls
+            matchIndex={searchMatchIndex}
+            matchCount={searchMatchCount}
+            onPrev={onSearchPrev}
+            onNext={onSearchNext}
+            onOpenResults={onOpenSearchResults}
           />
-        </div>
-
-        {showSend ? (
-          <button
-            type="button"
-            onClick={handleSend}
-            className={`${actionButtonClass} self-end text-blue-400 hover:text-blue-300`}
-          >
-            <IconSend size={20} />
-          </button>
         ) : (
-          <button
-            type="button"
-            onClick={handleVoiceClick}
-            disabled={sendingVoice}
-            className={`${actionButtonClass} self-end ${
-              recording
-                ? 'text-red-400 hover:text-red-300 animate-pulse'
-                : 'text-white/70 hover:text-white'
-            } disabled:opacity-50`}
-            aria-label={recording ? 'Stop and send voice message' : 'Record voice message'}
+        <div className="flex items-center gap-2 h-11">
+          <motion.div
+            className="w-11 shrink-0"
+            initial={false}
+            animate={{
+              x: 0,
+              opacity: 1,
+            }}
+            transition={composerTransition}
           >
-            <IconMicrophone size={20} />
-          </button>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className={`${actionButtonClass} text-white/70 hover:text-white`}
+              disabled={recording || sendingVoice}
+            >
+              <IconPhoto size={22} />
+            </button>
+          </motion.div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onImageSelect?.(file)
+              e.target.value = ''
+            }}
+          />
+
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <motion.div
+              className="mx-auto overflow-hidden"
+              initial={false}
+              animate={{
+                width: '100%',
+                opacity: 1,
+              }}
+              transition={composerTransition}
+            >
+              <div
+                className={`${chatFloatingInputBarClass} flex w-full items-end gap-1.5 rounded-[30px] pl-2 pr-3 py-2 min-h-11`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowEmoji(!showEmoji)}
+                  className="h-8 w-8 shrink-0 flex items-center justify-center text-white/60 hover:text-white rounded-full transition-colors"
+                  disabled={recording || sendingVoice}
+                >
+                  <IconMoodSmile size={20} />
+                </button>
+                <textarea
+                  ref={textareaRef}
+                  value={text}
+                  rows={1}
+                  data-allow-copy
+                  onChange={(e) => {
+                    setText(e.target.value)
+                    onTyping?.(true)
+                  }}
+                  onBlur={() => onTyping?.(false)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    sendingVoice
+                      ? 'Sending voice…'
+                      : recording
+                        ? `Recording ${formatRecordingTime(recordingSeconds)}… tap mic to send`
+                        : 'Type a message...'
+                  }
+                  className="flex-1 min-w-0 py-1.5 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto leading-5 max-h-32"
+                />
+              </div>
+            </motion.div>
+          </div>
+
+          <motion.div
+            className="w-11 shrink-0"
+            initial={false}
+            animate={{
+              x: 0,
+              opacity: 1,
+            }}
+            transition={composerTransition}
+          >
+            {showSend ? (
+              <button
+                type="button"
+                onClick={handleSend}
+                className={`${actionButtonClass} text-blue-400 hover:text-blue-300`}
+              >
+                <IconSend size={20} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleVoiceClick}
+                disabled={sendingVoice}
+                className={`${actionButtonClass} ${
+                  recording
+                    ? 'text-red-400 hover:text-red-300 animate-pulse'
+                    : 'text-white/70 hover:text-white'
+                } disabled:opacity-50`}
+                aria-label={recording ? 'Stop and send voice message' : 'Record voice message'}
+              >
+                <IconMicrophone size={20} />
+              </button>
+            )}
+          </motion.div>
+        </div>
         )}
       </div>
     </div>

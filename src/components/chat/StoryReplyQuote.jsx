@@ -3,15 +3,22 @@ import { subscribeStoryExists } from '../../services/storyService'
 import { getStoryReplyQuoteColorClass, getStoryReplySnippet } from '../../utils/storyHelpers'
 
 export default function StoryReplyQuote({ storyReply, onClick, className = '' }) {
-  const [storyExists, setStoryExists] = useState(null)
+  const hasStoryTarget = Boolean(storyReply?.storyId && storyReply?.ownerId)
+  const storyTargetKey = hasStoryTarget ? `${storyReply.ownerId}:${storyReply.storyId}` : ''
+  const [trackedStoryTargetKey, setTrackedStoryTargetKey] = useState('')
+  const [subscribedExists, setSubscribedExists] = useState(null)
+
+  if (storyTargetKey !== trackedStoryTargetKey) {
+    setTrackedStoryTargetKey(storyTargetKey)
+    setSubscribedExists(null)
+  }
 
   useEffect(() => {
-    if (!storyReply?.storyId || !storyReply?.ownerId) {
-      setStoryExists(null)
-      return
-    }
-    return subscribeStoryExists(storyReply.ownerId, storyReply.storyId, setStoryExists)
-  }, [storyReply?.storyId, storyReply?.ownerId])
+    if (!hasStoryTarget) return
+    return subscribeStoryExists(storyReply.ownerId, storyReply.storyId, setSubscribedExists)
+  }, [hasStoryTarget, storyReply?.ownerId, storyReply?.storyId])
+
+  const storyExists = hasStoryTarget ? subscribedExists : null
 
   if (!storyReply) return null
 
@@ -34,9 +41,19 @@ export default function StoryReplyQuote({ storyReply, onClick, className = '' })
     </>
   )
 
-  const boxClass = `rounded-lg px-2.5 py-2 border border-white/10 ${colorClass} ${
+  const boxClass = `relative overflow-hidden rounded-lg px-2.5 py-2 border border-white/10 ${colorClass} ${
     canOpen ? 'hover:brightness-110 active:brightness-95 transition-[filter] cursor-pointer' : ''
   }`
+
+  const quoteBody = (
+    <>
+      <span
+        className="story-reply-notes-pattern absolute inset-0 rounded-[inherit] pointer-events-none"
+        aria-hidden
+      />
+      <span className="relative z-[1] block min-w-0">{content}</span>
+    </>
+  )
 
   return (
     <div className={`mb-2 min-w-0 ${className}`}>
@@ -50,10 +67,10 @@ export default function StoryReplyQuote({ storyReply, onClick, className = '' })
           className={`w-full text-left ${boxClass}`}
           aria-label={`Open ${label}`}
         >
-          {content}
+          {quoteBody}
         </button>
       ) : (
-        <div className={boxClass}>{content}</div>
+        <div className={boxClass}>{quoteBody}</div>
       )}
     </div>
   )

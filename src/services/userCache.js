@@ -1,5 +1,5 @@
 const cache = new Map()
-const TTL = 30_000
+const TTL = 5 * 60_000
 
 export function getCachedUser(userId) {
   const entry = cache.get(userId)

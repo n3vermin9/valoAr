@@ -14,7 +14,10 @@ import {
   subscribeChatListActivity,
 } from '../../services/chatService'
 import { fetchUsersMap, blockUser } from '../../services/userService'
+import { getProfileSnapshots } from '../../services/profileSnapshotCache'
+import { preloadAvatarImages } from '../../services/avatarImageCache'
 import StoryAvatarButton from '../stories/StoryAvatarButton'
+import CachedAvatar from '../ui/CachedAvatar'
 import { formatChatTime, isSavedMessagesChat, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass } from '../../utils/designSystem'
 import PageShell from '../layout/PageShell'
@@ -58,23 +61,34 @@ export default function ChatList() {
 
       if (!otherIds.length) return
 
+      const snapshots = getProfileSnapshots(otherIds)
+      if (Object.keys(snapshots).length) {
+        setUsers((prev) => ({ ...snapshots, ...prev }))
+        preloadAvatarImages(
+          Object.values(snapshots).map((u) => u.photos?.[0]),
+          112
+        ).catch(() => {})
+      }
+
       const requestId = ++usersRequest
       fetchUsersMap(otherIds).then((userMap) => {
         if (requestId !== usersRequest) return
         if (!Object.keys(userMap).length) return
         setUsers((prev) => ({ ...prev, ...userMap }))
+        preloadAvatarImages(
+          Object.values(userMap).map((u) => u.photos?.[0]),
+          112
+        ).catch(() => {})
       })
     })
   }, [user?.uid])
 
   useEffect(() => {
-    if (!user?.uid || chats.length === 0) {
-      setChatActivity({})
-      return
-    }
-
+    if (!user?.uid || chats.length === 0) return
     return subscribeChatListActivity(user.uid, chats, setChatActivity)
   }, [user?.uid, chats])
+
+  const resolvedChatActivity = chats.length === 0 ? {} : chatActivity
 
   const updateMenuPosition = useCallback((chatId) => {
     const el = rowRefs.current[chatId]
@@ -290,7 +304,7 @@ export default function ChatList() {
             const unreadCount = getUnreadCount(chat, user.uid)
             const isSelected = selectedChatId === chat.id
             const menuOpen = !!selectedChatId
-            const activity = chatActivity[chat.id]
+            const activity = resolvedChatActivity[chat.id]
             const isTyping = activity?.typing
             const isOnline = activity?.presence?.online
 
@@ -316,6 +330,7 @@ export default function ChatList() {
                   data-allow-contextmenu
                   onContextMenu={(e) => handleContextMenu(e, chat.id)}
                   onClick={(e) => {
+                    if (document.querySelector('[data-story-viewer]')) return
                     if (menuOpen) return
                     if (e.target.closest('[data-story-avatar]')) return
                     navigate(`/chats/${chat.id}`)
@@ -323,6 +338,7 @@ export default function ChatList() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
+                      if (document.querySelector('[data-story-viewer]')) return
                       if (menuOpen) return
                       navigate(`/chats/${chat.id}`)
                     }
@@ -337,8 +353,10 @@ export default function ChatList() {
                         <img src={logo} alt="Logo" className="w-10 h-10 object-cover" />
                       </div>
                     ) : isRemoved ? (
-                      <img
-                        src={otherUser?.photos?.[0] || sad}
+                      <CachedAvatar
+                        src={otherUser?.photos?.[0]}
+                        fallback={sad}
+                        size={56}
                         alt=""
                         className="w-14 h-14 rounded-full object-cover grayscale"
                       />

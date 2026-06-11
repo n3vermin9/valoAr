@@ -9,6 +9,7 @@ import { sad } from '../../assets'
 
 const AUTO_DISMISS_MS = 3000
 const DRAG_THRESHOLD = 10
+const GROUP_WINDOW_MS = 8000
 
 function getMessageKey(lastMessage) {
   if (!lastMessage) return null
@@ -19,6 +20,37 @@ function getMessageKey(lastMessage) {
 
 function getLikeKey(like) {
   return like.fromUserId || like.id
+}
+
+function getGroupKey(notification) {
+  if (notification.type === 'chat') return `chat:${notification.chatId}`
+  if (notification.type === 'friend_request') return `friend:${notification.fromUserId}`
+  return notification.id
+}
+
+function getGroupedPreview(notification) {
+  const count = notification.messageCount || 1
+  if (count <= 1) return notification.preview
+  return `${count} new messages`
+}
+
+function mergeNotifications(existing, incoming) {
+  const messageCount = (existing.messageCount || 1) + 1
+  return {
+    ...existing,
+    preview: incoming.preview,
+    messageCount,
+    lastGroupedAt: Date.now(),
+    revision: (existing.revision || 0) + 1,
+    sourceIds: [...(existing.sourceIds || []), incoming.sourceId],
+  }
+}
+
+function canMerge(existing, incoming, now) {
+  if (!existing) return false
+  if (getGroupKey(existing) !== getGroupKey(incoming)) return false
+  const anchor = existing.lastGroupedAt ?? existing.queuedAt ?? 0
+  return now - anchor <= GROUP_WINDOW_MS
 }
 
 function SwipeableNotification({ notification, onDismiss, onOpen }) {
@@ -102,6 +134,8 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
     ? { duration: 0.28, ease: [0.4, 0, 0.2, 1] }
     : { type: 'spring', stiffness: 420, damping: 34, mass: 0.75 }
 
+  const preview = getGroupedPreview(notification)
+
   return (
     <motion.div
       role="button"
@@ -128,36 +162,26 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
         transition={{ duration: autoExit ? 0.22 : 0 }}
         className={`overflow-hidden ${notificationGlassClass}`}
       >
-      <div className="flex items-center gap-3 px-4 py-3">
-        <img
-          src={notification.photo || sad}
-          alt=""
-          className="w-11 h-11 rounded-full object-cover shrink-0 ring-1 ring-white/10"
-        />
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate text-white">{notification.username}</p>
-          <p className="text-xs text-white/70 truncate mt-0.5">{notification.preview}</p>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <img
+            src={notification.photo || sad}
+            alt=""
+            className="w-11 h-11 rounded-full object-cover shrink-0 ring-1 ring-white/10"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm truncate text-white">{notification.username}</p>
+            <p className="text-xs text-white/70 truncate mt-0.5">{preview}</p>
+          </div>
         </div>
-      </div>
       </motion.div>
     </motion.div>
   )
 }
 
-function pushNotification(setNotifications, notifiedIds, item) {
-  if (notifiedIds.has(item.id)) return
-  notifiedIds.add(item.id)
-  setNotifications((prev) => {
-    if (prev.some((n) => n.id === item.id)) return prev
-    return [item, ...prev].slice(0, 3)
-  })
-}
-
-export default function ChatNotifications() {
-  const { user } = useAuth()
-  const location = useLocation()
+function ChatNotificationSession({ userId, pathname }) {
   const navigate = useNavigate()
-  const [notifications, setNotifications] = useState([])
+  const [activeNotification, setActiveNotification] = useState(null)
+  const queueRef = useRef([])
   const knownMessagesRef = useRef(new Map())
   const knownLikesRef = useRef(new Set())
   const notifiedIdsRef = useRef(new Set())
@@ -165,17 +189,11 @@ export default function ChatNotifications() {
   const likesInitializedRef = useRef(false)
   const usersRef = useRef({})
 
-  useEffect(() => {
-    knownMessagesRef.current = new Map()
-    knownLikesRef.current = new Set()
-    notifiedIdsRef.current = new Set()
-    chatsInitializedRef.current = false
-    likesInitializedRef.current = false
-    usersRef.current = {}
-  }, [user?.uid])
-
   const dismiss = useCallback((id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id))
+    setActiveNotification((current) => {
+      if (!current || current.id !== id) return current
+      return queueRef.current.shift() ?? null
+    })
   }, [])
 
   const openNotification = useCallback(
@@ -190,10 +208,43 @@ export default function ChatNotifications() {
     [dismiss, navigate]
   )
 
-  useEffect(() => {
-    if (!user?.uid) return
+  const enqueueNotification = useCallback((item) => {
+    if (notifiedIdsRef.current.has(item.sourceId)) return
+    notifiedIdsRef.current.add(item.sourceId)
 
-    return subscribeChats(user.uid, async (chats) => {
+    const now = Date.now()
+    const entry = {
+      ...item,
+      messageCount: 1,
+      queuedAt: now,
+      lastGroupedAt: now,
+      revision: 0,
+      sourceIds: [item.sourceId],
+    }
+
+    setActiveNotification((current) => {
+      if (canMerge(current, entry, now)) {
+        return mergeNotifications(current, entry)
+      }
+
+      const queue = queueRef.current
+      const lastQueued = queue[queue.length - 1]
+      if (canMerge(lastQueued, entry, now)) {
+        queueRef.current = [...queue.slice(0, -1), mergeNotifications(lastQueued, entry)]
+        return current
+      }
+
+      if (current) {
+        queueRef.current = [...queueRef.current, entry]
+        return current
+      }
+
+      return entry
+    })
+  }, [])
+
+  useEffect(() => {
+    return subscribeChats(userId, async (chats) => {
       if (!chatsInitializedRef.current) {
         chats.forEach((chat) => {
           knownMessagesRef.current.set(chat.id, getMessageKey(chat.lastMessage))
@@ -211,26 +262,25 @@ export default function ChatNotifications() {
           continue
         }
         if (chat.isSavedMessages) continue
-        if (chat.lastMessage.senderId === user.uid) {
+        if (chat.lastMessage.senderId === userId) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
-        if (chat.mutedBy?.includes(user.uid)) {
+        if (chat.mutedBy?.includes(userId)) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
-        if (location.pathname === `/chats/${chat.id}`) {
+        if (pathname === `/chats/${chat.id}`) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
 
-        const otherId = chat.participants.find((id) => id !== user.uid)
+        const otherId = chat.participants.find((id) => id !== userId)
         if (!otherId) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
 
-        const notificationId = `chat_${newKey}`
         knownMessagesRef.current.set(chat.id, newKey)
 
         if (!usersRef.current[otherId]) {
@@ -238,8 +288,9 @@ export default function ChatNotifications() {
         }
         const otherUser = usersRef.current[otherId]
 
-        pushNotification(setNotifications, notifiedIdsRef.current, {
-          id: notificationId,
+        enqueueNotification({
+          id: `chat_${chat.id}_${newKey}`,
+          sourceId: `chat_${newKey}`,
           type: 'chat',
           chatId: chat.id,
           username: otherUser?.username || 'User',
@@ -251,19 +302,17 @@ export default function ChatNotifications() {
         })
       }
     })
-  }, [user?.uid, location.pathname])
+  }, [userId, pathname, enqueueNotification])
 
   useEffect(() => {
-    if (!user?.uid) return
-
-    return subscribeLikesReceived(user.uid, async (likes) => {
+    return subscribeLikesReceived(userId, async (likes) => {
       if (!likesInitializedRef.current) {
         likes.forEach((like) => knownLikesRef.current.add(getLikeKey(like)))
         likesInitializedRef.current = true
         return
       }
 
-      if (location.pathname === '/liked') {
+      if (pathname === '/liked') {
         likes.forEach((like) => knownLikesRef.current.add(getLikeKey(like)))
         return
       }
@@ -279,35 +328,52 @@ export default function ChatNotifications() {
         }
         const fromUser = usersRef.current[fromId]
 
-        pushNotification(setNotifications, notifiedIdsRef.current, {
+        enqueueNotification({
           id: `like_${likeKey}`,
+          sourceId: `like_${likeKey}`,
           type: 'friend_request',
+          fromUserId: fromId,
           username: fromUser?.username || 'User',
           photo: fromUser?.photos?.[0],
           preview: like.message || 'Sent you a friend request',
         })
       }
     })
-  }, [user?.uid, location.pathname])
+  }, [userId, pathname, enqueueNotification])
+
+  const notificationKey = activeNotification
+    ? `${activeNotification.id}-r${activeNotification.revision ?? 0}`
+    : 'empty'
+
+  return (
+    <div
+      className={`pointer-events-auto w-full max-w-md mx-auto ${
+        activeNotification ? '' : 'invisible'
+      }`}
+    >
+      <AnimatePresence initial={false} mode="wait">
+        {activeNotification ? (
+          <SwipeableNotification
+            key={notificationKey}
+            notification={activeNotification}
+            onDismiss={dismiss}
+            onOpen={openNotification}
+          />
+        ) : null}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export default function ChatNotifications() {
+  const { user } = useAuth()
+  const location = useLocation()
+
+  if (!user?.uid) return null
 
   return (
     <div className="fixed top-12 left-0 right-0 z-[100] pointer-events-none isolate">
-      <div
-        className={`pointer-events-auto w-full max-w-md mx-auto ${
-          notifications.length === 0 ? 'invisible' : ''
-        }`}
-      >
-        <AnimatePresence initial={false}>
-          {notifications.map((notification) => (
-            <SwipeableNotification
-              key={notification.id}
-              notification={notification}
-              onDismiss={dismiss}
-              onOpen={openNotification}
-            />
-          ))}
-        </AnimatePresence>
-      </div>
+      <ChatNotificationSession key={user.uid} userId={user.uid} pathname={location.pathname} />
     </div>
   )
 }

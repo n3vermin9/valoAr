@@ -173,10 +173,10 @@ export default function ProfileView() {
         <p className="text-white/60">{profile.age} years old</p>
       </div>
 
-      <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
-        <div className="pb-4 mb-4 border-b border-white/10">
+      <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
+        <div className="pb-4 mb-4 border-b border-white/10 min-w-0">
           <p className="text-xs uppercase tracking-wider text-white/40 mb-2">Bio</p>
-          <p className="text-base text-white/90 leading-relaxed">
+          <p className="text-base text-white/90 leading-relaxed break-words whitespace-pre-wrap">
             {profile.bio || 'No bio yet'}
           </p>
           <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
@@ -330,7 +330,7 @@ export default function ProfileView() {
         <MatchHistory onSelectFriend={setFriendProfileId} />
       </Modal>
 
-      <Modal isOpen={!!friendProfileId} onClose={() => setFriendProfileId(null)}>
+      <Modal isOpen={!!friendProfileId} onClose={() => setFriendProfileId(null)} fullscreen>
         {friendProfileId && (
           <PublicProfileView userId={friendProfileId} onClose={() => setFriendProfileId(null)} />
         )}
@@ -459,15 +459,34 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showMenu])
 
-  if (loading) return <LoadingSpinner />
-  if (!profile && !deletedProfile) return <p className="p-6 text-center text-white/60">User not found</p>
+  if (loading) {
+    return (
+      <div className="h-full min-h-0 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
+  if (!profile && !deletedProfile) {
+    return (
+      <div className="h-full min-h-0 overflow-y-auto pb-24">
+        <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
+          {onClose && <ChevronBack onClick={onClose} />}
+        </div>
+        <p className="px-6 mt-8 text-center text-white/60">User not found</p>
+      </div>
+    )
+  }
 
   const isDeleted = !profile && !!deletedProfile
 
   if (isDeleted) {
     return (
-      <div className="p-6 relative">
-        <div className="flex flex-col items-center">
+      <div className="h-full min-h-0 overflow-y-auto pb-24">
+        <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
+          {onClose && <ChevronBack onClick={onClose} />}
+        </div>
+        <div className="flex flex-col items-center px-6 mt-4">
           <img
             src={sad}
             alt=""
@@ -480,11 +499,6 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
           </div>
           <p className="text-sm text-white/50 mt-1">Account deleted</p>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="w-full mt-6 py-3 bg-white/10 hover:bg-white/15 rounded-full font-medium">
-            Close
-          </button>
-        )}
       </div>
     )
   }
@@ -559,54 +573,66 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
     }
   }
 
+  const profileMenu =
+    !isSelf && (isMatched || onBlock) ? (
+      <div className="relative" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setShowMenu((open) => !open)}
+          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          aria-label="More options"
+        >
+          <IconDotsVertical size={22} className="text-white/80" />
+        </button>
+
+        <AnimatePresence>
+          {showMenu && (
+            <motion.div
+              {...contextMenuMotion}
+              className={`absolute right-0 top-full mt-2 z-50 ${dropdownMenuClass} ${navGlassMenuClass}`}
+            >
+              {isMatched && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false)
+                    setConfirmRemoveMatch(true)
+                  }}
+                  className={dropdownMenuItemWithIconClass}
+                >
+                  <IconUserMinus size={18} stroke={1.75} className="shrink-0 text-white/55" />
+                  Remove Friend
+                </button>
+              )}
+              {onBlock && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false)
+                    onBlock(userId)
+                  }}
+                  className={dropdownMenuItemWithIconDangerClass}
+                >
+                  <IconBan size={18} stroke={1.75} className="shrink-0 text-red-400" />
+                  Block
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    ) : (
+      <span className="w-10" aria-hidden />
+    )
+
   return (
-    <div className="p-6 relative">
-      {!isSelf && (isMatched || onBlock) && (
-        <div className="absolute top-6 right-6 z-10" ref={menuRef}>
-          <button
-            onClick={() => setShowMenu((open) => !open)}
-            className="p-2 hover:bg-white/10 rounded-full"
-          >
-            <IconDotsVertical size={20} />
-          </button>
+    <div className="h-full min-h-0 overflow-y-auto pb-24">
+      <div className="flex items-center justify-between px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
+        {onClose ? <ChevronBack onClick={onClose} /> : <span className="w-10" aria-hidden />}
+        {profileMenu}
+      </div>
 
-          <AnimatePresence>
-            {showMenu && (
-              <motion.div
-                {...contextMenuMotion}
-                className={`absolute right-0 top-full mt-2 z-50 ${dropdownMenuClass} ${navGlassMenuClass}`}
-              >
-                {isMatched && (
-                  <button
-                    onClick={() => {
-                      setShowMenu(false)
-                      setConfirmRemoveMatch(true)
-                    }}
-                    className={dropdownMenuItemWithIconClass}
-                  >
-                    <IconUserMinus size={18} stroke={1.75} className="shrink-0 text-white/55" />
-                    Remove Friend
-                  </button>
-                )}
-                {onBlock && (
-                  <button
-                    onClick={() => {
-                      setShowMenu(false)
-                      onBlock(userId)
-                    }}
-                    className={dropdownMenuItemWithIconDangerClass}
-                  >
-                    <IconBan size={18} stroke={1.75} className="shrink-0 text-red-400" />
-                    Block
-                  </button>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
-
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center px-6">
         <ProfileStoryAvatar
           userId={userId}
           profile={profile}
@@ -615,7 +641,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
           friendIds={me?.matches}
           viewerUsername={me?.username}
           viewerPhoto={me?.photos?.[0]}
-          size={112}
+          size={128}
           suppressStoryViewer={suppressStoryViewer}
           onOpenGallery={() => setGalleryOpen(true)}
           onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
@@ -630,9 +656,9 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
             View photos
           </button>
         )}
-        <div className="flex items-center gap-2 mt-3">
-          <h2 className="text-xl font-bold">
-            <CopyableUsername username={profile.username} className="text-xl font-bold" />
+        <div className="flex items-center gap-2 mt-4">
+          <h2 className="text-2xl font-bold">
+            <CopyableUsername username={profile.username} className="text-2xl font-bold" />
           </h2>
           {isMuted && (
             <IconBellOff size={18} className="text-white/50 shrink-0" aria-label="Muted" />
@@ -641,27 +667,28 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
         <p className="text-white/60">{profile.age} years old</p>
       </div>
 
-      <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
-        <div className="pb-4 mb-4 border-b border-white/10">
+      <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
+        <div className="pb-4 mb-4 border-b border-white/10 min-w-0">
           <p className="text-xs uppercase tracking-wider text-white/40 mb-2">Bio</p>
-          <p className="text-base text-white/90 leading-relaxed">
+          <p className="text-base text-white/90 leading-relaxed break-words whitespace-pre-wrap">
             {profile.bio || 'No bio yet'}
           </p>
           <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
-          <SocialLinksDisplay socials={profile.socials} visible={isSelf || isMatched} />
           {!isSelf && profile.showFriendCount !== false && (
-            <p className="text-sm text-white/50 mt-3">
+            <p className="text-sm text-white/50 mt-1">
               Has {friendCount} {friendCount === 1 ? 'friend' : 'friends'}
             </p>
           )}
+          <SocialLinksDisplay socials={profile.socials} visible={isSelf || isMatched} />
         </div>
         <InfoRow label="Member Since" value={memberSince} small />
       </div>
 
       {!isSelf && chatResolved && (
-        <div className="flex flex-col gap-3 mt-6">
+        <div className="mx-6 mt-4 flex flex-col gap-3 pb-6">
           {showAcceptRequest && (
             <button
+              type="button"
               onClick={handleAcceptRequest}
               disabled={accepting}
               className="w-full py-3 bg-green-500 hover:bg-green-600 rounded-full font-medium disabled:opacity-50"
@@ -671,6 +698,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
           )}
           {!showAcceptRequest && showMessage && (
             <button
+              type="button"
               onClick={handleMessage}
               className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium"
             >
@@ -679,6 +707,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
           )}
           {!showAcceptRequest && showSendRequest && (
             <button
+              type="button"
               onClick={handleSendFriendRequest}
               disabled={requesting || friendRequestPending}
               className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium disabled:opacity-50"
@@ -686,18 +715,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
               {friendRequestPending ? 'Request Sent' : requesting ? 'Sending...' : 'Send Request'}
             </button>
           )}
-          {onClose && (
-            <button onClick={onClose} className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-full font-medium">
-              Close
-            </button>
-          )}
         </div>
-      )}
-
-      {isSelf && onClose && (
-        <button onClick={onClose} className="w-full mt-6 py-3 bg-white/10 rounded-full">
-          Close
-        </button>
       )}
 
       {galleryOpen && (

@@ -72,11 +72,9 @@ function PublicProfileRoute() {
   if (!user) return <Navigate to="/login" />
 
   return (
-    <div className="h-full flex items-center justify-center">
-      <Modal isOpen onClose={() => navigate('/discover')}>
-        <PublicProfileView userId={userId} onClose={() => navigate('/discover')} />
-      </Modal>
-    </div>
+    <Modal isOpen onClose={() => navigate('/discover')} fullscreen>
+      <PublicProfileView userId={userId} onClose={() => navigate('/discover')} />
+    </Modal>
   )
 }
 

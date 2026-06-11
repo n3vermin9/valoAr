@@ -6,17 +6,19 @@
  * Content (lists, messages, media) → solid backgrounds, no glass.
  */
 
+const glassInsetHighlight = 'shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
+
 const glassBase =
-  'border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-xl backdrop-saturate-[1.8]'
+  'liquid-glass border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-xl backdrop-saturate-[1.8]'
 
-export const glassRegularClass = `${glassBase} shadow-[var(--ios-glass-shadow)]`
+export const glassRegularClass = `${glassBase} ${glassInsetHighlight} shadow-[var(--ios-glass-shadow)]`
 
-export const navGlassClass = `rounded-full ${glassBase} backdrop-blur-lg backdrop-saturate-[1.6] shadow-[var(--ios-glass-shadow)]`
+export const navGlassClass = `liquid-glass liquid-glass-circle rounded-full ${glassBase} backdrop-blur-lg backdrop-saturate-[1.6] ${glassInsetHighlight} shadow-[var(--ios-glass-shadow)]`
 
 export const navGlassInnerClass =
   'rounded-full border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-inner)] backdrop-blur-sm backdrop-saturate-[1.5] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-1px_0_rgba(255,255,255,0.04),0_2px_8px_rgba(0,0,0,0.08)]'
 
-export const navGlassMenuClass = `${glassRegularClass}`
+export const navGlassMenuClass = `${glassRegularClass} liquid-glass-rounded`
 
 /** @deprecated Use navGlassMenuClass */
 export const headerMenuGlassClass = navGlassMenuClass
@@ -26,10 +28,18 @@ export const glassNavBarClass =
 
 /** Transparent bar — glass lives on child bubbles/buttons (stories, chat) */
 export const liquidGlassNavBarClass =
-  'relative z-20 flex items-center gap-2 px-4 py-2.5 w-full'
+  'relative z-20 flex items-center gap-2 px-4 py-2.5 w-full bg-transparent'
 
 export const glassInputBarClass =
   'border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-input)] backdrop-blur-md shadow-[var(--ios-glass-shadow)]'
+
+export const chatFloatingGlassClass = `liquid-glass border border-[var(--ios-glass-border)] bg-transparent backdrop-blur-xl backdrop-saturate-[1.8] ${glassInsetHighlight}`
+
+export const chatFloatingInputBarClass = `${chatFloatingGlassClass} liquid-glass-capsule backdrop-blur-md`
+
+export const chatFloatingPanelClass = `${chatFloatingGlassClass} liquid-glass-rounded backdrop-blur-md`
+
+export const chatFloatingButtonClass = `${chatFloatingGlassClass} liquid-glass-circle h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
 export const glassActionButtonClass = `${glassInputBarClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
@@ -41,7 +51,8 @@ export const modalGlassClass =
 
 export const modalScrimClass = 'bg-black/40 backdrop-blur-md'
 
-export const dropdownMenuClass = 'w-44 py-1 rounded-[var(--ios-radius-lg)] overflow-hidden'
+export const dropdownMenuClass =
+  'w-44 py-1 rounded-[var(--ios-radius-lg)] overflow-hidden liquid-glass liquid-glass-rounded'
 
 export const dropdownMenuItemClass =
   'w-full px-3.5 py-2 text-left text-[15px] font-medium transition-colors duration-75 text-[var(--ios-label)] hover:bg-white/[0.08] active:bg-white/[0.14]'
@@ -96,18 +107,17 @@ export const contextMenuMotion = {
 export const tapScaleClass = 'tap-scale'
 
 /** Story viewer — Liquid Glass overlays on gradient story canvas */
-const storyGlassBlur =
-  'border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-xl backdrop-saturate-[1.8] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),var(--ios-glass-shadow)]'
+export const storyGlassBlur = `${glassBase} ${glassInsetHighlight}`
 
-export const storyGlassButtonClass = `${storyGlassBlur} p-2.5 rounded-full text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-40`
+export const storyGlassButtonClass = `${storyGlassBlur} liquid-glass-circle p-2.5 rounded-full flex items-center justify-center text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-40`
 
-export const storyGlassPillClass = `${storyGlassBlur} rounded-full px-4 py-2.5 flex items-center gap-2 text-white transition-all hover:brightness-110 active:scale-[0.98]`
+export const storyGlassPillClass = `${storyGlassBlur} liquid-glass-pill rounded-full px-4 py-2.5 flex items-center gap-2 text-white transition-all hover:brightness-110 active:scale-[0.98]`
 
 export const storyGlassInputClass = `${storyGlassBlur} rounded-full`
 
 export const storyGlassSheetClass = `rounded-t-[var(--ios-radius-xl)] border border-b-0 border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[var(--ios-glass-shadow-modal)]`
 
-export const storyAuthorBubbleClass = `${storyGlassBlur} rounded-full pl-1 pr-3 py-1 flex items-center gap-4 min-w-0 max-w-[58%] transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer`
+export const storyAuthorBubbleClass = `${storyGlassBlur} liquid-glass-pill rounded-full pl-1 pr-3 py-1 flex items-center gap-4 min-w-0 max-w-[58%] transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer`
 
 export const storyGlassRowClass =
   'rounded-xl border border-white/5 bg-white/[0.06] backdrop-blur-lg backdrop-saturate-150 hover:bg-white/[0.1] active:bg-white/[0.14] transition-colors'

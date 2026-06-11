@@ -127,19 +127,11 @@ export default function ProfileStoryAvatar({
         hasStories={hasStories}
         unseen={unseen}
         seen={seen || (isOwn && hasStories)}
+        showAddBadge={isOwn && hasStories}
+        onAddClick={() => setComposerOpen(true)}
         onClick={handleClick}
         className={`${size >= 100 ? 'mx-auto' : ''}${suppressStoryViewer && stories.length > 0 ? ' cursor-default' : ''}`}
       />
-
-      {isOwn && stories.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setComposerOpen(true)}
-          className="mt-2 text-xs text-[var(--ios-blue)] hover:underline"
-        >
-          Add story
-        </button>
-      )}
 
       {isOwn && (
         <StoryComposer

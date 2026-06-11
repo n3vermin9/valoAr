@@ -1,6 +1,10 @@
 import { IconPlus } from '@tabler/icons-react'
 import { storyRingInnerClass } from '../../utils/designSystem'
+import CachedAvatar from '../ui/CachedAvatar'
 import { sad } from '../../assets'
+
+// Gap between ring and photo, as % of inner diameter (per side)
+const STORY_RING_GAP_PERCENT = 8
 
 export default function StoryRing({
   photo,
@@ -18,8 +22,12 @@ export default function StoryRing({
   className = '',
 }) {
   const hasRing = unseen || seen || hasStories || isOwn
-  const pad = unseen ? 3 : seen || hasStories ? 2.5 : isOwn ? 2 : 0
-  const inner = size - pad * 2
+  const ringWidth = unseen ? 3 : seen || hasStories ? 2.5 : isOwn ? 2 : 0
+  const innerDiameter = hasRing ? size - ringWidth * 2 : size
+  const ringGap = hasRing ? innerDiameter * (STORY_RING_GAP_PERCENT / 100) : 0
+  const photoDiameter = hasRing ? innerDiameter - ringGap * 2 : size
+  const badgeClass = size >= 100 ? 'w-7 h-7' : 'w-5 h-5'
+  const badgeIconSize = size >= 100 ? 16 : 12
 
   const ringClass = unseen
     ? 'bg-gradient-to-tr from-blue-500 via-violet-500 to-fuchsia-500'
@@ -55,19 +63,33 @@ export default function StoryRing({
   return (
     <Outer
       {...interactiveProps}
-      style={{ width: size, height: size, padding: hasRing ? pad : 0 }}
+      style={{ width: size, height: size, padding: hasRing ? ringWidth : 0 }}
       className={`relative shrink-0 rounded-full box-border flex items-center justify-center ${ringClass} ${className}`}
     >
       <div
-        className={`${storyRingInnerClass} flex items-center justify-center bg-[var(--ios-bg)]`}
-        style={{ width: inner, height: inner }}
+        className="rounded-full box-border flex items-center justify-center bg-[var(--ios-bg)]"
+        style={{
+          width: hasRing ? innerDiameter : size,
+          height: hasRing ? innerDiameter : size,
+          padding: hasRing ? `${STORY_RING_GAP_PERCENT}%` : 0,
+        }}
       >
-        <img
-          src={photo || sad}
+        <div
+          className={`${storyRingInnerClass} flex items-center justify-center`}
+          style={{
+            width: hasRing ? photoDiameter : size,
+            height: hasRing ? photoDiameter : size,
+          }}
+        >
+        <CachedAvatar
+          src={photo}
+          fallback={sad}
+          size={hasRing ? photoDiameter : size}
           alt=""
           className="w-full h-full object-cover"
           draggable={false}
         />
+        </div>
       </div>
       {(showAddBadge || (isOwn && !hasStories)) && (
         <button
@@ -76,10 +98,10 @@ export default function StoryRing({
             e.stopPropagation()
             onAddClick?.()
           }}
-          className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[var(--ios-blue)] border-2 border-black flex items-center justify-center z-10"
+          className={`absolute -bottom-0.5 -right-0.5 ${badgeClass} rounded-full bg-[var(--ios-blue)] border-2 border-black flex items-center justify-center z-10`}
           aria-label="Add story"
         >
-          <IconPlus size={12} stroke={2.5} />
+          <IconPlus size={badgeIconSize} stroke={2.5} />
         </button>
       )}
     </Outer>

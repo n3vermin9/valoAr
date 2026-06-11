@@ -38,6 +38,38 @@ video {
 .message-bubble {
   user-select: none;
   -webkit-user-select: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Clip backdrop-filter to rounded bounds — prevents gray square corners on glass controls */
+.liquid-glass {
+  isolation: isolate;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+
+.liquid-glass-circle {
+  border-radius: 9999px;
+  clip-path: inset(0 round 9999px);
+  -webkit-clip-path: inset(0 round 9999px);
+}
+
+.liquid-glass-pill {
+  border-radius: 9999px;
+  clip-path: inset(0 round 9999px);
+  -webkit-clip-path: inset(0 round 9999px);
+}
+
+.liquid-glass-capsule {
+  border-radius: 30px;
+  clip-path: inset(0 round 30px);
+  -webkit-clip-path: inset(0 round 30px);
+}
+
+.liquid-glass-rounded {
+  clip-path: inset(0 round var(--ios-radius-lg));
+  -webkit-clip-path: inset(0 round var(--ios-radius-lg));
 }
 
 @keyframes message-flash-highlight {
@@ -54,6 +86,25 @@ video {
 
 .message-bubble-flash {
   animation: message-flash-highlight 1s ease-out forwards;
+}
+
+.chat-search-mark {
+  border-radius: 2px;
+  background-color: rgba(250, 204, 21, 0.35);
+  color: inherit;
+}
+
+.chat-search-mark-active {
+  border-radius: 2px;
+  background-color: rgba(250, 204, 21, 0.55);
+  color: inherit;
+}
+
+.story-reply-notes-pattern {
+  background-image: url('./assets/story-notes-pattern.svg');
+  background-size: 52px 52px;
+  background-repeat: repeat;
+  opacity: 0.55;
 }
 
 html,

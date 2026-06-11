@@ -114,8 +114,10 @@ export default function MessageActionOverlay({
         <div className="w-full min-w-0">
           <div
             ref={scrollRef}
-            className={`px-4 py-2 rounded-2xl message-bubble overflow-y-auto ${MAX_MESSAGE_HEIGHT} ${
-              isOwn ? 'bg-blue-500 rounded-br-sm' : 'bg-white/10 rounded-bl-sm'
+            className={`px-4 py-2 message-bubble overflow-y-auto ${MAX_MESSAGE_HEIGHT} ${
+              isOwn
+                ? 'bg-blue-500 rounded-[1.125rem] rounded-br-[0.25rem]'
+                : 'bg-white/10 rounded-[1.125rem] rounded-bl-[0.25rem]'
             }`}
           >
             {message.replyTo && (
@@ -172,7 +174,7 @@ export default function MessageActionOverlay({
               initial={{ opacity: 1, y: 0 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className={`mt-3 shrink-0 rounded-full overflow-hidden w-full min-w-[240px] ${navGlassMenuClass}`}
+              className={`mt-3 shrink-0 liquid-glass-pill rounded-full w-full min-w-[240px] ${navGlassMenuClass}`}
             >
               <ReactionPicker
                 reactions={message.reactions}

@@ -52,6 +52,8 @@
   --ios-nav-float-bottom: 16px;
   --ios-nav-clearance: 96px;
   --ios-safe-top: env(safe-area-inset-top, 0px);
+  --chat-room-header-height: calc(var(--ios-safe-top) + 62px);
+  --chat-room-composer-min-height: calc(80px + var(--ios-safe-bottom));
   --ios-safe-bottom: env(safe-area-inset-bottom, 0px);
   --ios-safe-left: env(safe-area-inset-left, 0px);
   --ios-safe-right: env(safe-area-inset-right, 0px);

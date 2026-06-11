@@ -147,6 +147,7 @@ export default function StoryViewer({
   const blockGhostClickRef = useRef(false)
   const closedRef = useRef(false)
   const recordedViewsRef = useRef(new Set())
+  const replyInputRef = useRef(null)
   queueRef.current = sessionQueue
   navRef.current = nav
 
@@ -185,6 +186,27 @@ export default function StoryViewer({
       document.removeEventListener('click', swallowGhostClick, true)
       document.removeEventListener('touchend', swallowGhostClick, true)
     }
+  }, [])
+
+  useEffect(() => {
+    const active = document.activeElement
+    if (
+      active &&
+      active !== document.body &&
+      !active.closest?.('[data-story-viewer]')
+    ) {
+      active.blur()
+    }
+
+    const blockBackgroundKeys = (e) => {
+      if (e.target.closest?.('[data-story-viewer]')) return
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    document.addEventListener('keydown', blockBackgroundKeys, true)
+    return () => document.removeEventListener('keydown', blockBackgroundKeys, true)
   }, [])
 
   useEffect(() => {
@@ -464,6 +486,10 @@ export default function StoryViewer({
       await replyToStory(viewerId, ownerId, story, trimmed, viewerUsername, owner?.username)
       toast.success('Reply sent!')
       setReplyText('')
+      elapsedRef.current = progress * STORY_DURATION_MS
+      setReplyFocused(false)
+      setPaused(false)
+      replyInputRef.current?.blur()
       setReplySentPulse(true)
       window.setTimeout(() => setReplySentPulse(false), 520)
     } catch (err) {
@@ -610,15 +636,19 @@ export default function StoryViewer({
             >
               <motion.input
                 type="text"
+                data-story-reply-input
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value.slice(0, MAX_STORY_REPLY_LENGTH))}
                 onKeyDown={(e) => {
+                  e.stopPropagation()
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
                     handleReply()
                   }
                 }}
+                ref={replyInputRef}
                 onFocus={() => {
+                  elapsedRef.current = progress * STORY_DURATION_MS
                   setReplyFocused(true)
                   setPaused(true)
                 }}
@@ -754,9 +784,8 @@ export default function StoryViewer({
       <Modal
           isOpen={Boolean(profileUserId)}
           onClose={closeProfileOverlay}
-          glass
+          fullscreen
           overlayClassName="z-[98]"
-          className="max-h-[85vh]"
         >
           {profileUserId && (
             <PublicProfileView

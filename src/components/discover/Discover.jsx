@@ -148,7 +148,7 @@ export default function Discover() {
         <div className="h-full flex items-center justify-center">
           <LoadingSpinner />
         </div>
-        <Modal isOpen={!!viewProfile} onClose={handleCloseProfile}>
+        <Modal isOpen={!!viewProfile} onClose={handleCloseProfile} fullscreen>
           {viewProfile && (
             <PublicProfileView userId={viewProfile.id} onClose={handleCloseProfile} />
           )}
@@ -183,7 +183,7 @@ export default function Discover() {
         <div className="flex-1 flex items-center justify-center min-h-0">
           <EmptyState message="No more profiles to show. Check back later!" />
         </div>
-        <Modal isOpen={!!viewProfile} onClose={handleCloseProfile}>
+        <Modal isOpen={!!viewProfile} onClose={handleCloseProfile} fullscreen>
           {viewProfile && (
             <PublicProfileView userId={viewProfile.id} onClose={handleCloseProfile} />
           )}
@@ -238,7 +238,7 @@ export default function Discover() {
         onSend={handleLikeWithMessage}
       />
 
-      <Modal isOpen={!!viewProfile} onClose={handleCloseProfile}>
+      <Modal isOpen={!!viewProfile} onClose={handleCloseProfile} fullscreen>
         {viewProfile && (
           <PublicProfileView userId={viewProfile.id} onClose={handleCloseProfile} />
         )}

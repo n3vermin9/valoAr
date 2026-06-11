@@ -24,6 +24,9 @@ export default function MessageBubble({
   replyAuthorName,
   highlighted = false,
   militaryTime = false,
+  searchActive = false,
+  searchQuery = '',
+  activeSearchMatch = null,
 }) {
   const bubbleRef = useRef(null)
   const touchStartRef = useRef({ x: 0, y: 0 })
@@ -94,6 +97,9 @@ export default function MessageBubble({
   const sentTime = formatMessageTime(message.createdAt, militaryTime)
   const hasReactions = message.reactions && Object.keys(message.reactions).length > 0
   const { storyReply, text: displayText } = getStoryReplyDisplay(message)
+  const bubbleRadius = isOwn
+    ? 'rounded-[1.125rem] rounded-br-[0.25rem]'
+    : 'rounded-[1.125rem] rounded-bl-[0.25rem]'
 
   return (
     <div
@@ -114,7 +120,7 @@ export default function MessageBubble({
 
         <div
           style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
-          className="transition-transform duration-75"
+          className={`transition-transform duration-75 overflow-hidden ${bubbleRadius}`}
         >
           <div
             ref={bubbleRef}
@@ -124,9 +130,11 @@ export default function MessageBubble({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchCancel}
-            className={`px-4 py-2 rounded-2xl transition-opacity message-bubble ${
-              isOwn ? 'bg-blue-500 rounded-br-sm' : 'bg-white/10 rounded-bl-sm'
-            } ${highlighted ? 'message-bubble-flash' : ''}`}
+            className={`px-4 py-2 transition-colors duration-200 message-bubble ${bubbleRadius} ${
+              isOwn
+                ? searchActive ? 'bg-blue-400' : 'bg-blue-500'
+                : searchActive ? 'bg-white/[0.18]' : 'bg-white/10'
+            } ${highlighted && !searchActive ? 'message-bubble-flash' : ''}`}
             data-allow-contextmenu
           >
             {message.replyTo && (
@@ -162,6 +170,8 @@ export default function MessageBubble({
                 text={displayText}
                 isOwn={isOwn}
                 onMentionClick={onMentionClick}
+                searchQuery={searchQuery}
+                activeSearchMatch={activeSearchMatch}
                 className="text-sm break-words"
               />
             )}

@@ -238,7 +238,7 @@ export default function LikedYou() {
         </div>
       )}
 
-      <Modal isOpen={!!viewProfile} onClose={() => setViewProfile(null)}>
+      <Modal isOpen={!!viewProfile} onClose={() => setViewProfile(null)} fullscreen>
         {viewProfile && (
           <PublicProfileView userId={viewProfile} onClose={() => setViewProfile(null)} />
         )}

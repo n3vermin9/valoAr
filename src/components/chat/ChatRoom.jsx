@@ -1,9 +1,17 @@
-import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
+import { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconDotsVertical, IconBellOff, IconBell, IconTrash } from '@tabler/icons-react'
+import {
+  IconDotsVertical,
+  IconBellOff,
+  IconBell,
+  IconTrash,
+  IconSearch,
+  IconChevronDown,
+  IconX,
+} from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeMessages,
@@ -21,7 +29,7 @@ import {
   touchChatActivity,
 } from '../../services/chatService'
 import {
-  fetchUser,
+  getCachedUser,
   blockUser,
   unblockUser,
   subscribePresence,
@@ -36,7 +44,6 @@ import {
   dropdownMenuItemWithIconClass,
   dropdownMenuItemWithIconDangerClass,
   storyGlassButtonClass,
-  storyAuthorBubbleClass,
 } from '../../utils/designSystem'
 import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
@@ -44,12 +51,25 @@ import MessageBubble from './MessageBubble'
 import DeleteMessageOverlay from './DeleteMessageOverlay'
 import ImageViewer from './ImageViewer'
 import ChatInput from './ChatInput'
+import ChatHeaderCenter from './ChatHeaderCenter'
+import {
+  findChatSearchMatches,
+  groupChatSearchMatches,
+  getSearchMessageResultIndex,
+} from '../../utils/chatSearch'
+import ChatSearchResultsList from './ChatSearchResultsList'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import { getProfileSnapshots } from '../../services/profileSnapshotCache'
+import { preloadAvatarImage } from '../../services/avatarImageCache'
 import { PublicProfileView } from '../profile/ProfileView'
 import ChatStoryViewer from '../stories/ChatStoryViewer'
 import LoadingSpinner from '../ui/LoadingSpinner'
-import { sad, logo } from '../../assets'
+
+function readCachedOtherUser(userId) {
+  if (!userId) return null
+  return getCachedUser(userId) || getProfileSnapshots([userId])[userId] || null
+}
 
 export default function ChatRoom() {
   const { matchId } = useParams()
@@ -60,6 +80,8 @@ export default function ChatRoom() {
   const [messages, setMessages] = useState([])
   const [otherUser, setOtherUser] = useState(null)
   const [otherUserLoaded, setOtherUserLoaded] = useState(false)
+  const [trackedOtherId, setTrackedOtherId] = useState(null)
+  const [trackedMatchId, setTrackedMatchId] = useState(matchId)
   const [chatMeta, setChatMeta] = useState(null)
   const [chatAvailable, setChatAvailable] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -78,6 +100,11 @@ export default function ChatRoom() {
   const [replyTo, setReplyTo] = useState(null)
   const [highlightedMessageId, setHighlightedMessageId] = useState(null)
   const [storyViewerTarget, setStoryViewerTarget] = useState(null)
+  const [showSearch, setShowSearch] = useState(false)
+  const [showSearchResultsList, setShowSearchResultsList] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const messagesEndRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
@@ -101,7 +128,34 @@ export default function ChatRoom() {
     : otherUser?.username || 'User'
   const chatFrozen = !isSavedMessages && (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)
   const isMuted = chatMeta?.mutedBy?.includes(user.uid)
+
+  if (otherId !== trackedOtherId) {
+    setTrackedOtherId(otherId)
+    const initial = readCachedOtherUser(otherId)
+    setOtherUser(initial)
+    setOtherUserLoaded(Boolean(initial))
+    if (initial?.photos?.[0]) {
+      preloadAvatarImage(initial.photos[0], 64).catch(() => {})
+    }
+  }
+
+  if (matchId !== trackedMatchId) {
+    setTrackedMatchId(matchId)
+    setChatAvailable(false)
+    setLoading(true)
+    setMessages([])
+    setReplyTo(null)
+    setShowSearch(false)
+    setShowSearchResultsList(false)
+    setSearchQuery('')
+    setSearchMatchIndex(0)
+  }
   const militaryTime = usesMilitaryTime(profile)
+
+  useEffect(() => {
+    chatWasVisibleRef.current = false
+    knownMessageIdsRef.current = new Set()
+  }, [matchId])
 
   useEffect(() => {
     if (!matchId || !user?.uid) return
@@ -117,21 +171,11 @@ export default function ChatRoom() {
 
   useEffect(() => {
     if (!otherId || isSavedMessages) return
-    setOtherUserLoaded(false)
     return subscribeToUser(otherId, (userData) => {
       setOtherUser(userData)
       setOtherUserLoaded(true)
     })
   }, [otherId, isSavedMessages])
-
-  useEffect(() => {
-    chatWasVisibleRef.current = false
-    setChatAvailable(false)
-    setLoading(true)
-    setMessages([])
-    setReplyTo(null)
-    knownMessageIdsRef.current = new Set()
-  }, [matchId])
 
   useEffect(() => {
     if (!matchId || !user?.uid) return
@@ -241,6 +285,26 @@ export default function ChatRoom() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showMenu])
 
+  const updateScrollToBottom = useCallback(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollToBottom(distanceFromBottom > 100)
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  useEffect(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+
+    updateScrollToBottom()
+    el.addEventListener('scroll', updateScrollToBottom, { passive: true })
+    return () => el.removeEventListener('scroll', updateScrollToBottom)
+  }, [updateScrollToBottom, matchId, messages.length])
+
   useEffect(() => {
     if (deleteTarget) return
 
@@ -262,7 +326,7 @@ export default function ChatRoom() {
         typingTimeoutRef.current = setTimeout(() => setTyping(matchId, user.uid, false), 2000)
       }
     },
-    [matchId, user?.uid, chatFrozen]
+    [matchId, user, chatFrozen]
   )
 
   const handleSend = async ({ text, imageUrl, audioBlob, replyTo: replyPayload }) => {
@@ -323,7 +387,7 @@ export default function ChatRoom() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
       })
     },
-    [chatFrozen, user?.uid, matchId, replyTo]
+    [chatFrozen, user, matchId, replyTo]
   )
 
   const handleImageSelect = async (file) => {
@@ -367,13 +431,71 @@ export default function ChatRoom() {
 
   const visibleMessages = messages.filter((msg) => !removedMessageIds.has(msg.id))
 
-  useEffect(() => {
-    setRemovedMessageIds((prev) => {
-      if (prev.size === 0) return prev
-      const next = new Set([...prev].filter((id) => messages.some((msg) => msg.id === id)))
-      return next.size === prev.size ? prev : next
+  const searchMatches = useMemo(
+    () => (showSearch && searchQuery.trim() ? findChatSearchMatches(visibleMessages, searchQuery) : []),
+    [showSearch, visibleMessages, searchQuery]
+  )
+
+  const searchMessageResults = useMemo(
+    () => groupChatSearchMatches(searchMatches, visibleMessages),
+    [searchMatches, visibleMessages]
+  )
+
+  const safeSearchMatchIndex = searchMatches.length
+    ? Math.min(searchMatchIndex, searchMatches.length - 1)
+    : 0
+  const activeSearchMatch = searchMatches[safeSearchMatchIndex] ?? null
+  const activeSearchMessageIndex = getSearchMessageResultIndex(searchMessageResults, activeSearchMatch)
+  const activeSearchMessageId = activeSearchMatch?.messageId ?? null
+
+  const closeSearch = useCallback(() => {
+    setShowSearch(false)
+    setShowSearchResultsList(false)
+    setSearchQuery('')
+    setSearchMatchIndex(0)
+  }, [])
+
+  const openSearch = useCallback(() => {
+    setShowMenu(false)
+    setShowSearch(true)
+  }, [])
+
+  const goToOlderSearchMessage = useCallback(() => {
+    if (!searchMessageResults.length || !searchMatches.length) return
+    setSearchMatchIndex((current) => {
+      const currentMatch = searchMatches[Math.min(current, searchMatches.length - 1)]
+      const messageIndex = getSearchMessageResultIndex(searchMessageResults, currentMatch)
+      const nextMessageIndex = (messageIndex + 1) % searchMessageResults.length
+      return searchMessageResults[nextMessageIndex].firstMatchIndex
     })
-  }, [messages])
+  }, [searchMessageResults, searchMatches])
+
+  const goToNewerSearchMessage = useCallback(() => {
+    if (!searchMessageResults.length || !searchMatches.length) return
+    setSearchMatchIndex((current) => {
+      const currentMatch = searchMatches[Math.min(current, searchMatches.length - 1)]
+      const messageIndex = getSearchMessageResultIndex(searchMessageResults, currentMatch)
+      const nextMessageIndex =
+        (messageIndex - 1 + searchMessageResults.length) % searchMessageResults.length
+      return searchMessageResults[nextMessageIndex].firstMatchIndex
+    })
+  }, [searchMessageResults, searchMatches])
+
+  const selectSearchMatch = useCallback((matchIndex) => {
+    setSearchMatchIndex(matchIndex)
+    setShowSearchResultsList(false)
+  }, [])
+
+  useEffect(() => {
+    if (!showSearch || !activeSearchMatch) return
+
+    const el = messagesContainerRef.current?.querySelector(
+      `[data-message-id="${activeSearchMatch.messageId}"]`
+    )
+    if (!el) return
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [showSearch, activeSearchMatch, safeSearchMatchIndex])
 
   const handleSelectMessageAction = (message, rect) => {
     if (!rect) return
@@ -498,10 +620,15 @@ export default function ChatRoom() {
   const handleRemoveChat = async () => {
     try {
       await removeChatForUser(matchId, user.uid)
-      toast.success('Chat removed')
-      navigate('/chats')
+      if (isSavedMessages) {
+        await ensureSavedMessagesChat(user.uid)
+        toast.success('Saved messages cleared')
+      } else {
+        toast.success('Chat removed')
+        navigate('/chats')
+      }
     } catch {
-      toast.error('Failed to remove chat')
+      toast.error(isSavedMessages ? 'Failed to clear saved messages' : 'Failed to remove chat')
     }
   }
 
@@ -562,10 +689,12 @@ export default function ChatRoom() {
       const normalized = normalizeUsername(username)
       if (!normalized) return
 
-      let targetId = null
-      if (normalized === normalizeUsername(profile?.username)) {
+      const selfName = normalizeUsername(profile?.username)
+      const otherName = normalizeUsername(otherUser?.username)
+      let targetId
+      if (normalized === selfName) {
         targetId = user.uid
-      } else if (normalized === normalizeUsername(otherUser?.username)) {
+      } else if (normalized === otherName) {
         targetId = otherId
       } else {
         targetId = await getUserIdByUsername(normalized)
@@ -582,7 +711,7 @@ export default function ChatRoom() {
       setDeleteTarget(null)
       setProfileViewUserId(targetId)
     },
-    [profile?.username, user?.uid, otherUser?.username, otherId]
+    [profile?.username, user, otherUser?.username, otherId]
   )
 
   const statusText = chatStatus.text
@@ -599,9 +728,14 @@ export default function ChatRoom() {
           style={{ top: menuPos.top, right: menuPos.right }}
           onClick={(e) => e.stopPropagation()}
         >
-          <MenuItem icon={isMuted ? IconBell : IconBellOff} onClick={handleMute}>
-            {isMuted ? 'Unmute' : 'Mute'}
+          <MenuItem icon={IconSearch} onClick={openSearch}>
+            Search
           </MenuItem>
+          {!isSavedMessages && (
+            <MenuItem icon={isMuted ? IconBell : IconBellOff} onClick={handleMute}>
+              {isMuted ? 'Unmute' : 'Mute'}
+            </MenuItem>
+          )}
           <MenuItem
             icon={IconTrash}
             onClick={() => {
@@ -610,7 +744,7 @@ export default function ChatRoom() {
             }}
             danger
           >
-            Remove Chat
+            {isSavedMessages ? 'Clear chat' : 'Remove Chat'}
           </MenuItem>
         </motion.div>
       )}
@@ -627,163 +761,206 @@ export default function ChatRoom() {
   }
 
   return (
-    <div className="h-full flex flex-col pb-4">
+    <div className="h-full flex flex-col">
       {headerMenu}
-      <GlassNavBar liquid>
-        <div className="grid grid-cols-3 items-center w-full">
-          <div className="justify-self-start">
-            <ChevronBack
-              onClick={() => navigate('/chats')}
-              buttonClassName={storyGlassButtonClass}
-              className="w-5 h-5"
-            />
-          </div>
-
-          <div className="justify-self-center min-w-0 px-1">
-            {isSavedMessages ? (
-              <div
-                className={`${storyAuthorBubbleClass} w-fit !max-w-[min(72vw,280px)] cursor-default`}
-              >
-                <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
-                  <img src={logo} alt="Logo" className="w-6 h-6 object-cover" />
-                </div>
-                <div className="min-w-0 text-left">
-                  <p className="font-semibold text-sm truncate text-white">Saved Messages</p>
-                  <p className="text-[11px] text-white/65 leading-tight">Only you can see this</p>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={openProfile}
-                className={`${storyAuthorBubbleClass} w-fit !max-w-[min(72vw,280px)] text-left`}
-                aria-label={`View ${otherDisplayName}'s profile`}
-              >
-                <div className="relative shrink-0">
-                  <img
-                    src={otherUser?.photos?.[0] || sad}
-                    alt=""
-                    className={`w-8 h-8 rounded-full object-cover ring-1 ring-white/20 ${
-                      opponentRemoved ? 'grayscale' : ''
-                    }`}
-                  />
-                  {presence?.online && !isTyping && !opponentRemoved && (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-black rounded-full" />
-                  )}
-                </div>
-                <div className="min-w-0 text-left">
-                  <div className="flex items-center gap-1">
-                    <p className="font-semibold text-sm truncate text-white">{otherDisplayName}</p>
-                    {isMuted && (
-                      <IconBellOff size={13} className="text-white/50 shrink-0" aria-label="Muted" />
-                    )}
-                  </div>
-                  <p className={`text-[11px] leading-tight truncate ${statusColorHeader}`}>
-                    {statusText}
-                  </p>
-                </div>
-              </button>
-            )}
-          </div>
-
-          <div className="justify-self-end">
-            {!isSavedMessages ? (
-              <button
-                ref={menuButtonRef}
-                type="button"
-                onClick={() => setShowMenu((open) => !open)}
-                className={storyGlassButtonClass}
-                aria-label="Chat options"
-              >
-                <IconDotsVertical size={20} />
-              </button>
-            ) : (
-              <span className="w-11" aria-hidden />
-            )}
-          </div>
-        </div>
-      </GlassNavBar>
-
-      <div
-        ref={messagesContainerRef}
-        className={`flex-1 overflow-y-auto px-4 py-4 ${deleteTarget ? 'pb-52 pointer-events-none' : ''}`}
-      >
-        {visibleMessages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={{
-              ...msg,
-              onImageClick: setImageViewer,
-            }}
-            isOwn={msg.senderId === user.uid}
-            currentUserId={user.uid}
-            militaryTime={militaryTime}
-            replyAuthorName={msg.replyTo ? getReplyAuthorName(msg.replyTo.senderId) : undefined}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={messagesContainerRef}
+          className={`absolute inset-0 overflow-y-auto px-4 pt-[var(--chat-room-header-height)] pb-[var(--chat-room-composer-min-height)] ${
+            deleteTarget ? '!pb-52 pointer-events-none' : ''
+          }`}
+        >
+          {visibleMessages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={{
+                ...msg,
+                onImageClick: setImageViewer,
+              }}
+              isOwn={msg.senderId === user.uid}
+              currentUserId={user.uid}
+              militaryTime={militaryTime}
+              replyAuthorName={msg.replyTo ? getReplyAuthorName(msg.replyTo.senderId) : undefined}
             highlighted={highlightedMessageId === msg.id}
-            onReply={handleReplyToMessage}
-            onReplyQuoteClick={scrollToMessage}
-            onStoryReplyClick={handleStoryReplyClick}
-            onReactionClick={handleReactToMessage}
-            onContextMenu={handleSelectMessageAction}
-            onLongPress={handleSelectMessageAction}
-            onMentionClick={handleMentionClick}
-          />
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {!deleteTarget && iBlockedThem && (
-        <div className="px-4 py-4 border-t border-white/10 bg-black/60 backdrop-blur-xl">
-          <button
-            onClick={handleUnblock}
-            className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium"
-          >
-            Unblock
-          </button>
+            searchActive={showSearch && activeSearchMatch?.messageId === msg.id}
+            searchQuery={showSearch ? searchQuery : ''}
+            activeSearchMatch={
+              showSearch && activeSearchMatch?.messageId === msg.id ? activeSearchMatch : null
+            }
+              onReply={handleReplyToMessage}
+              onReplyQuoteClick={scrollToMessage}
+              onStoryReplyClick={handleStoryReplyClick}
+              onReactionClick={handleReactToMessage}
+              onContextMenu={handleSelectMessageAction}
+              onLongPress={handleSelectMessageAction}
+              onMentionClick={handleMentionClick}
+            />
+          ))}
+          <div ref={messagesEndRef} />
         </div>
-      )}
 
-      {!deleteTarget && !iBlockedThem && theyBlockedMe && (
-        <div className="px-4 py-4 border-t border-white/10 bg-black/60 backdrop-blur-xl text-center">
-          <p className="text-white/60 text-sm">You can't message this user</p>
-        </div>
-      )}
-
-      {!deleteTarget && !iBlockedThem && !theyBlockedMe && unfriended && !opponentRemoved && (
-        <div className="px-4 py-4 border-t border-white/10 bg-black/60 backdrop-blur-xl text-center">
-          <p className="text-white/60 text-sm">You are no longer friends — messaging is disabled</p>
-        </div>
-      )}
-
-      {!deleteTarget && opponentRemoved && (
-        <div className="px-4 py-4 border-t border-white/10 bg-black/60 backdrop-blur-xl text-center">
-          <p className="text-white/60 text-sm">This account has been deleted — messaging is disabled</p>
-        </div>
-      )}
-
-      {!deleteTarget && !chatFrozen && (
-        <>
-          {isTyping && !isSavedMessages && otherUser && !opponentRemoved && (
-            <div className="px-5 py-2 text-xs text-blue-300/90 italic border-t border-white/[0.06] bg-black/50 backdrop-blur-sm">
-              {otherUser.username} is typing…
-            </div>
+        <AnimatePresence>
+          {showSearch && showSearchResultsList && searchMessageResults.length > 0 && (
+            <ChatSearchResultsList
+              key="chat-search-results"
+              results={searchMessageResults}
+              query={searchQuery}
+              activeMessageId={activeSearchMessageId}
+              currentUserId={user.uid}
+              getSenderLabel={getReplyAuthorName}
+              militaryTime={militaryTime}
+              onSelect={selectSearchMatch}
+              onClose={() => setShowSearchResultsList(false)}
+            />
           )}
-          <ChatInput
-            key={matchId}
-            focusKey={matchId}
-            chatId={matchId}
-            onSend={handleSend}
-            onSendVoice={handleSendVoice}
-            onTyping={handleTyping}
-            imagePreview={imagePreview}
-            onImageSelect={handleImageSelect}
-            onClearImage={() => setImagePreview(null)}
-            replyTo={replyTo}
-            replyAuthorName={replyTo ? getReplyAuthorName(replyTo.senderId) : undefined}
-            onClearReply={() => setReplyTo(null)}
-          />
-        </>
-      )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showScrollToBottom && !deleteTarget && !showSearch && (
+            <motion.button
+              key="scroll-to-bottom"
+              type="button"
+              initial={{ opacity: 0, scale: 0.85, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 8 }}
+              transition={{ duration: 0.18 }}
+              onClick={scrollToBottom}
+              className={`absolute right-4 z-10 ${storyGlassButtonClass}`}
+              style={{ bottom: 'calc(var(--chat-room-composer-min-height) + 0.5rem)' }}
+              aria-label="Scroll to bottom"
+            >
+              <IconChevronDown size={20} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <GlassNavBar liquid className="absolute top-0 inset-x-0 z-20 !bg-transparent pointer-events-none">
+          <div className="pointer-events-auto flex items-center w-full gap-2 min-h-11">
+            <div
+              className={`shrink-0 overflow-hidden transition-[width] duration-300 ${
+                showSearch ? 'w-0 pointer-events-none' : 'w-11'
+              }`}
+            >
+              <ChevronBack
+                onClick={() => navigate('/chats')}
+                buttonClassName={storyGlassButtonClass}
+                className="w-5 h-5"
+              />
+            </div>
+
+            <div className="flex min-w-0 flex-1 justify-center">
+              <ChatHeaderCenter
+                showSearch={showSearch}
+                isSavedMessages={isSavedMessages}
+                otherDisplayName={otherDisplayName}
+                otherUser={otherUser}
+                opponentRemoved={opponentRemoved}
+                presence={presence}
+                isTyping={isTyping}
+                isMuted={isMuted}
+                statusText={statusText}
+                statusColor={statusColorHeader}
+                onOpenProfile={openProfile}
+                searchQuery={searchQuery}
+                onSearchQueryChange={(value) => {
+                  setSearchQuery(value)
+                  setSearchMatchIndex(0)
+                  setShowSearchResultsList(false)
+                }}
+                onSearchPrev={goToOlderSearchMessage}
+                onSearchNext={goToNewerSearchMessage}
+                onSearchClose={closeSearch}
+              />
+            </div>
+
+            <div className="shrink-0 w-11 flex justify-end">
+              {showSearch ? (
+                <button
+                  type="button"
+                  onClick={closeSearch}
+                  className={`${storyGlassButtonClass} !p-0 !w-11 !h-11 shrink-0`}
+                  aria-label="Close search"
+                >
+                  <IconX size={20} stroke={2} />
+                </button>
+              ) : (
+                <button
+                  ref={menuButtonRef}
+                  type="button"
+                  onClick={() => setShowMenu((open) => !open)}
+                  className={storyGlassButtonClass}
+                  aria-label="Chat options"
+                >
+                  <IconDotsVertical size={20} />
+                </button>
+              )}
+            </div>
+          </div>
+        </GlassNavBar>
+
+        <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none bg-transparent">
+          <div className="pointer-events-auto bg-transparent">
+            {!deleteTarget && iBlockedThem && (
+              <div className="px-4 py-4">
+                <button
+                  onClick={handleUnblock}
+                  className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium"
+                >
+                  Unblock
+                </button>
+              </div>
+            )}
+
+            {!deleteTarget && !iBlockedThem && theyBlockedMe && (
+              <div className="px-4 py-4 text-center">
+                <p className="text-white/60 text-sm">You can't message this user</p>
+              </div>
+            )}
+
+            {!deleteTarget && !iBlockedThem && !theyBlockedMe && unfriended && !opponentRemoved && (
+              <div className="px-4 py-4 text-center">
+                <p className="text-white/60 text-sm">You are no longer friends — messaging is disabled</p>
+              </div>
+            )}
+
+            {!deleteTarget && opponentRemoved && (
+              <div className="px-4 py-4 text-center">
+                <p className="text-white/60 text-sm">This account has been deleted — messaging is disabled</p>
+              </div>
+            )}
+
+            {!deleteTarget && !chatFrozen && (
+              <>
+                {isTyping && !isSavedMessages && otherUser && !opponentRemoved && (
+                  <div className="px-5 py-2 text-xs text-blue-300/90 italic">
+                    {otherUser.username} is typing…
+                  </div>
+                )}
+                <ChatInput
+                  key={matchId}
+                  focusKey={matchId}
+                  chatId={matchId}
+                  searchActive={showSearch}
+                  searchMatchIndex={activeSearchMessageIndex}
+                  searchMatchCount={searchMessageResults.length}
+                  onSearchPrev={goToOlderSearchMessage}
+                  onSearchNext={goToNewerSearchMessage}
+                  onOpenSearchResults={() => setShowSearchResultsList(true)}
+                  onSend={handleSend}
+                  onSendVoice={handleSendVoice}
+                  onTyping={handleTyping}
+                  imagePreview={imagePreview}
+                  onImageSelect={handleImageSelect}
+                  onClearImage={() => setImagePreview(null)}
+                  replyTo={replyTo}
+                  replyAuthorName={replyTo ? getReplyAuthorName(replyTo.senderId) : undefined}
+                  onClearReply={() => setReplyTo(null)}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       <AnimatePresence>
         {deleteTarget && (
@@ -815,14 +992,18 @@ export default function ChatRoom() {
         isOpen={confirmAction === 'removeChat'}
         onClose={() => setConfirmAction(null)}
         onConfirm={runConfirmAction}
-        title="Remove chat?"
-        message="This will delete all messages and hide the chat for both of you."
-        confirmLabel="Remove Chat"
+        title={isSavedMessages ? 'Clear saved messages?' : 'Remove chat?'}
+        message={
+          isSavedMessages
+            ? 'All saved messages will be deleted. The chat will stay in your list.'
+            : 'This will delete all messages and hide the chat for both of you.'
+        }
+        confirmLabel={isSavedMessages ? 'Clear messages' : 'Remove Chat'}
         danger
         loading={confirmLoading}
       />
 
-      <Modal isOpen={Boolean(profileViewUserId)} onClose={closeProfile}>
+      <Modal isOpen={Boolean(profileViewUserId)} onClose={closeProfile} fullscreen>
         {profileViewUserId && (
           <PublicProfileView
             userId={profileViewUserId}
