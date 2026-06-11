@@ -19,6 +19,8 @@ import LoadingSpinner from '../ui/LoadingSpinner'
 import CopyableUsername from '../ui/CopyableUsername'
 import ChevronBack from '../ui/ChevronBack'
 import SocialLinksDisplay from './SocialLinksDisplay'
+import ProfileStoryAvatar from '../stories/ProfileStoryAvatar'
+import StoryViewer from '../stories/StoryViewer'
 import { sad } from '../../assets'
 
 export default function ProfileView() {
@@ -151,12 +153,19 @@ export default function ProfileView() {
       </div>
 
       <div className="flex flex-col items-center px-6">
-        <button onClick={() => setGalleryOpen(true)} className="rounded-full">
-          <img
-            src={profile.photos?.[0] || sad}
-            alt=""
-            className="w-32 h-32 rounded-full object-cover border-4 border-blue-500/30"
-          />
+        <ProfileStoryAvatar
+          userId={user.uid}
+          profile={profile}
+          isOwn
+          size={128}
+          onOpenGallery={() => setGalleryOpen(true)}
+        />
+        <button
+          type="button"
+          onClick={() => setGalleryOpen(true)}
+          className="mt-2 text-xs text-[var(--ios-label-secondary)] hover:text-white transition-colors"
+        >
+          View photos
         </button>
         <h2 className="text-2xl font-bold mt-4">
           <CopyableUsername username={profile.username} className="text-2xl font-bold" />
@@ -365,7 +374,7 @@ function InfoRow({ label, value, capitalize, small }) {
   )
 }
 
-export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }) {
+export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, suppressStoryViewer = false }) {
   const { user, profile: currentProfile, refreshProfile, setProfile: setAuthProfile } = useAuth()
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
@@ -382,6 +391,7 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
   const [chatResolved, setChatResolved] = useState(false)
   const [incomingRequest, setIncomingRequest] = useState(null)
   const [accepting, setAccepting] = useState(false)
+  const [storySession, setStorySession] = useState(null)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -597,13 +607,29 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
       )}
 
       <div className="flex flex-col items-center">
-        <button onClick={() => setGalleryOpen(true)} className="rounded-full">
-          <img
-            src={profile.photos?.[0] || sad}
-            alt=""
-            className="w-28 h-28 rounded-full object-cover border-4 border-purple-500/30"
-          />
-        </button>
+        <ProfileStoryAvatar
+          userId={userId}
+          profile={profile}
+          isOwn={isSelf}
+          isFriend={isMatched}
+          friendIds={me?.matches}
+          viewerUsername={me?.username}
+          viewerPhoto={me?.photos?.[0]}
+          size={112}
+          suppressStoryViewer={suppressStoryViewer}
+          onOpenGallery={() => setGalleryOpen(true)}
+          onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
+          onOpenStories={suppressStoryViewer ? undefined : setStorySession}
+        />
+        {(isSelf || isMatched) && (
+          <button
+            type="button"
+            onClick={() => setGalleryOpen(true)}
+            className="mt-2 text-xs text-[var(--ios-label-secondary)] hover:text-white transition-colors"
+          >
+            View photos
+          </button>
+        )}
         <div className="flex items-center gap-2 mt-3">
           <h2 className="text-xl font-bold">
             <CopyableUsername username={profile.username} className="text-xl font-bold" />
@@ -716,6 +742,23 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false }
           </div>
         </div>
       </Modal>
+
+      {storySession && storySession.queue[0]?.stories?.length > 0 && (
+        <StoryViewer
+          key={storySession.id}
+          queue={storySession.queue}
+          startIndex={0}
+          initialStoryIndex={storySession.initialStoryIndex}
+          openOrigin={storySession.origin}
+          users={storySession.users}
+          viewerId={storySession.viewerId}
+          viewerUsername={storySession.viewerUsername}
+          viewerPhoto={storySession.viewerPhoto}
+          friendIds={storySession.friendIds}
+          onClose={() => setStorySession(null)}
+          onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
+        />
+      )}
     </div>
   )
 }

@@ -3,8 +3,10 @@ import { IconArrowBackUp, IconCheck, IconChecks } from '@tabler/icons-react'
 import { formatMessageTime } from '../../utils/helpers'
 import VoiceMessagePlayer from './VoiceMessagePlayer'
 import ReplyQuote from './ReplyQuote'
+import StoryReplyQuote from './StoryReplyQuote'
 import MessageReactions from './MessageReactions'
 import MessageText from './MessageText'
+import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 
 const SWIPE_REPLY_THRESHOLD = 56
 
@@ -16,6 +18,7 @@ export default function MessageBubble({
   onLongPress,
   onReply,
   onReplyQuoteClick,
+  onStoryReplyClick,
   onReactionClick,
   onMentionClick,
   replyAuthorName,
@@ -90,6 +93,7 @@ export default function MessageBubble({
 
   const sentTime = formatMessageTime(message.createdAt, militaryTime)
   const hasReactions = message.reactions && Object.keys(message.reactions).length > 0
+  const { storyReply, text: displayText } = getStoryReplyDisplay(message)
 
   return (
     <div
@@ -137,6 +141,12 @@ export default function MessageBubble({
                 }
               />
             )}
+            {storyReply && (
+              <StoryReplyQuote
+                storyReply={storyReply}
+                onClick={onStoryReplyClick}
+              />
+            )}
             {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
             {message.imageUrl && (
               <img
@@ -147,9 +157,9 @@ export default function MessageBubble({
                 onDoubleClick={(e) => e.stopPropagation()}
               />
             )}
-            {message.text && (
+            {displayText && (
               <MessageText
-                text={message.text}
+                text={displayText}
                 isOwn={isOwn}
                 onMentionClick={onMentionClick}
                 className="text-sm break-words"

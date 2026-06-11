@@ -57,6 +57,7 @@ function storageSetupError(error) {
 }
 
 export function formatMessagePreview(data = {}) {
+  if (data.storyReply && data.text) return `replied to story: ${data.text}`
   if (data.text) return data.text
   if (data.imageUrl) return '📷 Photo'
   if (data.audioUrl) return 'Voice message'

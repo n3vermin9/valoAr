@@ -8,6 +8,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  where,
   orderBy,
   limit,
   serverTimestamp,
@@ -192,15 +193,23 @@ async function hydrateChatsForUser(userId, chats) {
       if (chat.isSavedMessages) return chat
 
       const otherId = chat.participants?.find((id) => id !== userId)
+      if (!otherId) return chat
+
       let updated = chat
 
-      if (otherId) {
+      const needsRemovedCheck =
+        !chat.opponentRemoved &&
+        (getUnreadCount(chat, userId) > 0 || !chat.lastMessage?.text)
+
+      if (needsRemovedCheck) {
         const synced = await syncRemovedOpponentChat(chat.id, userId, otherId)
         if (synced) updated = synced
       }
 
-      const reconciled = await reconcileChatPreviewIfStale(chat.id, updated)
-      if (reconciled) updated = reconciled
+      if (!updated.lastMessage?.text && !updated.lastMessage?.messageId) {
+        const reconciled = await reconcileChatPreviewIfStale(chat.id, updated)
+        if (reconciled) updated = reconciled
+      }
 
       return updated
     })
@@ -237,16 +246,23 @@ export function subscribeChats(userId, callback) {
 
   let hydrateGeneration = 0
 
-  return onSnapshot(collection(db, 'chats'), (snap) => {
+  const chatsQuery = query(
+    collection(db, 'chats'),
+    where('participants', 'array-contains', userId)
+  )
+
+  return onSnapshot(chatsQuery, (snap) => {
     const chats = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((c) => c.participants?.includes(userId) && !c.hiddenFor?.includes(userId))
+      .filter((c) => !c.hiddenFor?.includes(userId))
       .sort((a, b) => {
         const aPinned = a.pinnedBy?.includes(userId)
         const bPinned = b.pinnedBy?.includes(userId)
         if (aPinned !== bPinned) return aPinned ? -1 : 1
         return getChatSortTime(b, userId) - getChatSortTime(a, userId)
       })
+
+    callback(chats)
 
     const generation = ++hydrateGeneration
     hydrateChatsForUser(userId, chats).then((hydrated) => {
@@ -263,7 +279,7 @@ export function subscribeMessages(matchId, callback) {
   })
 }
 
-export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl, replyTo }) {
+export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl, replyTo, storyReply }) {
   await ensureChatVisible(matchId)
 
   const chatRef = doc(db, 'chats', matchId)
@@ -305,18 +321,32 @@ export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl,
     }
   }
 
+  if (storyReply?.storyId) {
+    messageData.storyReply = {
+      storyId: storyReply.storyId,
+      text: storyReply.text || null,
+      color: storyReply.color || null,
+      ownerId: storyReply.ownerId || null,
+      ownerUsername: storyReply.ownerUsername || null,
+    }
+  }
+
   const msgRef = await addDoc(collection(db, 'chats', matchId, 'messages'), messageData)
 
   const recipientId = isSaved ? null : matchId.split('_').find((id) => id !== senderId)
-  const preview = formatMessagePreview({ text, imageUrl, audioUrl })
+  const preview = formatMessagePreview({ text, imageUrl, audioUrl, storyReply })
+  const lastMessage = {
+    text: preview,
+    senderId,
+    createdAt: serverTimestamp(),
+    read: isSaved,
+    messageId: msgRef.id,
+  }
+  if (storyReply?.storyId) {
+    lastMessage.storyReply = messageData.storyReply
+  }
   const updates = {
-    lastMessage: {
-      text: preview,
-      senderId,
-      createdAt: serverTimestamp(),
-      read: isSaved,
-      messageId: msgRef.id,
-    },
+    lastMessage,
   }
   if (recipientId) {
     updates[`unreadCount.${recipientId}`] = increment(1)

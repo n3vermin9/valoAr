@@ -24,6 +24,10 @@ export const headerMenuGlassClass = navGlassMenuClass
 export const glassNavBarClass =
   'relative z-20 flex items-center gap-2 px-4 py-2.5 border-b border-[var(--ios-separator)] bg-[var(--ios-glass-bg)] backdrop-blur-xl backdrop-saturate-[1.8]'
 
+/** Transparent bar — glass lives on child bubbles/buttons (stories, chat) */
+export const liquidGlassNavBarClass =
+  'relative z-20 flex items-center gap-2 px-4 py-2.5 w-full'
+
 export const glassInputBarClass =
   'border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-input)] backdrop-blur-md shadow-[var(--ios-glass-shadow)]'
 
@@ -90,3 +94,28 @@ export const contextMenuMotion = {
 
 /** Optional class for non-button tap targets */
 export const tapScaleClass = 'tap-scale'
+
+/** Story viewer — Liquid Glass overlays on gradient story canvas */
+const storyGlassBlur =
+  'border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-xl backdrop-saturate-[1.8] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),var(--ios-glass-shadow)]'
+
+export const storyGlassButtonClass = `${storyGlassBlur} p-2.5 rounded-full text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-40`
+
+export const storyGlassPillClass = `${storyGlassBlur} rounded-full px-4 py-2.5 flex items-center gap-2 text-white transition-all hover:brightness-110 active:scale-[0.98]`
+
+export const storyGlassInputClass = `${storyGlassBlur} rounded-full`
+
+export const storyGlassSheetClass = `rounded-t-[var(--ios-radius-xl)] border border-b-0 border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[var(--ios-glass-shadow-modal)]`
+
+export const storyAuthorBubbleClass = `${storyGlassBlur} rounded-full pl-1 pr-3 py-1 flex items-center gap-4 min-w-0 max-w-[58%] transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer`
+
+export const storyGlassRowClass =
+  'rounded-xl border border-white/5 bg-white/[0.06] backdrop-blur-lg backdrop-saturate-150 hover:bg-white/[0.1] active:bg-white/[0.14] transition-colors'
+
+export const storyProgressTrackClass = 'bg-white/15 backdrop-blur-md backdrop-saturate-150'
+export const storyProgressFillClass = 'bg-white/95 shadow-[0_0_10px_rgba(255,255,255,0.4)]'
+
+export const storyPausedBadgeClass = `${storyGlassBlur} px-4 py-1.5 text-xs font-medium text-white/90 rounded-full`
+
+export const storyRingInnerClass =
+  'rounded-full overflow-hidden bg-white/10 backdrop-blur-lg backdrop-saturate-150 border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'

@@ -5,8 +5,10 @@ import { formatMessageTime } from '../../utils/helpers'
 import { navGlassMenuClass, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass } from '../../utils/designSystem'
 import VoiceMessagePlayer from './VoiceMessagePlayer'
 import ReplyQuote from './ReplyQuote'
+import StoryReplyQuote from './StoryReplyQuote'
 import MessageReactions, { ReactionPicker } from './MessageReactions'
 import MessageText from './MessageText'
+import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 
 const MAX_MESSAGE_HEIGHT = 'max-h-[min(50vh,calc(100vh-12rem))]'
 const VIEWPORT_PADDING = 16
@@ -50,7 +52,8 @@ export default function MessageActionOverlay({
       }
 
   const sentTime = formatMessageTime(message.createdAt, militaryTime)
-  const canCopy = Boolean(message.text || message.imageUrl)
+  const { storyReply, text: displayText } = getStoryReplyDisplay(message)
+  const canCopy = Boolean(displayText || message.imageUrl)
   const hasReactions = message.reactions && Object.keys(message.reactions).length > 0
 
   useLayoutEffect(() => {
@@ -118,13 +121,14 @@ export default function MessageActionOverlay({
             {message.replyTo && (
               <ReplyQuote reply={message.replyTo} authorName={replyAuthorName} isOwn={isOwn} />
             )}
+            {storyReply && <StoryReplyQuote storyReply={storyReply} />}
             {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
             {message.imageUrl && (
               <img src={message.imageUrl} alt="" className="rounded-xl max-w-full mb-1" />
             )}
-            {message.text && (
+            {displayText && (
               <MessageText
-                text={message.text}
+                text={displayText}
                 isOwn={isOwn}
                 onMentionClick={onMentionClick}
                 className="text-sm break-words"

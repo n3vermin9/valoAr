@@ -29,7 +29,15 @@ import {
   getUserIdByUsername,
 } from '../../services/userService'
 import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass } from '../../utils/designSystem'
+import {
+  navGlassMenuClass,
+  contextMenuMotion,
+  dropdownMenuClass,
+  dropdownMenuItemWithIconClass,
+  dropdownMenuItemWithIconDangerClass,
+  storyGlassButtonClass,
+  storyAuthorBubbleClass,
+} from '../../utils/designSystem'
 import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
 import MessageBubble from './MessageBubble'
@@ -39,6 +47,7 @@ import ChatInput from './ChatInput'
 import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { PublicProfileView } from '../profile/ProfileView'
+import ChatStoryViewer from '../stories/ChatStoryViewer'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import { sad, logo } from '../../assets'
 
@@ -68,6 +77,7 @@ export default function ChatRoom() {
   const [savedScrollPosition, setSavedScrollPosition] = useState(0)
   const [replyTo, setReplyTo] = useState(null)
   const [highlightedMessageId, setHighlightedMessageId] = useState(null)
+  const [storyViewerTarget, setStoryViewerTarget] = useState(null)
   const messagesEndRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
@@ -399,6 +409,14 @@ export default function ChatRoom() {
     setDeleteTarget(null)
   }
 
+  const handleStoryReplyClick = (storyReply) => {
+    if (!storyReply?.ownerId) return
+    setStoryViewerTarget({
+      ownerId: storyReply.ownerId,
+      storyId: storyReply.storyId || null,
+    })
+  }
+
   const handleReactToMessage = async (message, emoji) => {
     if (!matchId || !user?.uid) return
     const reactions = { ...(message.reactions || {}) }
@@ -611,55 +629,79 @@ export default function ChatRoom() {
   return (
     <div className="h-full flex flex-col pb-4">
       {headerMenu}
-      <GlassNavBar>
-        <ChevronBack onClick={() => navigate('/chats')} />
-        {isSavedMessages ? (
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center shrink-0">
-              <img src={logo} alt="Logo" className="w-8 h-8 object-cover" />
-            </div>
-            <div className="text-left min-w-0">
-              <p className="font-semibold truncate">Saved Messages</p>
-              <p className="text-xs text-white/50">Only you can see this</p>
-            </div>
+      <GlassNavBar liquid>
+        <div className="grid grid-cols-3 items-center w-full">
+          <div className="justify-self-start">
+            <ChevronBack
+              onClick={() => navigate('/chats')}
+              buttonClassName={storyGlassButtonClass}
+              className="w-5 h-5"
+            />
           </div>
-        ) : (
-          <>
-            <button onClick={openProfile} className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="relative shrink-0">
-                <img
-                  src={opponentRemoved ? sad : otherUser?.photos?.[0] || sad}
-                  alt=""
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-                {presence?.online && !isTyping && !opponentRemoved && (
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-black rounded-full" />
-                )}
+
+          <div className="justify-self-center min-w-0 px-1">
+            {isSavedMessages ? (
+              <div
+                className={`${storyAuthorBubbleClass} w-fit !max-w-[min(72vw,280px)] cursor-default`}
+              >
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+                  <img src={logo} alt="Logo" className="w-6 h-6 object-cover" />
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="font-semibold text-sm truncate text-white">Saved Messages</p>
+                  <p className="text-[11px] text-white/65 leading-tight">Only you can see this</p>
+                </div>
               </div>
-              <div className="text-left min-w-0">
-                <div className="flex items-center gap-1">
-                  <p className="font-semibold truncate">
-                    {otherDisplayName}
-                  </p>
-                  {isMuted && (
-                    <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
+            ) : (
+              <button
+                type="button"
+                onClick={openProfile}
+                className={`${storyAuthorBubbleClass} w-fit !max-w-[min(72vw,280px)] text-left`}
+                aria-label={`View ${otherDisplayName}'s profile`}
+              >
+                <div className="relative shrink-0">
+                  <img
+                    src={otherUser?.photos?.[0] || sad}
+                    alt=""
+                    className={`w-8 h-8 rounded-full object-cover ring-1 ring-white/20 ${
+                      opponentRemoved ? 'grayscale' : ''
+                    }`}
+                  />
+                  {presence?.online && !isTyping && !opponentRemoved && (
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-black rounded-full" />
                   )}
                 </div>
-                <p className={`text-xs ${statusColorHeader}`}>{statusText}</p>
-              </div>
-            </button>
-            <div className="relative">
+                <div className="min-w-0 text-left">
+                  <div className="flex items-center gap-1">
+                    <p className="font-semibold text-sm truncate text-white">{otherDisplayName}</p>
+                    {isMuted && (
+                      <IconBellOff size={13} className="text-white/50 shrink-0" aria-label="Muted" />
+                    )}
+                  </div>
+                  <p className={`text-[11px] leading-tight truncate ${statusColorHeader}`}>
+                    {statusText}
+                  </p>
+                </div>
+              </button>
+            )}
+          </div>
+
+          <div className="justify-self-end">
+            {!isSavedMessages ? (
               <button
                 ref={menuButtonRef}
+                type="button"
                 onClick={() => setShowMenu((open) => !open)}
-                className="p-2 hover:bg-white/10 rounded-full"
+                className={storyGlassButtonClass}
                 aria-label="Chat options"
               >
                 <IconDotsVertical size={20} />
               </button>
-            </div>
-          </>
-        )}
+            ) : (
+              <span className="w-11" aria-hidden />
+            )}
+          </div>
+        </div>
       </GlassNavBar>
 
       <div
@@ -680,6 +722,7 @@ export default function ChatRoom() {
             highlighted={highlightedMessageId === msg.id}
             onReply={handleReplyToMessage}
             onReplyQuoteClick={scrollToMessage}
+            onStoryReplyClick={handleStoryReplyClick}
             onReactionClick={handleReactToMessage}
             onContextMenu={handleSelectMessageAction}
             onLongPress={handleSelectMessageAction}
@@ -789,6 +832,14 @@ export default function ChatRoom() {
           />
         )}
       </Modal>
+
+      {storyViewerTarget && (
+        <ChatStoryViewer
+          ownerId={storyViewerTarget.ownerId}
+          storyId={storyViewerTarget.storyId}
+          onClose={() => setStoryViewerTarget(null)}
+        />
+      )}
     </div>
   )
 }

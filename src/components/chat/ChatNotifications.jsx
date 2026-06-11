@@ -244,7 +244,10 @@ export default function ChatNotifications() {
           chatId: chat.id,
           username: otherUser?.username || 'User',
           photo: otherUser?.photos?.[0],
-          preview: chat.lastMessage.text || '📷 Photo',
+          preview:
+            chat.lastMessage.storyReply && chat.lastMessage.text
+              ? chat.lastMessage.text
+              : chat.lastMessage.text || '📷 Photo',
         })
       }
     })
@@ -288,7 +291,7 @@ export default function ChatNotifications() {
   }, [user?.uid, location.pathname])
 
   return (
-    <div className="fixed top-12 left-0 right-0 z-[70] pointer-events-none isolate">
+    <div className="fixed top-12 left-0 right-0 z-[100] pointer-events-none isolate">
       <div
         className={`pointer-events-auto w-full max-w-md mx-auto ${
           notifications.length === 0 ? 'invisible' : ''

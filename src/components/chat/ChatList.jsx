@@ -13,7 +13,8 @@ import {
   removeChatForUser,
   subscribeChatListActivity,
 } from '../../services/chatService'
-import { fetchUser, blockUser } from '../../services/userService'
+import { fetchUsersMap, blockUser } from '../../services/userService'
+import StoryAvatarButton from '../stories/StoryAvatarButton'
 import { formatChatTime, isSavedMessagesChat, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass } from '../../utils/designSystem'
 import PageShell from '../layout/PageShell'
@@ -41,17 +42,28 @@ export default function ChatList() {
   useEffect(() => {
     if (!user?.uid) return
 
-    return subscribeChats(user.uid, async (chatList) => {
+    let usersRequest = 0
+
+    return subscribeChats(user.uid, (chatList) => {
       setChats(chatList)
-      const userMap = {}
-      for (const chat of chatList) {
-        const otherId = chat.participants.find((id) => id !== user.uid)
-        if (otherId && !userMap[otherId]) {
-          userMap[otherId] = await fetchUser(otherId)
-        }
-      }
-      setUsers(userMap)
       setLoading(false)
+
+      const otherIds = [
+        ...new Set(
+          chatList
+            .map((chat) => chat.participants?.find((id) => id !== user.uid))
+            .filter(Boolean)
+        ),
+      ]
+
+      if (!otherIds.length) return
+
+      const requestId = ++usersRequest
+      fetchUsersMap(otherIds).then((userMap) => {
+        if (requestId !== usersRequest) return
+        if (!Object.keys(userMap).length) return
+        setUsers((prev) => ({ ...prev, ...userMap }))
+      })
     })
   }, [user?.uid])
 
@@ -298,31 +310,53 @@ export default function ChatList() {
                       : ''
                 }`}
               >
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   data-allow-contextmenu
-                  onClick={() => {
+                  onContextMenu={(e) => handleContextMenu(e, chat.id)}
+                  onClick={(e) => {
                     if (menuOpen) return
+                    if (e.target.closest('[data-story-avatar]')) return
                     navigate(`/chats/${chat.id}`)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (menuOpen) return
+                      navigate(`/chats/${chat.id}`)
+                    }
                   }}
                   className={`${listRowClass} ${
                     menuOpen && !isSelected ? 'pointer-events-none' : ''
                   } ${isSelected ? listRowSelectedClass : ''}`}
                 >
-                  <div className="relative shrink-0">
+                  <div className="relative shrink-0" data-story-avatar onClick={(e) => e.stopPropagation()}>
                     {isSaved ? (
                       <div className="w-14 h-14 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
                         <img src={logo} alt="Logo" className="w-10 h-10 object-cover" />
                       </div>
+                    ) : isRemoved ? (
+                      <img
+                        src={otherUser?.photos?.[0] || sad}
+                        alt=""
+                        className="w-14 h-14 rounded-full object-cover grayscale"
+                      />
                     ) : (
                       <>
-                        <img
-                          src={isRemoved ? sad : otherUser?.photos?.[0] || sad}
-                          alt=""
-                          className="w-14 h-14 rounded-full object-cover"
+                        <StoryAvatarButton
+                          userId={otherId}
+                          profile={otherUser}
+                          photo={otherUser?.photos?.[0]}
+                          username={displayName}
+                          size={56}
+                          isFriend
+                          friendIds={profile?.matches}
+                          stopPropagation
+                          nested
                         />
-                        {isOnline && !isTyping && !isRemoved && (
-                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-black rounded-full" />
+                        {isOnline && !isTyping && (
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-black rounded-full pointer-events-none" />
                         )}
                       </>
                     )}
@@ -388,7 +422,7 @@ export default function ChatList() {
                       )}
                     </p>
                   </div>
-                </button>
+                </div>
               </div>
             )
           })}

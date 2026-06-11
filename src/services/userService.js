@@ -23,8 +23,12 @@ import { getCachedUser, setCachedUser, invalidateUser } from './userCache'
 import { buildUsernameBase, normalizeUsername } from '../utils/helpers'
 import { normalizeSocials, sanitizeProfileSocials, stripSocials } from '../utils/socialLinks'
 import { removeChatForUser } from './chatService'
+import { deleteAllUserStories } from './storyService'
 
 export async function fetchUser(userId) {
+  const cached = getCachedUser(userId)
+  if (cached) return cached
+
   const snap = await getDoc(doc(db, 'users', userId))
   if (!snap.exists()) {
     invalidateUser(userId)
@@ -41,6 +45,20 @@ export async function fetchUser(userId) {
   }
   setCachedUser(userId, data)
   return data
+}
+
+export async function fetchUsersMap(userIds) {
+  const unique = [...new Set(userIds.filter(Boolean))]
+  if (!unique.length) return {}
+
+  const entries = await Promise.all(
+    unique.map(async (id) => {
+      const user = await fetchUser(id)
+      return user ? [id, user] : null
+    })
+  )
+
+  return Object.fromEntries(entries.filter(Boolean))
 }
 
 export function subscribeToUser(userId, callback) {
@@ -526,6 +544,7 @@ export async function deleteAccount(userId, username) {
     })
   }
 
+  await deleteAllUserStories(userId)
   await batch.commit()
   invalidateUser(userId)
 }

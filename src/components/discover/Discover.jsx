@@ -16,6 +16,7 @@ import LoadingSpinner from '../ui/LoadingSpinner'
 import Modal from '../ui/Modal'
 import { sad } from '../../assets'
 import { PublicProfileView } from '../profile/ProfileView'
+import StoriesHost from '../stories/StoriesHost'
 import ChevronBack from '../ui/ChevronBack'
 
 export default function Discover() {
@@ -178,6 +179,7 @@ export default function Discover() {
             <IconSearch size={20} />
           </button>
         </div>
+        <StoriesHost profile={profile} friendIds={profile?.matches} />
         <div className="flex-1 flex items-center justify-center min-h-0">
           <EmptyState message="No more profiles to show. Check back later!" />
         </div>
@@ -211,7 +213,8 @@ export default function Discover() {
           <IconSearch size={20} />
         </button>
       </div>
-      <div className="relative flex-1 mt-4">
+      <StoriesHost profile={profile} friendIds={profile?.matches} />
+      <div className="relative flex-1 mt-2">
         <SwipeCard
           key={currentProfile.id}
           profile={currentProfile}

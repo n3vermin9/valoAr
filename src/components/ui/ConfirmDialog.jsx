@@ -10,9 +10,10 @@ export default function ConfirmDialog({
   confirmLabel = 'Confirm',
   danger = false,
   loading = false,
+  overlayClassName = 'z-50',
 }) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} glass>
+    <Modal isOpen={isOpen} onClose={onClose} glass overlayClassName={overlayClassName}>
       <div className="p-6">
         <h3 className="text-[20px] font-semibold mb-2 text-left">{title}</h3>
         <p className="text-[var(--ios-label-secondary)] text-[15px] mb-6 text-left">{message}</p>
