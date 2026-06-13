@@ -27,14 +27,15 @@ import {
   storySlideVariants,
   storyUserSlideTransition,
 } from '../../utils/storyHelpers'
-import { fetchUser } from '../../services/userService'
+import { fetchUser, fetchDeletedUser } from '../../services/userService'
+import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 import {
   storyGlassButtonClass,
   storyGlassPillClass,
   storyGlassInputClass,
-  storyGlassSheetClass,
+  storyWatchersScrimClass,
+  storyWatchersSheetClass,
   storyAuthorBubbleClass,
-  storyGlassRowClass,
   storyProgressTrackClass,
   storyProgressFillClass,
   storyPausedBadgeClass,
@@ -132,6 +133,7 @@ export default function StoryViewer({
   const [replySentPulse, setReplySentPulse] = useState(false)
   const [watchers, setWatchers] = useState([])
   const [watcherPhotos, setWatcherPhotos] = useState({})
+  const [watcherDeleted, setWatcherDeleted] = useState({})
   const [isPresent, setIsPresent] = useState(true)
   const [slideGeneration, setSlideGeneration] = useState(0)
   const slideDirectionRef = useRef(1)
@@ -148,6 +150,7 @@ export default function StoryViewer({
   const closedRef = useRef(false)
   const recordedViewsRef = useRef(new Set())
   const replyInputRef = useRef(null)
+  const replyInFlightRef = useRef(false)
   queueRef.current = sessionQueue
   navRef.current = nav
 
@@ -318,18 +321,27 @@ export default function StoryViewer({
 
     ;(async () => {
       const photos = {}
+      const deleted = {}
       await Promise.all(
         watchers.map(async (w) => {
           const id = w.viewerId || w.id
-          if (w.photoUrl) {
-            photos[id] = w.photoUrl
+          const user = await fetchUser(id)
+          if (user?.photos?.[0]) {
+            photos[id] = user.photos[0]
             return
           }
-          const user = await fetchUser(id)
-          if (user?.photos?.[0]) photos[id] = user.photos[0]
+          const deletedUser = await fetchDeletedUser(id)
+          if (deletedUser) {
+            deleted[id] = true
+            return
+          }
+          if (w.photoUrl) photos[id] = w.photoUrl
         })
       )
-      if (!cancelled) setWatcherPhotos(photos)
+      if (!cancelled) {
+        setWatcherPhotos(photos)
+        setWatcherDeleted(deleted)
+      }
     })()
 
     return () => {
@@ -480,21 +492,27 @@ export default function StoryViewer({
 
   const handleReply = async () => {
     const trimmed = replyText.trim()
-    if (!trimmed || !canReply || !story || replying) return
+    if (!trimmed || !canReply || !story || replyInFlightRef.current) return
+
+    const sentText = trimmed
+    replyInFlightRef.current = true
     setReplying(true)
+
+    setReplyText('')
+    elapsedRef.current = progress * STORY_DURATION_MS
+    setReplyFocused(false)
+    setPaused(false)
+    replyInputRef.current?.blur()
+    setReplySentPulse(true)
+    window.setTimeout(() => setReplySentPulse(false), 520)
+
     try {
-      await replyToStory(viewerId, ownerId, story, trimmed, viewerUsername, owner?.username)
-      toast.success('Reply sent!')
-      setReplyText('')
-      elapsedRef.current = progress * STORY_DURATION_MS
-      setReplyFocused(false)
-      setPaused(false)
-      replyInputRef.current?.blur()
-      setReplySentPulse(true)
-      window.setTimeout(() => setReplySentPulse(false), 520)
+      await replyToStory(viewerId, ownerId, story, sentText, viewerUsername, owner?.username)
     } catch (err) {
+      setReplyText(sentText)
       toast.error(err.message || 'Could not send reply')
     } finally {
+      replyInFlightRef.current = false
       setReplying(false)
     }
   }
@@ -712,7 +730,7 @@ export default function StoryViewer({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="absolute inset-0 z-[35] bg-black/25 backdrop-blur-[2px] cursor-default"
+                className={storyWatchersScrimClass}
                 onClick={() => setShowWatchers(false)}
                 aria-label="Close views"
               />
@@ -721,12 +739,12 @@ export default function StoryViewer({
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                className={`absolute inset-x-0 bottom-0 z-40 max-h-[50vh] ${storyGlassSheetClass}`}
+                className={storyWatchersSheetClass}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
               <div className="px-4 py-3 flex items-center justify-between">
-                <div className={`${storyGlassPillClass} !px-4 !py-2`}>
+                <div className="flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10">
                   <IconEye size={16} stroke={1.75} />
                   <span className="font-semibold text-[15px] text-white tabular-nums">
                     {viewCount} {viewCount === 1 ? 'view' : 'views'}
@@ -735,31 +753,34 @@ export default function StoryViewer({
                 <button
                   type="button"
                   onClick={() => setShowWatchers(false)}
-                  className={storyGlassButtonClass}
+                  className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 border border-white/10 text-white hover:bg-white/15 transition-colors"
                   aria-label="Close views"
                 >
                   <IconX size={20} />
                 </button>
               </div>
-              <div className="overflow-y-auto max-h-[calc(50vh-52px)] px-4 py-2">
+              <div className="overflow-y-auto max-h-[calc(50vh-52px)] px-4 py-2 border-t border-white/10">
                 {watchers.length === 0 ? (
                   <p className="text-center text-white/50 py-8 text-sm">No views yet</p>
                 ) : (
                   watchers.map((w) => {
                     const watcherId = w.viewerId || w.id
-                    const photo = w.photoUrl || watcherPhotos[watcherId]
+                    const isDeleted = watcherDeleted[watcherId]
+                    const photo = isDeleted ? deletedAccountAvatarSrc : w.photoUrl || watcherPhotos[watcherId]
                     return (
                       <button
                         key={w.id}
                         type="button"
                         onClick={() => openProfileOverlay(watcherId)}
-                        className={`w-full flex items-center justify-between py-3 px-2 mb-1 text-left ${storyGlassRowClass}`}
+                        className="w-full flex items-center justify-between py-3 px-1 text-left hover:bg-white/[0.04] active:bg-white/[0.08] transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <img
                             src={photo || sad}
                             alt=""
-                            className="w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-white/10"
+                            className={`w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-white/10 ${
+                              isDeleted ? deletedAccountAvatarClass : ''
+                            }`}
                           />
                           <span className="font-medium text-sm truncate text-white">
                             {w.username || 'User'}
@@ -791,6 +812,10 @@ export default function StoryViewer({
             <PublicProfileView
               userId={profileUserId}
               onClose={closeProfileOverlay}
+              onDismissHost={() => {
+                closeProfileOverlay()
+                requestClose()
+              }}
               suppressStoryViewer={profileUserId === ownerId}
             />
           )}

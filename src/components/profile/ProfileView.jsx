@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconSettings, IconUserMinus, IconBan } from '@tabler/icons-react'
+import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, subscribeIncomingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
-import { subscribeChat } from '../../services/chatService'
+import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
+import { subscribeChat, toggleMuteChat } from '../../services/chatService'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { shareProfile, getMatchId } from '../../utils/helpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass } from '../../utils/designSystem'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
 import MatchHistory from './MatchHistory'
@@ -21,7 +21,7 @@ import ChevronBack from '../ui/ChevronBack'
 import SocialLinksDisplay from './SocialLinksDisplay'
 import ProfileStoryAvatar from '../stories/ProfileStoryAvatar'
 import StoryViewer from '../stories/StoryViewer'
-import { sad } from '../../assets'
+import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 
 export default function ProfileView() {
   const { user, profile, logout, removeAccount, refreshProfile, setProfile } = useAuth()
@@ -374,7 +374,14 @@ function InfoRow({ label, value, capitalize, small }) {
   )
 }
 
-export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, suppressStoryViewer = false }) {
+export function PublicProfileView({
+  userId,
+  onClose,
+  onBlock,
+  fromChat = false,
+  suppressStoryViewer = false,
+  onDismissHost,
+}) {
   const { user, profile: currentProfile, refreshProfile, setProfile: setAuthProfile } = useAuth()
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
@@ -390,7 +397,9 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
   const [chatData, setChatData] = useState(null)
   const [chatResolved, setChatResolved] = useState(false)
   const [incomingRequest, setIncomingRequest] = useState(null)
+  const [outgoingRequestActive, setOutgoingRequestActive] = useState(false)
   const [accepting, setAccepting] = useState(false)
+  const [muting, setMuting] = useState(false)
   const [storySession, setStorySession] = useState(null)
   const menuRef = useRef(null)
 
@@ -449,6 +458,14 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
   }, [user?.uid, userId])
 
   useEffect(() => {
+    if (!user?.uid || user.uid === userId) {
+      setOutgoingRequestActive(false)
+      return
+    }
+    return subscribeOutgoingRequest(user.uid, userId, setOutgoingRequestActive)
+  }, [user?.uid, userId])
+
+  useEffect(() => {
     if (!showMenu) return
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -488,9 +505,9 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
         </div>
         <div className="flex flex-col items-center px-6 mt-4">
           <img
-            src={sad}
+            src={deletedAccountAvatarSrc}
             alt=""
-            className="w-28 h-28 rounded-full object-cover border-4 border-white/10"
+            className={`w-28 h-28 rounded-full object-cover border-4 border-white/10 ${deletedAccountAvatarClass}`}
           />
           <div className="flex items-center gap-2 mt-3">
             <h2 className="text-xl font-bold">
@@ -513,9 +530,10 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
   const showMessage = isMatched || hasActiveChat || allowsDirectMessages
   const hasIncomingRequest = !!incomingRequest
   const showAcceptRequest = !isMatched && hasIncomingRequest
-  const showSendRequest = !isMatched && !hasIncomingRequest && !allowsDirectMessages
+  const showSendRequest = !isMatched && !hasIncomingRequest
   const isMuted = chatData?.mutedBy?.includes(user?.uid)
-  const friendRequestPending = !isMatched && me?.swipes?.[userId] === 'like'
+  const friendRequestPending =
+    !isMatched && me?.swipes?.[userId] === 'like' && outgoingRequestActive
   const friendCount = profile.matches?.length || 0
   const memberSince = profile.createdAt?.toDate?.()
     ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -530,6 +548,23 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
 
     recordSwipe(user.uid, userId, 'like').catch((err) => {
       toast.error(err.message || 'Failed to send request')
+    })
+  }
+
+  const handleCancelFriendRequest = () => {
+    if (requesting) return
+    setRequesting(true)
+    setAuthProfile((prev) => {
+      if (!prev?.swipes) return prev
+      const swipes = { ...prev.swipes }
+      delete swipes[userId]
+      return { ...prev, swipes }
+    })
+    toast.success('Request cancelled')
+    setRequesting(false)
+
+    cancelFriendRequest(user.uid, userId).catch(() => {
+      toast.error('Failed to cancel request')
     })
   }
 
@@ -548,8 +583,35 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
 
   const handleMessage = () => {
     const matchId = getMatchId(user.uid, userId)
-    navigate(`/chats/${matchId}`, { state: hasActiveChat ? undefined : { draft: true } })
+    onDismissHost?.()
     onClose?.()
+    navigate(`/chats/${matchId}`, { state: hasActiveChat ? undefined : { draft: true } })
+  }
+
+  const handleSearchChat = () => {
+    const matchId = getMatchId(user.uid, userId)
+    onDismissHost?.()
+    onClose?.()
+    navigate(`/chats/${matchId}`, {
+      state: {
+        ...(hasActiveChat ? {} : { draft: true }),
+        openSearch: true,
+      },
+    })
+  }
+
+  const handleToggleMute = async () => {
+    if (muting || !hasActiveChat) return
+    const matchId = getMatchId(user.uid, userId)
+    setMuting(true)
+    try {
+      const muted = await toggleMuteChat(matchId, user.uid)
+      toast.success(muted ? 'Chat muted' : 'Chat unmuted')
+    } catch {
+      toast.error('Failed to update mute')
+    } finally {
+      setMuting(false)
+    }
   }
 
   const handleRemoveMatch = async (mode) => {
@@ -573,16 +635,21 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
     }
   }
 
+  const showProfileActions = !isSelf && chatResolved
+  const showChatTools = showMessage
+  const showMuteButton = showChatTools && hasActiveChat
+  const showSearchButton = showChatTools
+
   const profileMenu =
     !isSelf && (isMatched || onBlock) ? (
-      <div className="relative" ref={menuRef}>
+      <div className="relative flex-1 min-w-0" ref={menuRef}>
         <button
           type="button"
           onClick={() => setShowMenu((open) => !open)}
-          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          className={`${profileActionBtnClass} w-full`}
           aria-label="More options"
         >
-          <IconDotsVertical size={22} className="text-white/80" />
+          <IconDotsVertical size={20} className="text-white/70" stroke={3} />
         </button>
 
         <AnimatePresence>
@@ -621,18 +688,15 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
           )}
         </AnimatePresence>
       </div>
-    ) : (
-      <span className="w-10" aria-hidden />
-    )
+    ) : null
 
   return (
     <div className="h-full min-h-0 overflow-y-auto pb-24">
-      <div className="flex items-center justify-between px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
+      <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
         {onClose ? <ChevronBack onClick={onClose} /> : <span className="w-10" aria-hidden />}
-        {profileMenu}
       </div>
 
-      <div className="flex flex-col items-center px-6">
+      <div className="flex flex-col items-center px-6 w-full">
         <ProfileStoryAvatar
           userId={userId}
           profile={profile}
@@ -665,6 +729,98 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
           )}
         </div>
         <p className="text-white/60">{profile.age} years old</p>
+
+        {showProfileActions &&
+          (showAcceptRequest ||
+            showMessage ||
+            showSendRequest ||
+            showMuteButton ||
+            showSearchButton ||
+            profileMenu) && (
+            <div className="mt-4 w-full flex items-center gap-2">
+              {showAcceptRequest && (
+                <button
+                  type="button"
+                  onClick={handleAcceptRequest}
+                  disabled={accepting}
+                  aria-label="Accept friend request"
+                  className={profileActionBtnClass}
+                >
+                  <IconCheck size={20} className="text-white/70" stroke={3} />
+                </button>
+              )}
+              {!showAcceptRequest && showMessage && (
+                <button
+                  type="button"
+                  onClick={handleMessage}
+                  aria-label="Message"
+                  className={profileActionBtnClass}
+                >
+                  <IconMessage size={20} className="text-white/70" stroke={3} />
+                </button>
+              )}
+              {!showAcceptRequest && showSendRequest && (
+                <button
+                  type="button"
+                  onClick={
+                    friendRequestPending ? handleCancelFriendRequest : handleSendFriendRequest
+                  }
+                  disabled={requesting}
+                  aria-label={
+                    friendRequestPending
+                      ? 'Undo friend request'
+                      : requesting
+                        ? 'Sending friend request'
+                        : 'Send friend request'
+                  }
+                  className={`group ${profileActionBtnClass}`}
+                >
+                  {friendRequestPending ? (
+                    <>
+                      <IconCheck
+                        size={20}
+                        className="text-white/60 group-hover:hidden"
+                        stroke={3}
+                      />
+                      <IconX
+                        size={20}
+                        className="hidden text-white/90 group-hover:block"
+                        stroke={3}
+                      />
+                    </>
+                  ) : (
+                    <IconUserPlus size={20} className="text-white/70" stroke={3} />
+                  )}
+                </button>
+              )}
+              {showSearchButton && (
+                <button
+                  type="button"
+                  onClick={handleSearchChat}
+                  aria-label="Search chat"
+                  className={profileActionBtnClass}
+                >
+                  <IconSearch size={20} className="text-white/70" stroke={3} />
+                </button>
+              )}
+              {showMuteButton && (
+                <button
+                  type="button"
+                  onClick={handleToggleMute}
+                  disabled={muting}
+                  aria-label={isMuted ? 'Unmute chat' : 'Mute chat'}
+                  className={profileActionBtnClass}
+                >
+                  {isMuted ? (
+                    <IconBell size={20} className="text-white/70" stroke={3} />
+                  ) : (
+                    <IconBellOff size={20} className="text-white/70" stroke={3} />
+                  )}
+                </button>
+              )}
+              {profileMenu}
+            </div>
+          )}
       </div>
 
       <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
@@ -683,40 +839,6 @@ export function PublicProfileView({ userId, onClose, onBlock, fromChat = false, 
         </div>
         <InfoRow label="Member Since" value={memberSince} small />
       </div>
-
-      {!isSelf && chatResolved && (
-        <div className="mx-6 mt-4 flex flex-col gap-3 pb-6">
-          {showAcceptRequest && (
-            <button
-              type="button"
-              onClick={handleAcceptRequest}
-              disabled={accepting}
-              className="w-full py-3 bg-green-500 hover:bg-green-600 rounded-full font-medium disabled:opacity-50"
-            >
-              {accepting ? 'Accepting...' : 'Accept Request'}
-            </button>
-          )}
-          {!showAcceptRequest && showMessage && (
-            <button
-              type="button"
-              onClick={handleMessage}
-              className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium"
-            >
-              Message
-            </button>
-          )}
-          {!showAcceptRequest && showSendRequest && (
-            <button
-              type="button"
-              onClick={handleSendFriendRequest}
-              disabled={requesting || friendRequestPending}
-              className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium disabled:opacity-50"
-            >
-              {friendRequestPending ? 'Request Sent' : requesting ? 'Sending...' : 'Send Request'}
-            </button>
-          )}
-        </div>
-      )}
 
       {galleryOpen && (
         <PhotoGallery photos={profile.photos} onClose={() => setGalleryOpen(false)} />

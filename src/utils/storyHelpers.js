@@ -88,7 +88,10 @@ export function getFirstUnseenStoryIndex(stories, viewedAtMs = 0) {
   return index >= 0 ? index : 0
 }
 
-export function filterStoriesForViewer(stories, { viewerId, ownerId, friendIds = [] }) {
+export function filterStoriesForViewer(
+  stories,
+  { viewerId, ownerId, friendIds = [], allowPublicFromNonFriends = true } = {}
+) {
   if (!stories?.length) return []
   const isOwn = viewerId === ownerId
   const isFriend = friendIds.includes(ownerId)
@@ -96,7 +99,7 @@ export function filterStoriesForViewer(stories, { viewerId, ownerId, friendIds =
     if (!isStoryActive(story)) return false
     if (isOwn) return true
     const privacy = story.privacy || STORY_PRIVACY.FRIENDS
-    if (privacy === STORY_PRIVACY.ALL) return true
+    if (privacy === STORY_PRIVACY.ALL) return allowPublicFromNonFriends || isFriend
     return isFriend
   })
 }

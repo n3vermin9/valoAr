@@ -66,6 +66,30 @@ import { PublicProfileView } from '../profile/ProfileView'
 import ChatStoryViewer from '../stories/ChatStoryViewer'
 import LoadingSpinner from '../ui/LoadingSpinner'
 
+function getMessageTimeMs(message) {
+  if (message.clientCreatedAt) return message.clientCreatedAt
+  const ts = message.createdAt
+  if (!ts) return 0
+  if (typeof ts === 'number') return ts
+  return ts.toMillis?.() ?? 0
+}
+
+function messageMatchesPending(serverMsg, pending) {
+  if (serverMsg.senderId !== pending.senderId) return false
+  if ((serverMsg.text || '') !== (pending.text || '')) return false
+  if ((serverMsg.replyTo?.id || null) !== (pending.replyTo?.id || null)) return false
+  if (pending.imageUrl && !serverMsg.imageUrl) return false
+  if (pending.audioUrl && !serverMsg.audioUrl) return false
+  return true
+}
+
+function mergeServerMessages(serverMsgs, pendingMsgs) {
+  const unmatched = pendingMsgs.filter(
+    (pending) => !serverMsgs.some((serverMsg) => messageMatchesPending(serverMsg, pending))
+  )
+  return [...serverMsgs, ...unmatched].sort((a, b) => getMessageTimeMs(a) - getMessageTimeMs(b))
+}
+
 function readCachedOtherUser(userId) {
   if (!userId) return null
   return getCachedUser(userId) || getProfileSnapshots([userId])[userId] || null
@@ -222,7 +246,10 @@ export default function ChatRoom() {
     }
 
     const unsub = subscribeMessages(matchId, (msgs) => {
-      setMessages(msgs)
+      setMessages((prev) => {
+        const pending = prev.filter((message) => message.pending)
+        return mergeServerMessages(msgs, pending)
+      })
       setLoading(false)
       if (msgs.some((m) => m.senderId !== user.uid && !m.read)) {
         scheduleMarkRead()
@@ -331,6 +358,33 @@ export default function ChatRoom() {
 
   const handleSend = async ({ text, imageUrl, audioBlob, replyTo: replyPayload }) => {
     if (chatFrozen) return
+
+    const replyData = replyPayload ? buildReplyPayload(replyPayload) : null
+    const needsUpload = Boolean(imageUrl?.startsWith('data:') || audioBlob)
+    let optimisticId = null
+
+    if (!needsUpload) {
+      optimisticId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+      setReplyTo(null)
+      setTyping(matchId, user.uid, false)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: optimisticId,
+          senderId: user.uid,
+          text: text || null,
+          imageUrl: imageUrl || null,
+          audioUrl: null,
+          replyTo: replyData,
+          createdAt: { toMillis: () => Date.now() },
+          clientCreatedAt: Date.now(),
+          pending: true,
+          read: isSavedMessages,
+        },
+      ])
+      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }))
+    }
+
     try {
       let finalImageUrl = imageUrl
       if (imageUrl?.startsWith('data:')) {
@@ -340,15 +394,28 @@ export default function ChatRoom() {
       if (audioBlob) {
         audioUrl = await uploadChatAudio(user.uid, matchId, audioBlob)
       }
-      await sendMessage(matchId, user.uid, {
-        text,
-        imageUrl: finalImageUrl,
-        audioUrl,
-        replyTo: replyPayload ? buildReplyPayload(replyPayload) : null,
-      })
-      setReplyTo(null)
-      setTyping(matchId, user.uid, false)
+      await sendMessage(
+        matchId,
+        user.uid,
+        {
+          text,
+          imageUrl: finalImageUrl,
+          audioUrl,
+          replyTo: replyData,
+        },
+        {
+          chatData: chatMeta,
+          skipEnsureVisible: chatAvailable,
+        }
+      )
+      if (needsUpload) {
+        setReplyTo(null)
+        setTyping(matchId, user.uid, false)
+      }
     } catch (err) {
+      if (optimisticId) {
+        setMessages((prev) => prev.filter((message) => message.id !== optimisticId))
+      }
       toast.error(err.message || 'Failed to send message')
     }
   }
@@ -375,19 +442,27 @@ export default function ChatRoom() {
       }
 
       const replyPayload = replyTo ? buildReplyPayload(replyTo) : null
-      await sendMessage(matchId, user.uid, {
-        text: '',
-        imageUrl: null,
-        audioUrl,
-        replyTo: replyPayload,
-      })
+      await sendMessage(
+        matchId,
+        user.uid,
+        {
+          text: '',
+          imageUrl: null,
+          audioUrl,
+          replyTo: replyPayload,
+        },
+        {
+          chatData: chatMeta,
+          skipEnsureVisible: chatAvailable,
+        }
+      )
       setReplyTo(null)
       setTyping(matchId, user.uid, false)
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
       })
     },
-    [chatFrozen, user, matchId, replyTo]
+    [chatFrozen, user, matchId, replyTo, chatMeta, chatAvailable]
   )
 
   const handleImageSelect = async (file) => {
@@ -459,6 +534,15 @@ export default function ChatRoom() {
     setShowMenu(false)
     setShowSearch(true)
   }, [])
+
+  useEffect(() => {
+    if (!location.state?.openSearch) return
+    setShowSearch(true)
+    navigate(location.pathname, {
+      replace: true,
+      state: location.state?.draft ? { draft: true } : undefined,
+    })
+  }, [location.key, location.pathname, location.state, navigate])
 
   const goToOlderSearchMessage = useCallback(() => {
     if (!searchMessageResults.length || !searchMatches.length) return

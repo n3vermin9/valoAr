@@ -1,7 +1,6 @@
 import {
   doc,
   collection,
-  addDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -279,12 +278,27 @@ export function subscribeMessages(matchId, callback) {
   })
 }
 
-export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl, replyTo, storyReply }) {
-  await ensureChatVisible(matchId)
-
+export async function sendMessage(
+  matchId,
+  senderId,
+  { text, imageUrl, audioUrl, replyTo, storyReply },
+  { chatData: cachedChatData, skipEnsureVisible = false } = {}
+) {
   const chatRef = doc(db, 'chats', matchId)
-  const chatSnap = await getDoc(chatRef)
-  const chatData = chatSnap.data()
+  let chatData = cachedChatData
+
+  if (!chatData) {
+    if (skipEnsureVisible) {
+      const chatSnap = await getDoc(chatRef)
+      chatData = chatSnap.exists() ? { id: chatSnap.id, ...chatSnap.data() } : null
+      if (!chatData) {
+        chatData = await ensureChatVisible(matchId)
+      }
+    } else {
+      chatData = await ensureChatVisible(matchId)
+    }
+  }
+
   const isSaved = chatData?.isSavedMessages === true
 
   if (!isSaved && chatData?.unfriended === true) {
@@ -331,8 +345,7 @@ export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl,
     }
   }
 
-  const msgRef = await addDoc(collection(db, 'chats', matchId, 'messages'), messageData)
-
+  const msgRef = doc(collection(db, 'chats', matchId, 'messages'))
   const recipientId = isSaved ? null : matchId.split('_').find((id) => id !== senderId)
   const preview = formatMessagePreview({ text, imageUrl, audioUrl, storyReply })
   const lastMessage = {
@@ -351,7 +364,11 @@ export async function sendMessage(matchId, senderId, { text, imageUrl, audioUrl,
   if (recipientId) {
     updates[`unreadCount.${recipientId}`] = increment(1)
   }
-  await updateDoc(chatRef, updates)
+
+  const batch = writeBatch(db)
+  batch.set(msgRef, messageData)
+  batch.update(chatRef, updates)
+  await batch.commit()
 
   return msgRef.id
 }
@@ -438,6 +455,7 @@ export async function deleteChat(matchId) {
 }
 
 export async function removeChatForUser(matchId, userId) {
+  void userId
   const chatRef = doc(db, 'chats', matchId)
   const chatSnap = await getDoc(chatRef)
   if (!chatSnap.exists()) return
@@ -467,13 +485,16 @@ async function ensureChatVisible(matchId) {
   const chatSnap = await getDoc(chatRef)
 
   if (matchId.startsWith('saved_')) {
-    if (!chatSnap.exists()) return
+    if (!chatSnap.exists()) return null
+    const data = chatSnap.data()
     const userId = matchId.slice('saved_'.length)
-    const hiddenFor = chatSnap.data()?.hiddenFor || []
+    const hiddenFor = data?.hiddenFor || []
     if (hiddenFor.includes(userId)) {
-      await updateDoc(chatRef, { hiddenFor: hiddenFor.filter((id) => id !== userId) })
+      const nextHiddenFor = hiddenFor.filter((id) => id !== userId)
+      await updateDoc(chatRef, { hiddenFor: nextHiddenFor })
+      return { id: chatSnap.id, ...data, hiddenFor: nextHiddenFor }
     }
-    return
+    return { id: chatSnap.id, ...data }
   }
 
   const participants = matchId.split('_')
@@ -483,21 +504,26 @@ async function ensureChatVisible(matchId) {
     participants.forEach((uid) => {
       unreadCount[uid] = 0
     })
-    await setDoc(chatRef, {
+    const created = {
       participants,
       createdAt: serverTimestamp(),
       lastMessage: null,
       mutedBy: [],
       hiddenFor: [],
       unreadCount,
-    })
-    return
+    }
+    await setDoc(chatRef, created)
+    return { id: matchId, ...created }
   }
 
-  const hiddenFor = chatSnap.data()?.hiddenFor || []
+  const data = chatSnap.data()
+  const hiddenFor = data?.hiddenFor || []
   if (hiddenFor.length > 0) {
     await updateDoc(chatRef, { hiddenFor: [] })
+    return { id: chatSnap.id, ...data, hiddenFor: [] }
   }
+
+  return { id: chatSnap.id, ...data }
 }
 
 export async function restoreChat(matchId) {

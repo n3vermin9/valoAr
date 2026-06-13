@@ -4,6 +4,7 @@ import { storyGlassBlur } from '../../utils/designSystem'
 import CachedAvatar from '../ui/CachedAvatar'
 import ChatSearchBar from './ChatSearchBar'
 import { sad, logo } from '../../assets'
+import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 
 const shellTransition = { type: 'spring', stiffness: 260, damping: 30, mass: 1.05 }
 
@@ -86,12 +87,12 @@ export default function ChatHeaderCenter({
           >
             <div className="relative shrink-0">
               <CachedAvatar
-                src={otherUser?.photos?.[0]}
+                src={opponentRemoved ? deletedAccountAvatarSrc : otherUser?.photos?.[0]}
                 fallback={sad}
                 size={32}
                 alt=""
                 className={`w-8 h-8 rounded-full object-cover ring-1 ring-white/20 ${
-                  opponentRemoved ? 'grayscale' : ''
+                  opponentRemoved ? deletedAccountAvatarClass : ''
                 }`}
               />
               {presence?.online && !isTyping && !opponentRemoved && (

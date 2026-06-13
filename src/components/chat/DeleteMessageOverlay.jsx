@@ -112,29 +112,39 @@ export default function MessageActionOverlay({
           onClick={(e) => e.stopPropagation()}
         >
         <div className="w-full min-w-0">
-          <div
-            ref={scrollRef}
-            className={`px-4 py-2 message-bubble overflow-y-auto ${MAX_MESSAGE_HEIGHT} ${
-              isOwn
-                ? 'bg-blue-500 rounded-[1.125rem] rounded-br-[0.25rem]'
-                : 'bg-white/10 rounded-[1.125rem] rounded-bl-[0.25rem]'
-            }`}
-          >
-            {message.replyTo && (
-              <ReplyQuote reply={message.replyTo} authorName={replyAuthorName} isOwn={isOwn} />
-            )}
-            {storyReply && <StoryReplyQuote storyReply={storyReply} />}
-            {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
-            {message.imageUrl && (
-              <img src={message.imageUrl} alt="" className="rounded-xl max-w-full mb-1" />
-            )}
-            {displayText && (
-              <MessageText
-                text={displayText}
+          <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
+            {storyReply && (
+              <StoryReplyQuote
+                storyReply={storyReply}
                 isOwn={isOwn}
-                onMentionClick={onMentionClick}
-                className="text-sm break-words"
+                stacked={Boolean(displayText)}
               />
+            )}
+            {(displayText || message.replyTo || message.audioUrl || message.imageUrl) && (
+              <div
+                ref={scrollRef}
+                className={`px-4 py-2 message-bubble overflow-y-auto w-fit max-w-full ${MAX_MESSAGE_HEIGHT} ${
+                  isOwn
+                    ? 'bg-blue-500 rounded-[1.125rem] rounded-br-[0.25rem]'
+                    : 'bg-white/10 rounded-[1.125rem] rounded-bl-[0.25rem]'
+                }`}
+              >
+                {message.replyTo && (
+                  <ReplyQuote reply={message.replyTo} authorName={replyAuthorName} isOwn={isOwn} />
+                )}
+                {displayText && (
+                  <MessageText
+                    text={displayText}
+                    isOwn={isOwn}
+                    onMentionClick={onMentionClick}
+                    className="text-sm break-words"
+                  />
+                )}
+                {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
+                {message.imageUrl && (
+                  <img src={message.imageUrl} alt="" className="rounded-xl max-w-full mb-1" />
+                )}
+              </div>
             )}
           </div>
 

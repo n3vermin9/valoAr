@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { IconSearch } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
-  getDiscoverProfiles,
+  getDiscoverFeed,
   recordSwipe,
   searchUsersByUsername,
   subscribeLikesReceived,
@@ -18,12 +19,17 @@ import { sad } from '../../assets'
 import { PublicProfileView } from '../profile/ProfileView'
 import StoriesHost from '../stories/StoriesHost'
 import ChevronBack from '../ui/ChevronBack'
+import PageShell from '../layout/PageShell'
 
 export default function Discover() {
   const { user, profile, setProfile } = useAuth()
-  const [profiles, setProfiles] = useState([])
+  const [newProfiles, setNewProfiles] = useState([])
+  const [recentProfiles, setRecentProfiles] = useState([])
   const [loading, setLoading] = useState(true)
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [section, setSection] = useState('new')
+  const [sectionDirection, setSectionDirection] = useState(0)
+  const [newIndex, setNewIndex] = useState(0)
+  const [recentIndex, setRecentIndex] = useState(0)
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [viewProfile, setViewProfile] = useState(null)
   const [profileFromSearch, setProfileFromSearch] = useState(false)
@@ -31,16 +37,21 @@ export default function Discover() {
   const [searchUsername, setSearchUsername] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [likedYouIds, setLikedYouIds] = useState(new Set())
+  const [messageTarget, setMessageTarget] = useState(null)
+  const feedRef = useRef(null)
 
   useEffect(() => {
     if (!profile?.id) return
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const p = await getDiscoverProfiles(profile)
+      const feed = await getDiscoverFeed(profile)
       if (cancelled) return
-      setProfiles(p)
-      setCurrentIndex(0)
+      setNewProfiles(feed.newProfiles)
+      setRecentProfiles(feed.recentProfiles)
+      setNewIndex(0)
+      setRecentIndex(0)
+      setSection(feed.newProfiles.length > 0 ? 'new' : 'recent')
       setLoading(false)
     })()
     return () => {
@@ -55,25 +66,39 @@ export default function Discover() {
     })
   }, [user?.uid])
 
-  const currentProfile = profiles[currentIndex]
-  const alreadyLikedYou = currentProfile && likedYouIds.has(currentProfile.id)
-  const alreadyMatched = currentProfile && profile?.matches?.includes(currentProfile.id)
+  const remainingNew = newProfiles.slice(newIndex)
+  const remainingRecent = recentProfiles.slice(recentIndex)
+  const remainingProfiles = section === 'new' ? remainingNew : remainingRecent
 
-  const handleSwipe = (action, message = null) => {
-    if (!currentProfile) return
-    if (alreadyMatched) {
+  const handleSectionChange = (next) => {
+    if (next === section) return
+    setSectionDirection(next === 'recent' ? 1 : -1)
+    setSection(next)
+    feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
+  }
+
+  const handleSwipe = (targetProfile, action, message = null) => {
+    if (!targetProfile) return
+    const matched = profile?.matches?.includes(targetProfile.id)
+    const likedYou = likedYouIds.has(targetProfile.id)
+    if (matched) {
       toast.error('You are already friends with this user!')
       return
     }
-    if (alreadyLikedYou && action === 'like') {
+    if (likedYou && action === 'like') {
       toast.error('They already sent you a request! Check Friend Requests.')
       return
     }
 
-    const targetId = currentProfile.id
-    setCurrentIndex((i) => i + 1)
+    const targetId = targetProfile.id
+    if (section === 'new') {
+      setNewIndex((i) => i + 1)
+    } else {
+      setRecentIndex((i) => i + 1)
+    }
     setProfile((prev) => patchProfileAfterSwipe(prev, targetId, action))
     if (action === 'like') toast.success('Friend request sent!')
+    feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
 
     recordSwipe(user.uid, targetId, action, message).catch((err) => {
       toast.error(err.message || 'Failed to save swipe')
@@ -81,7 +106,19 @@ export default function Discover() {
   }
 
   const handleLikeWithMessage = (message) => {
-    handleSwipe('like', message || null)
+    if (!messageTarget) return
+    handleSwipe(messageTarget, 'like', message || null)
+    setMessageTarget(null)
+  }
+
+  const openLikeMessageModal = (targetProfile) => {
+    if (profile?.matches?.includes(targetProfile.id)) return
+    if (likedYouIds.has(targetProfile.id)) {
+      toast.error('They already sent you a request! Check Friend Requests.')
+      return
+    }
+    setMessageTarget(targetProfile)
+    setShowMessageModal(true)
   }
 
   const handleSelectFromSearch = (userId) => {
@@ -142,102 +179,18 @@ export default function Discover() {
     }
   }, [searchUsername])
 
-  if (loading) {
-    return (
-      <>
-        <div className="h-full flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
-        <Modal isOpen={!!viewProfile} onClose={handleCloseProfile} fullscreen>
-          {viewProfile && (
-            <PublicProfileView userId={viewProfile.id} onClose={handleCloseProfile} />
-          )}
-        </Modal>
-        <DiscoverSearchPage
-          isOpen={showSearchPage}
-          onClose={() => setShowSearchPage(false)}
-          searchUsername={searchUsername}
-          setSearchUsername={setSearchUsername}
-          filteredProfiles={searchResults}
-          onSearch={handleSearchByUsername}
-          onSelectProfile={handleSelectFromSearch}
-        />
-      </>
-    )
-  }
+  const discoverSearchButton = (
+    <button
+      onClick={() => setShowSearchPage(true)}
+      className="p-2 hover:bg-white/10 rounded-full transition-colors"
+      aria-label="Search by username"
+    >
+      <IconSearch size={20} stroke={2} />
+    </button>
+  )
 
-  if (!currentProfile) {
-    return (
-      <div className="h-full flex flex-col pb-24">
-        <div className="flex items-center justify-between px-6 pt-6">
-          <h1 className="text-xl font-bold">Discover</h1>
-          <button
-            onClick={() => setShowSearchPage(true)}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            aria-label="Search by username"
-          >
-            <IconSearch size={20} />
-          </button>
-        </div>
-        <StoriesHost profile={profile} friendIds={profile?.matches} />
-        <div className="flex-1 flex items-center justify-center min-h-0">
-          <EmptyState message="No more profiles to show. Check back later!" />
-        </div>
-        <Modal isOpen={!!viewProfile} onClose={handleCloseProfile} fullscreen>
-          {viewProfile && (
-            <PublicProfileView userId={viewProfile.id} onClose={handleCloseProfile} />
-          )}
-        </Modal>
-        <DiscoverSearchPage
-          isOpen={showSearchPage}
-          onClose={() => setShowSearchPage(false)}
-          searchUsername={searchUsername}
-          setSearchUsername={setSearchUsername}
-          filteredProfiles={searchResults}
-          onSearch={handleSearchByUsername}
-          onSelectProfile={handleSelectFromSearch}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div className="h-full flex flex-col pb-24">
-      <div className="flex items-center justify-between px-6 pt-6 z-10">
-        <h1 className="text-xl font-bold">Discover</h1>
-        <button
-          onClick={() => setShowSearchPage(true)}
-          className="p-2 hover:bg-white/10 rounded-full transition-colors"
-          aria-label="Search by username"
-        >
-          <IconSearch size={20} />
-        </button>
-      </div>
-      <StoriesHost profile={profile} friendIds={profile?.matches} />
-      <div className="relative flex-1 mt-2">
-        <SwipeCard
-          key={currentProfile.id}
-          profile={currentProfile}
-          onSwipe={handleSwipe}
-          onLikeWithMessage={() => {
-            if (alreadyLikedYou) {
-              toast.error('They already sent you a request! Check Friend Requests.')
-              return
-            }
-            setShowMessageModal(true)
-          }}
-          alreadyLikedYou={alreadyLikedYou}
-          alreadyMatched={alreadyMatched}
-          onViewProfile={handleViewProfile}
-        />
-      </div>
-
-      <LikeMessageModal
-        isOpen={showMessageModal}
-        onClose={() => setShowMessageModal(false)}
-        onSend={handleLikeWithMessage}
-      />
-
+  const discoverOverlays = (
+    <>
       <Modal isOpen={!!viewProfile} onClose={handleCloseProfile} fullscreen>
         {viewProfile && (
           <PublicProfileView userId={viewProfile.id} onClose={handleCloseProfile} />
@@ -252,7 +205,150 @@ export default function Discover() {
         onSearch={handleSearchByUsername}
         onSelectProfile={handleSelectFromSearch}
       />
-    </div>
+    </>
+  )
+
+  const emptyMessage =
+    section === 'new'
+      ? 'No new profiles right now. Check back later!'
+      : 'No recent profiles to show. Pass on someone in New to see them here.'
+
+  const renderSectionFeed = (profiles) => {
+    if (!profiles.length) {
+      return (
+        <div className="flex-1 flex items-center justify-center min-h-0">
+          <EmptyState message={emptyMessage} />
+        </div>
+      )
+    }
+
+    return (
+      <div
+        ref={feedRef}
+        className="flex-1 min-h-0 overflow-y-auto snap-y snap-mandatory overscroll-y-contain scroll-smooth"
+      >
+        {profiles.map((p) => (
+          <article
+            key={p.id}
+            className="snap-start snap-always h-full min-h-0 w-full shrink-0 flex items-center justify-center px-4 pb-4"
+          >
+            <SwipeCard
+              profile={p}
+              onSwipe={(action) => handleSwipe(p, action)}
+              onLikeWithMessage={() => openLikeMessageModal(p)}
+              alreadyLikedYou={likedYouIds.has(p.id)}
+              alreadyMatched={profile?.matches?.includes(p.id)}
+              onViewProfile={handleViewProfile}
+            />
+          </article>
+        ))}
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <>
+        <PageShell
+          title="Discover"
+          trailing={discoverSearchButton}
+          contentClassName="flex flex-col min-h-0"
+        >
+          <StoriesHost profile={profile} friendIds={profile?.matches} />
+          <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+          <div className="flex-1 flex items-center justify-center min-h-0">
+            <LoadingSpinner />
+          </div>
+        </PageShell>
+        {discoverOverlays}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <PageShell
+        title="Discover"
+        trailing={discoverSearchButton}
+        contentClassName="flex flex-col min-h-0"
+      >
+        <StoriesHost profile={profile} friendIds={profile?.matches} />
+        <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+        <div className="flex-1 min-h-0 relative overflow-hidden">
+          <AnimatePresence mode="popLayout" initial={false} custom={sectionDirection}>
+            <motion.div
+              key={section}
+              custom={sectionDirection}
+              variants={discoverSectionSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={discoverSectionSlideTransition}
+              className="absolute inset-0 flex flex-col min-h-0"
+            >
+              {renderSectionFeed(remainingProfiles)}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </PageShell>
+
+      <LikeMessageModal
+        isOpen={showMessageModal}
+        onClose={() => {
+          setShowMessageModal(false)
+          setMessageTarget(null)
+        }}
+        onSend={handleLikeWithMessage}
+      />
+
+      {discoverOverlays}
+    </>
+  )
+}
+
+const discoverSectionSlideTransition = {
+  type: 'tween',
+  duration: 0.28,
+  ease: [0.32, 0.72, 0, 1],
+}
+
+const discoverSectionSlideVariants = {
+  enter: (direction) => ({
+    x: direction >= 0 ? '100%' : '-100%',
+    opacity: 0.65,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction) => ({
+    x: direction >= 0 ? '-100%' : '100%',
+    opacity: 0.65,
+  }),
+}
+
+function DiscoverSectionTabs({ section, onSectionChange }) {
+  return (
+    <>
+      <div className="mx-[var(--ios-page-x-lg)] border-t border-white/10" aria-hidden />
+      <div className="flex px-[var(--ios-page-x-lg)] pt-3 pb-2 z-10">
+        {[
+          { id: 'new', label: 'New' },
+          { id: 'recent', label: 'Recent' },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onSectionChange(id)}
+            className={`flex-1 py-1 text-center text-sm font-semibold transition-colors ${
+              section === id ? 'text-white' : 'text-white/45 hover:text-white/70'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </>
   )
 }
 

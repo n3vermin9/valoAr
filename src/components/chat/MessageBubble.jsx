@@ -101,6 +101,52 @@ export default function MessageBubble({
     ? 'rounded-[1.125rem] rounded-br-[0.25rem]'
     : 'rounded-[1.125rem] rounded-bl-[0.25rem]'
 
+  const bubbleSurfaceClass = `${
+    isOwn
+      ? searchActive ? 'bg-blue-400' : 'bg-blue-500'
+      : searchActive ? 'bg-white/[0.18]' : 'bg-white/10'
+  } ${highlighted && !searchActive ? 'message-bubble-flash' : ''}`
+
+  const renderBubbleContent = () => (
+    <>
+      {message.replyTo && (
+        <ReplyQuote
+          reply={message.replyTo}
+          authorName={replyAuthorName}
+          isOwn={isOwn}
+          onClick={
+            onReplyQuoteClick && message.replyTo.id
+              ? () => onReplyQuoteClick(message.replyTo.id)
+              : undefined
+          }
+        />
+      )}
+      {displayText && (
+        <MessageText
+          text={displayText}
+          isOwn={isOwn}
+          onMentionClick={onMentionClick}
+          searchQuery={searchQuery}
+          activeSearchMatch={activeSearchMatch}
+          className="text-sm break-words"
+        />
+      )}
+      {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
+      {message.imageUrl && (
+        <img
+          src={message.imageUrl}
+          alt=""
+          className="rounded-xl max-w-full mb-1 cursor-pointer"
+          onClick={() => message.onImageClick?.(message.imageUrl)}
+          onDoubleClick={(e) => e.stopPropagation()}
+        />
+      )}
+    </>
+  )
+
+  const hasMessageBubble =
+    displayText || message.replyTo || message.audioUrl || message.imageUrl
+
   return (
     <div
       className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2`}
@@ -120,60 +166,31 @@ export default function MessageBubble({
 
         <div
           style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
-          className={`transition-transform duration-75 overflow-hidden ${bubbleRadius}`}
+          className="transition-transform duration-75"
         >
-          <div
-            ref={bubbleRef}
-            onContextMenu={handleContextMenu}
-            onDoubleClick={handleDoubleClick}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchCancel}
-            className={`px-4 py-2 transition-colors duration-200 message-bubble ${bubbleRadius} ${
-              isOwn
-                ? searchActive ? 'bg-blue-400' : 'bg-blue-500'
-                : searchActive ? 'bg-white/[0.18]' : 'bg-white/10'
-            } ${highlighted && !searchActive ? 'message-bubble-flash' : ''}`}
-            data-allow-contextmenu
-          >
-            {message.replyTo && (
-              <ReplyQuote
-                reply={message.replyTo}
-                authorName={replyAuthorName}
-                isOwn={isOwn}
-                onClick={
-                  onReplyQuoteClick && message.replyTo.id
-                    ? () => onReplyQuoteClick(message.replyTo.id)
-                    : undefined
-                }
-              />
-            )}
+          <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
             {storyReply && (
               <StoryReplyQuote
                 storyReply={storyReply}
                 onClick={onStoryReplyClick}
-              />
-            )}
-            {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
-            {message.imageUrl && (
-              <img
-                src={message.imageUrl}
-                alt=""
-                className="rounded-xl max-w-full mb-1 cursor-pointer"
-                onClick={() => message.onImageClick?.(message.imageUrl)}
-                onDoubleClick={(e) => e.stopPropagation()}
-              />
-            )}
-            {displayText && (
-              <MessageText
-                text={displayText}
                 isOwn={isOwn}
-                onMentionClick={onMentionClick}
-                searchQuery={searchQuery}
-                activeSearchMatch={activeSearchMatch}
-                className="text-sm break-words"
+                stacked={Boolean(displayText)}
               />
+            )}
+            {hasMessageBubble && (
+              <div
+                ref={bubbleRef}
+                onContextMenu={handleContextMenu}
+                onDoubleClick={handleDoubleClick}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchCancel}
+                className={`px-4 py-2 transition-colors duration-200 message-bubble w-fit max-w-full ${bubbleRadius} ${bubbleSurfaceClass}`}
+                data-allow-contextmenu
+              >
+                {renderBubbleContent()}
+              </div>
             )}
           </div>
 

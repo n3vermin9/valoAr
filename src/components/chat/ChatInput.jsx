@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
 import EmojiPicker from 'emoji-picker-react'
 import toast from 'react-hot-toast'
@@ -224,10 +224,15 @@ export default function ChatInput({
     }
   }, [recording, sendingVoice, resetVoiceUi, finishRecording])
 
+  useLayoutEffect(() => {
+    if (!replyTo?.id) return
+    focusTextarea(textareaRef)
+  }, [replyTo?.id])
+
   useEffect(() => {
     const timer = setTimeout(() => focusTextarea(textareaRef), 0)
     return () => clearTimeout(timer)
-  }, [focusKey, replyTo?.id])
+  }, [focusKey])
 
   useEffect(() => {
     return () => {

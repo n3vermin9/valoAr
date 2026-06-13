@@ -96,6 +96,9 @@ export const btnPlainClass =
 export const iconButtonClass =
   'p-2 rounded-full text-[var(--ios-label)] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors'
 
+export const profileActionBtnClass =
+  'flex-1 min-w-0 h-11 flex items-center justify-center rounded-[var(--ios-radius-md)] bg-white/10 hover:bg-white/15 border border-white/10 disabled:opacity-50 transition-colors'
+
 export const contextMenuMotion = {
   initial: { opacity: 0, scale: 0.95, y: -4 },
   animate: { opacity: 1, scale: 1, y: 0 },
@@ -116,6 +119,11 @@ export const storyGlassPillClass = `${storyGlassBlur} liquid-glass-pill rounded-
 export const storyGlassInputClass = `${storyGlassBlur} rounded-full`
 
 export const storyGlassSheetClass = `rounded-t-[var(--ios-radius-xl)] border border-b-0 border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[var(--ios-glass-shadow-modal)]`
+
+/** Watchers list — solid sheet, no extra backdrop blur (story already has glass UI behind) */
+export const storyWatchersScrimClass = 'absolute inset-0 z-[35] bg-black/55 cursor-default'
+export const storyWatchersSheetClass =
+  'absolute inset-x-0 bottom-0 z-40 max-h-[50vh] rounded-t-[var(--ios-radius-xl)] border border-b-0 border-white/10 bg-[rgb(18,18,20)] shadow-[0_-12px_40px_rgba(0,0,0,0.5)]'
 
 export const storyAuthorBubbleClass = `${storyGlassBlur} liquid-glass-pill rounded-full pl-1 pr-3 py-1 flex items-center gap-4 min-w-0 max-w-[58%] transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer`
 

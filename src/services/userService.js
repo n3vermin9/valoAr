@@ -315,7 +315,9 @@ export async function createMatch(uid1, uid2) {
 
 export function subscribeLikesReceived(userId, callback) {
   return onSnapshot(collection(db, 'users', userId, 'likesReceived'), (snap) => {
-    const likes = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    const likes = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
     callback(likes)
   })
 }
@@ -354,32 +356,65 @@ export function subscribeIncomingRequest(userId, fromUserId, callback) {
   })
 }
 
+export function subscribeOutgoingRequest(requesterId, targetId, callback) {
+  if (!requesterId || !targetId) {
+    callback(false)
+    return () => {}
+  }
+  return onSnapshot(
+    doc(db, 'users', targetId, 'likesReceived', requesterId),
+    (snap) => callback(snap.exists()),
+    () => callback(false)
+  )
+}
+
 export async function markLikeAsRead(userId, fromUserId) {
   await updateDoc(doc(db, 'users', userId, 'likesReceived', fromUserId), { read: true })
 }
 
-export async function getDiscoverProfiles(currentUser) {
+function passesDiscoverBaseFilters(currentUser, profile) {
+  if (profile.id === currentUser.id) return false
+  if (currentUser.blocked?.includes(profile.id)) return false
+  if (profile.blocked?.includes(currentUser.id)) return false
+  if (currentUser.matches?.includes(profile.id)) return false
+  if (!genderMatchesPreference(profile.gender, currentUser.interestedIn)) return false
+  if (!genderMatchesPreference(currentUser.gender, profile.interestedIn)) return false
+  if (!ageInRange(currentUser.age, profile.age)) return false
+  return true
+}
+
+export async function getDiscoverFeed(currentUser) {
   const usersSnap = await getDocs(collection(db, 'users'))
-  const profiles = []
+  const newProfiles = []
+  const recentProfiles = []
 
   for (const userDoc of usersSnap.docs) {
     const profile = { id: userDoc.id, ...userDoc.data() }
-    if (profile.id === currentUser.id) continue
-    if (currentUser.blocked?.includes(profile.id)) continue
-    if (profile.blocked?.includes(currentUser.id)) continue
-    if (currentUser.matches?.includes(profile.id)) continue
-    if (currentUser.swipes?.[profile.id]) continue
+    if (!passesDiscoverBaseFilters(currentUser, profile)) continue
 
     const likedMe = await getDoc(doc(db, 'users', currentUser.id, 'likesReceived', profile.id))
     if (likedMe.exists()) continue
 
-    if (!genderMatchesPreference(profile.gender, currentUser.interestedIn)) continue
-    if (!genderMatchesPreference(currentUser.gender, profile.interestedIn)) continue
-    if (!ageInRange(currentUser.age, profile.age)) continue
+    const swipe = currentUser.swipes?.[profile.id]
+    const wasFriend = currentUser.previousMatches?.includes(profile.id)
 
-    profiles.push(stripSocials(profile))
+    if (swipe === 'like' || swipe === 'matched') continue
+
+    const stripped = stripSocials(profile)
+
+    if (!swipe && !wasFriend) {
+      newProfiles.push(stripped)
+    } else if (swipe === 'pass' || wasFriend) {
+      recentProfiles.push(stripped)
+    }
   }
-  return profiles
+
+  return { newProfiles, recentProfiles }
+}
+
+export async function getDiscoverProfiles(currentUser) {
+  const { newProfiles } = await getDiscoverFeed(currentUser)
+  return newProfiles
 }
 
 export async function searchUsersByUsername(queryText, currentUser = null) {

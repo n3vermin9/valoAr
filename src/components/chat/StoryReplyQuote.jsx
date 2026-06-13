@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import { subscribeStoryExists } from '../../services/storyService'
 import { getStoryReplyQuoteColorClass, getStoryReplySnippet } from '../../utils/storyHelpers'
 
-export default function StoryReplyQuote({ storyReply, onClick, className = '' }) {
+export default function StoryReplyQuote({
+  storyReply,
+  onClick,
+  className = '',
+  isOwn = false,
+  stacked = false,
+}) {
   const hasStoryTarget = Boolean(storyReply?.storyId && storyReply?.ownerId)
   const storyTargetKey = hasStoryTarget ? `${storyReply.ownerId}:${storyReply.storyId}` : ''
   const [trackedStoryTargetKey, setTrackedStoryTargetKey] = useState('')
@@ -41,7 +47,7 @@ export default function StoryReplyQuote({ storyReply, onClick, className = '' })
     </>
   )
 
-  const boxClass = `relative overflow-hidden rounded-lg px-2.5 py-2 border border-white/10 ${colorClass} ${
+  const boxClass = `relative overflow-hidden rounded-[var(--ios-radius-md)] px-2.5 py-2 border border-white/10 ${colorClass} ${
     canOpen ? 'hover:brightness-110 active:brightness-95 transition-[filter] cursor-pointer' : ''
   }`
 
@@ -56,7 +62,11 @@ export default function StoryReplyQuote({ storyReply, onClick, className = '' })
   )
 
   return (
-    <div className={`mb-2 min-w-0 ${className}`}>
+    <div
+      className={`min-w-0 w-fit max-w-[9.5rem] ${
+        stacked ? 'mb-0' : 'mb-2'
+      } ${isOwn ? 'self-end' : 'self-start'} ${className}`}
+    >
       {canOpen ? (
         <button
           type="button"
@@ -64,7 +74,7 @@ export default function StoryReplyQuote({ storyReply, onClick, className = '' })
             e.stopPropagation()
             onClick(storyReply)
           }}
-          className={`w-full text-left ${boxClass}`}
+          className={`text-left ${boxClass}`}
           aria-label={`Open ${label}`}
         >
           {quoteBody}

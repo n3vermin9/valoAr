@@ -2,25 +2,27 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import BottomNav from './components/layout/BottomNav'
+import AnimatedNavRoutes from './components/layout/AnimatedNavRoutes'
 import Login from './components/auth/Login'
 import Register from './components/auth/Register'
 import ProfileSetup from './components/profile/ProfileSetup'
-import ProfileView, { PublicProfileView } from './components/profile/ProfileView'
-import Discover from './components/discover/Discover'
-import LikedYou from './components/liked/LikedYou'
-import ChatList from './components/chat/ChatList'
-import ChatRoom from './components/chat/ChatRoom'
+import { PublicProfileView } from './components/profile/ProfileView'
 import ChatNotifications from './components/chat/ChatNotifications'
-import DebugTools from './components/debug/DebugTools'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import Modal from './components/ui/Modal'
 import { subscribeChats, getUnreadCount } from './services/chatService'
 import { subscribeLikesReceived } from './services/userService'
+import { subscribeStoryComposerOpen } from './utils/storyOverlay'
 
 function AppLayout() {
   const { user } = useAuth()
   const location = useLocation()
   const [badges, setBadges] = useState({ unreadChats: 0, newLikes: 0 })
+  const [storyComposerOpen, setStoryComposerOpenState] = useState(false)
+
+  useEffect(() => {
+    return subscribeStoryComposerOpen(setStoryComposerOpenState)
+  }, [])
 
   useEffect(() => {
     if (!user?.uid) return
@@ -43,21 +45,15 @@ function AppLayout() {
     }
   }, [user?.uid])
 
-  const hideNav = location.pathname.startsWith('/chats/') && location.pathname !== '/chats'
+  const hideNav =
+    (location.pathname.startsWith('/chats/') && location.pathname !== '/chats') ||
+    storyComposerOpen
 
   return (
     <div className="h-full">
       <ChatNotifications />
-      <div className="h-full">
-        <Routes location={location}>
-          <Route path="/discover" element={<Discover />} />
-          <Route path="/chats" element={<ChatList />} />
-          <Route path="/chats/:matchId" element={<ChatRoom />} />
-          <Route path="/liked" element={<LikedYou />} />
-          <Route path="/profile" element={<ProfileView />} />
-          <Route path="/debug" element={<DebugTools />} />
-          <Route path="*" element={<Navigate to="/discover" replace />} />
-        </Routes>
+      <div className="h-full overflow-hidden">
+        <AnimatedNavRoutes />
       </div>
       {!hideNav && <BottomNav badges={badges} />}
     </div>

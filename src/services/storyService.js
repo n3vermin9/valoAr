@@ -32,7 +32,12 @@ function mapStories(docs, now = Date.now()) {
 }
 
 function filterForViewer(stories, viewerId, ownerId, friendIds) {
-  return filterStoriesForViewer(stories, { viewerId, ownerId, friendIds })
+  return filterStoriesForViewer(stories, {
+    viewerId,
+    ownerId,
+    friendIds,
+    allowPublicFromNonFriends: false,
+  })
 }
 
 async function syncPublicStoryAuthor(userId) {
@@ -63,12 +68,14 @@ export function subscribeUserStories(userId, callback) {
 export function subscribeStoriesFeed(viewerId, friendIds = [], callback) {
   if (!viewerId) return () => {}
 
-  const coreIds = new Set([viewerId, ...friendIds])
   const cache = new Map()
   const userUnsubs = new Map()
 
+  const getCoreIds = () => new Set([viewerId, ...friendIds])
+
   const emit = () => {
-    const feed = [...userUnsubs.keys()]
+    const coreIds = getCoreIds()
+    const feed = [...coreIds]
       .map((userId) => ({
         userId,
         stories: filterForViewer(cache.get(userId) || [], viewerId, userId, friendIds),
@@ -94,21 +101,18 @@ export function subscribeStoriesFeed(viewerId, friendIds = [], callback) {
     cache.delete(userId)
   }
 
-  coreIds.forEach(ensureUserSub)
-
-  const publicUnsub = onSnapshot(collection(db, 'publicStoryAuthors'), (snap) => {
-    const publicIds = new Set(snap.docs.map((d) => d.id))
-    const desiredIds = new Set([...coreIds, ...publicIds])
-
-    desiredIds.forEach(ensureUserSub)
+  const syncSubs = () => {
+    const coreIds = getCoreIds()
+    coreIds.forEach(ensureUserSub)
     ;[...userUnsubs.keys()].forEach((id) => {
-      if (!desiredIds.has(id)) removeUserSub(id)
+      if (!coreIds.has(id)) removeUserSub(id)
     })
     emit()
-  })
+  }
+
+  syncSubs()
 
   return () => {
-    publicUnsub()
     userUnsubs.forEach((unsub) => unsub())
     userUnsubs.clear()
     cache.clear()
@@ -242,22 +246,35 @@ export async function markStoriesViewed(viewerId, ownerId, storyCreatedMsValue) 
   await setDoc(viewRef, { viewedAt }, { merge: true })
 }
 
-export async function replyToStory(senderId, ownerId, story, replyText, senderUsername, ownerUsername) {
+export async function replyToStory(
+  senderId,
+  ownerId,
+  story,
+  replyText,
+  senderUsername,
+  ownerUsername,
+  sendOptions = {}
+) {
   const trimmed = replyText.trim()
   if (!trimmed) throw new Error('Reply cannot be empty')
 
   const matchId = getMatchId(senderId, ownerId)
 
-  await sendMessage(matchId, senderId, {
-    text: trimmed,
-    storyReply: {
-      storyId: story.id,
-      text: story.text || '',
-      color: story.color || 'violet',
-      ownerId,
-      ownerUsername: ownerUsername || null,
+  await sendMessage(
+    matchId,
+    senderId,
+    {
+      text: trimmed,
+      storyReply: {
+        storyId: story.id,
+        text: story.text || '',
+        color: story.color || 'violet',
+        ownerId,
+        ownerUsername: ownerUsername || null,
+      },
     },
-  })
+    { skipEnsureVisible: true, ...sendOptions }
+  )
 }
 
 export async function deleteExpiredStories(userId) {

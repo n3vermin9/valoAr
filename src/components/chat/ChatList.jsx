@@ -19,12 +19,13 @@ import { preloadAvatarImages } from '../../services/avatarImageCache'
 import StoryAvatarButton from '../stories/StoryAvatarButton'
 import CachedAvatar from '../ui/CachedAvatar'
 import { formatChatTime, isSavedMessagesChat, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
+import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass } from '../../utils/designSystem'
 import PageShell from '../layout/PageShell'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import { sad, logo } from '../../assets'
+import { logo } from '../../assets'
 
 export default function ChatList() {
   const { user, profile, refreshProfile } = useAuth()
@@ -354,11 +355,11 @@ export default function ChatList() {
                       </div>
                     ) : isRemoved ? (
                       <CachedAvatar
-                        src={otherUser?.photos?.[0]}
-                        fallback={sad}
+                        src={deletedAccountAvatarSrc}
+                        fallback={deletedAccountAvatarSrc}
                         size={56}
                         alt=""
-                        className="w-14 h-14 rounded-full object-cover grayscale"
+                        className={`w-14 h-14 rounded-full object-cover ${deletedAccountAvatarClass}`}
                       />
                     ) : (
                       <>

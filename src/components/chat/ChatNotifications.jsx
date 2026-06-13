@@ -7,7 +7,7 @@ import { subscribeLikesReceived, fetchUser } from '../../services/userService'
 import { notificationGlassClass } from '../../utils/helpers'
 import { sad } from '../../assets'
 
-const AUTO_DISMISS_MS = 3000
+const AUTO_DISMISS_MS = 5000
 const DRAG_THRESHOLD = 10
 const GROUP_WINDOW_MS = 8000
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { IconHeart, IconX } from '@tabler/icons-react'
+import { IconCheck, IconX } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeLikesReceived,
@@ -14,11 +14,12 @@ import {
   patchProfileAfterMatch,
 } from '../../services/userService'
 import { sad, star } from '../../assets'
-import { APP_NAME } from '../../utils/helpers'
+import { APP_NAME, formatLastSeen } from '../../utils/helpers'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import Modal from '../ui/Modal'
 import { PublicProfileView } from '../profile/ProfileView'
+import PageShell from '../layout/PageShell'
 
 export default function LikedYou() {
   const { user, profile, setProfile } = useAuth()
@@ -33,10 +34,23 @@ export default function LikedYou() {
   const outgoingIds = useMemo(() => getOutgoingRequestIds(profile), [profile])
   const knownLikesRef = useRef(new Set())
   const likesInitializedRef = useRef(false)
+  const [sessionUnreadIds, setSessionUnreadIds] = useState(() => new Set())
+
+  const { unreadLikes, readLikes } = useMemo(() => {
+    const unread = []
+    const read = []
+    for (const like of likes) {
+      const fromId = like.fromUserId || like.id
+      if (sessionUnreadIds.has(fromId)) unread.push(like)
+      else read.push(like)
+    }
+    return { unreadLikes: unread, readLikes: read }
+  }, [likes, sessionUnreadIds])
 
   useEffect(() => {
     knownLikesRef.current = new Set()
     likesInitializedRef.current = false
+    setSessionUnreadIds(new Set())
   }, [user?.uid])
 
   useEffect(() => {
@@ -44,6 +58,13 @@ export default function LikedYou() {
 
     const unsub = subscribeLikesReceived(user.uid, async (receivedLikes) => {
       setLikes(receivedLikes)
+      setSessionUnreadIds((prev) => {
+        const next = new Set(prev)
+        receivedLikes.forEach((like) => {
+          if (!like.read) next.add(like.fromUserId || like.id)
+        })
+        return next
+      })
 
       const profileMap = {}
       await Promise.all(
@@ -158,83 +179,106 @@ export default function LikedYou() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <PageShell title="Friend Requests">
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      </PageShell>
+    )
+  }
+
+  const requestActionBtnClass =
+    'h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/15 border border-white/10 transition-colors'
+
+  const renderRequest = (like) => {
+    const fromId = like.fromUserId || like.id
+    const p = profiles[fromId]
+    if (!p) return null
+    const isDeleted = p.deleted === true
+
+    return (
+      <div key={fromId}>
+        {like.timestamp && (
+          <span className="block text-xs text-white/50 mb-1.5 px-1">
+            {formatLastSeen(like.timestamp)}
+          </span>
+        )}
+        <div className="p-4 bg-white/5 rounded-full border border-white/10">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setViewProfile(fromId)}
+              className="flex items-center gap-4 flex-1 min-w-0 text-left"
+            >
+              <img
+                src={isDeleted ? sad : p.photos?.[0] || sad}
+                alt=""
+                className="w-16 h-16 rounded-full object-cover shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{p.username}</p>
+                <p className="text-sm text-white/50">
+                  {isDeleted ? 'Account deleted' : `${p.age} years old`}
+                </p>
+              </div>
+            </button>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => handleDecline(fromId)}
+                className={requestActionBtnClass}
+                aria-label="Decline"
+              >
+                <IconX size={20} className="text-white/70" stroke={2} />
+              </button>
+              {!isDeleted && (
+                <button
+                  onClick={() => handleAccept(fromId)}
+                  className={requestActionBtnClass}
+                  aria-label="Accept"
+                >
+                  <IconCheck size={20} className="text-white/70" stroke={2.5} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {like.message && (
+            <div className="mt-3 flex justify-start">
+              <div className="bg-blue-500/20 px-4 py-2 rounded-2xl rounded-bl-sm max-w-[80%]">
+                <p className="text-sm">{like.message}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col pb-24">
-      <div className="flex items-center justify-between px-6 pt-6 gap-3">
-        <h1 className="text-xl font-bold">Friend Requests</h1>
+    <PageShell
+      title="Friend Requests"
+      trailing={
         <button
           onClick={() => setShowOutgoing(true)}
           className="text-sm text-blue-400 hover:text-blue-300 transition-colors shrink-0"
         >
           Requests{outgoingIds.length > 0 ? ` (${outgoingIds.length})` : ''}
         </button>
-      </div>
-
+      }
+      contentClassName="flex flex-col min-h-0"
+    >
       {likes.length === 0 ? (
         <EmptyState message="No friend requests yet. Keep discovering!" className="flex-1" />
       ) : (
-        <div className="px-4 mt-4 space-y-4 overflow-y-auto">
-          {likes.map((like) => {
-            const fromId = like.fromUserId || like.id
-            const p = profiles[fromId]
-            if (!p) return null
-            const isDeleted = p.deleted === true
-
-            return (
-              <div key={fromId} className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setViewProfile(fromId)}
-                    className="flex items-center gap-4 flex-1 min-w-0 text-left"
-                  >
-                    <img
-                      src={isDeleted ? sad : p.photos?.[0] || sad}
-                      alt=""
-                      className="w-16 h-16 rounded-full object-cover shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="font-semibold truncate">{p.username}</p>
-                      <p className="text-sm text-white/50">
-                        {isDeleted ? 'Account deleted' : `${p.age} years old`}
-                      </p>
-                    </div>
-                  </button>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => handleDecline(fromId)}
-                      className="w-12 h-12 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center border border-white/10"
-                      aria-label="Decline"
-                    >
-                      <IconX size={22} className="text-red-400" />
-                    </button>
-                    {!isDeleted && (
-                      <button
-                        onClick={() => handleAccept(fromId)}
-                        className="w-12 h-12 rounded-full bg-white/10 hover:bg-green-500/20 flex items-center justify-center border border-white/10"
-                        aria-label="Accept"
-                      >
-                        <IconHeart size={22} className="text-green-400" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {like.message && (
-                  <div className="mt-3 flex justify-start">
-                    <div className="bg-blue-500/20 px-4 py-2 rounded-2xl rounded-bl-sm max-w-[80%]">
-                      <p className="text-sm">{like.message}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        <div className="px-[var(--ios-page-x-lg)] mt-2 space-y-4 overflow-y-auto">
+          {unreadLikes.map(renderRequest)}
+          {unreadLikes.length > 0 && readLikes.length > 0 && (
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-white/10" />
+              <span className="text-xs font-medium text-white/40 shrink-0">Earlier</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+          )}
+          {readLikes.map(renderRequest)}
         </div>
       )}
 
@@ -294,6 +338,6 @@ export default function LikedYou() {
           )}
         </div>
       </Modal>
-    </div>
+    </PageShell>
   )
 }

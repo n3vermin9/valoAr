@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { IconX, IconUsers, IconWorld, IconChevronDown, IconCheck } from '@tabler/icons-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { postStory } from '../../services/storyService'
+import { setStoryComposerOpen } from '../../utils/storyOverlay'
 import {
   STORY_COLORS,
   MAX_STORY_LENGTH,
@@ -58,6 +59,11 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
     if (!isOpen) return
     syncTextareaHeight()
   }, [isOpen, text, syncTextareaHeight])
+
+  useEffect(() => {
+    setStoryComposerOpen(isOpen)
+    return () => setStoryComposerOpen(false)
+  }, [isOpen])
 
   useEffect(() => {
     if (!showColorMenu && !showPrivacyMenu) return
