@@ -1,6 +1,7 @@
 import toast from 'react-hot-toast'
+import VerifiedBadge from './VerifiedBadge'
 
-export default function CopyableUsername({ username, className = '', disabled = false }) {
+export default function CopyableUsername({ username, className = '', disabled = false, showVerified = true }) {
   if (!username || disabled) return null
 
   const handleClick = async (e) => {
@@ -15,13 +16,16 @@ export default function CopyableUsername({ username, className = '', disabled = 
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      data-allow-copy
-      className={`text-left hover:opacity-80 transition-opacity ${className}`}
-    >
-      {username}
-    </button>
+    <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
+      <button
+        type="button"
+        onClick={handleClick}
+        data-allow-copy
+        className={`text-left hover:opacity-80 transition-opacity truncate ${className}`}
+      >
+        {username}
+      </button>
+      {showVerified && <VerifiedBadge username={username} className="pointer-events-none" />}
+    </span>
   )
 }

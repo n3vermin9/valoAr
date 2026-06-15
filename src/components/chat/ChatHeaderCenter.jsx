@@ -5,6 +5,7 @@ import CachedAvatar from '../ui/CachedAvatar'
 import ChatSearchBar from './ChatSearchBar'
 import { sad, logo } from '../../assets'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
+import VerifiedBadge from '../ui/VerifiedBadge'
 
 const shellTransition = { type: 'spring', stiffness: 260, damping: 30, mass: 1.05 }
 
@@ -102,6 +103,7 @@ export default function ChatHeaderCenter({
             <div className="min-w-0 text-left">
               <div className="flex items-center gap-1">
                 <p className="font-semibold text-sm truncate text-white">{otherDisplayName}</p>
+                <VerifiedBadge username={otherUser?.username} size={14} />
                 {isMuted && (
                   <IconBellOff size={13} className="text-white/50 shrink-0" aria-label="Muted" />
                 )}

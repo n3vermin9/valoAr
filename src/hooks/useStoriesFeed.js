@@ -1,18 +1,43 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { subscribeStoriesFeed, subscribeStoryViews } from '../services/storyService'
-import { fetchUser } from '../services/userService'
+import { fetchUser, subscribeToUser } from '../services/userService'
 
-export default function useStoriesFeed(userId, friendIds = []) {
+export default function useStoriesFeed(userId, friendIdsProp = []) {
   const [feed, setFeed] = useState([])
   const [views, setViews] = useState({})
   const [users, setUsers] = useState({})
+  const [friendIds, setFriendIds] = useState(friendIdsProp)
+  const feedUnsubRef = useRef(null)
 
   const friendKey = friendIds.join(',')
 
   useEffect(() => {
+    setFriendIds(friendIdsProp)
+  }, [friendIdsProp.join(',')])
+
+  useEffect(() => {
     if (!userId) return
-    return subscribeStoriesFeed(userId, friendIds, setFeed)
-  }, [userId, friendKey])
+    return subscribeToUser(userId, (profile) => {
+      if (Array.isArray(profile?.matches)) {
+        setFriendIds(profile.matches)
+      }
+    })
+  }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+
+    const unsub = subscribeStoriesFeed(userId, friendIds, setFeed)
+    feedUnsubRef.current = unsub
+    return () => {
+      feedUnsubRef.current = null
+      unsub()
+    }
+  }, [userId])
+
+  useEffect(() => {
+    feedUnsubRef.current?.updateFriendIds?.(friendIds)
+  }, [friendKey, userId])
 
   useEffect(() => {
     if (!userId) return

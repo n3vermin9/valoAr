@@ -12,12 +12,13 @@ import LoadingSpinner from './components/ui/LoadingSpinner'
 import Modal from './components/ui/Modal'
 import { subscribeChats, getUnreadCount } from './services/chatService'
 import { subscribeLikesReceived } from './services/userService'
+import { subscribeInbox } from './services/inboxService'
 import { subscribeStoryComposerOpen } from './utils/storyOverlay'
 
 function AppLayout() {
   const { user } = useAuth()
   const location = useLocation()
-  const [badges, setBadges] = useState({ unreadChats: 0, newLikes: 0 })
+  const [badges, setBadges] = useState({ unreadChats: 0, newLikes: 0, inboxUnread: 0 })
   const [storyComposerOpen, setStoryComposerOpenState] = useState(false)
 
   useEffect(() => {
@@ -39,9 +40,14 @@ function AppLayout() {
       setBadges((b) => ({ ...b, newLikes: likes.filter((l) => !l.read).length }))
     })
 
+    const unsubInbox = subscribeInbox(user.uid, (items) => {
+      setBadges((b) => ({ ...b, inboxUnread: items.filter((i) => !i.read).length }))
+    })
+
     return () => {
       unsubChats()
       unsubLikes()
+      unsubInbox()
     }
   }, [user?.uid])
 

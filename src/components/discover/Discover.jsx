@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { IconSearch } from '@tabler/icons-react'
@@ -38,7 +38,58 @@ export default function Discover() {
   const [searchResults, setSearchResults] = useState([])
   const [likedYouIds, setLikedYouIds] = useState(new Set())
   const [messageTarget, setMessageTarget] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [pullY, setPullY] = useState(0)
   const feedRef = useRef(null)
+  const pullStartY = useRef(0)
+  const pulling = useRef(false)
+  const pullYRef = useRef(0)
+
+  const PULL_THRESHOLD = 72
+
+  const refreshDiscover = useCallback(async () => {
+    if (!profile?.id || refreshing) return
+    setRefreshing(true)
+    try {
+      const feed = await getDiscoverFeed(profile)
+      setNewProfiles(feed.newProfiles)
+      setRecentProfiles(feed.recentProfiles)
+      toast.success('Discover updated')
+    } catch {
+      toast.error('Could not refresh')
+    } finally {
+      setRefreshing(false)
+      setPullY(0)
+    }
+  }, [profile?.id, refreshing])
+
+  useEffect(() => {
+    pullYRef.current = pullY
+  }, [pullY])
+
+  const handleFeedTouchStart = (e) => {
+    if ((feedRef.current?.scrollTop ?? 0) > 0) return
+    pullStartY.current = e.touches[0].clientY
+    pulling.current = true
+  }
+
+  const handleFeedTouchMove = (e) => {
+    if (!pulling.current || refreshing) return
+    const dy = e.touches[0].clientY - pullStartY.current
+    if (dy > 0 && (feedRef.current?.scrollTop ?? 0) <= 0) {
+      setPullY(Math.min(dy * 0.45, 96))
+    }
+  }
+
+  const handleFeedTouchEnd = () => {
+    if (!pulling.current) return
+    pulling.current = false
+    if (pullYRef.current >= PULL_THRESHOLD) {
+      refreshDiscover()
+    } else {
+      setPullY(0)
+    }
+  }
 
   useEffect(() => {
     if (!profile?.id) return
@@ -214,19 +265,48 @@ export default function Discover() {
       : 'No recent profiles to show. Pass on someone in New to see them here.'
 
   const renderSectionFeed = (profiles) => {
+    const pullIndicator = (
+      <div
+        className="flex items-center justify-center overflow-hidden transition-[height] duration-150 shrink-0"
+        style={{ height: pullY > 0 || refreshing ? Math.max(pullY, refreshing ? 40 : 0) : 0 }}
+      >
+        {(pullY > 0 || refreshing) && (
+          <span className="text-xs text-white/50 py-2">
+            {refreshing ? 'Refreshing…' : pullY >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'}
+          </span>
+        )}
+      </div>
+    )
+
     if (!profiles.length) {
       return (
-        <div className="flex-1 flex items-center justify-center min-h-0">
-          <EmptyState message={emptyMessage} />
+        <div
+          className="flex-1 flex flex-col min-h-0"
+          onTouchStart={handleFeedTouchStart}
+          onTouchMove={handleFeedTouchMove}
+          onTouchEnd={handleFeedTouchEnd}
+        >
+          {pullIndicator}
+          <div className="flex-1 flex items-center justify-center min-h-0">
+            <EmptyState message={emptyMessage} />
+          </div>
         </div>
       )
     }
 
     return (
       <div
-        ref={feedRef}
-        className="flex-1 min-h-0 overflow-y-auto snap-y snap-mandatory overscroll-y-contain scroll-smooth"
+        className="flex-1 min-h-0 flex flex-col"
+        onTouchStart={handleFeedTouchStart}
+        onTouchMove={handleFeedTouchMove}
+        onTouchEnd={handleFeedTouchEnd}
       >
+        {pullIndicator}
+        <div
+          ref={feedRef}
+          className="flex-1 min-h-0 overflow-y-auto snap-y snap-mandatory overscroll-y-contain scroll-smooth"
+          style={{ transform: pullY > 0 ? `translateY(${pullY}px)` : undefined }}
+        >
         {profiles.map((p) => (
           <article
             key={p.id}
@@ -242,6 +322,7 @@ export default function Discover() {
             />
           </article>
         ))}
+        </div>
       </div>
     )
   }

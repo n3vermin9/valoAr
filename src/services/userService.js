@@ -37,6 +37,7 @@ import { buildUsernameBase, normalizeUsername } from '../utils/helpers'
 import { normalizeSocials, sanitizeProfileSocials, stripSocials } from '../utils/socialLinks'
 import { removeChatForUser } from './chatService'
 import { deleteAllUserStories } from './storyService'
+import { pushInboxNotification } from './inboxService'
 
 export async function fetchUser(userId) {
   const cached = getCachedUser(userId)
@@ -310,6 +311,21 @@ export async function createMatch(uid1, uid2) {
   await batch.commit()
   invalidateUser(uid1)
   invalidateUser(uid2)
+
+  const [profile1, profile2] = await Promise.all([fetchUser(uid1), fetchUser(uid2)])
+  await Promise.all([
+    pushInboxNotification(uid1, {
+      type: 'match',
+      actorId: uid2,
+      actorUsername: profile2?.username || 'User',
+    }),
+    pushInboxNotification(uid2, {
+      type: 'match',
+      actorId: uid1,
+      actorUsername: profile1?.username || 'User',
+    }),
+  ])
+
   return matchId
 }
 

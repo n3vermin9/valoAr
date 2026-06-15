@@ -13,6 +13,7 @@ import {
   cancelFriendRequest,
   patchProfileAfterMatch,
 } from '../../services/userService'
+import { subscribeInbox, markInboxRead, markAllInboxRead } from '../../services/inboxService'
 import { sad, star } from '../../assets'
 import { APP_NAME, formatLastSeen } from '../../utils/helpers'
 import EmptyState from '../ui/EmptyState'
@@ -20,16 +21,18 @@ import LoadingSpinner from '../ui/LoadingSpinner'
 import Modal from '../ui/Modal'
 import { PublicProfileView } from '../profile/ProfileView'
 import PageShell from '../layout/PageShell'
+import VerifiedBadge from '../ui/VerifiedBadge'
 
 export default function LikedYou() {
   const { user, profile, setProfile } = useAuth()
+  const [section, setSection] = useState('inbox')
   const [likes, setLikes] = useState([])
   const [profiles, setProfiles] = useState({})
+  const [inboxItems, setInboxItems] = useState([])
+  const [inboxProfiles, setInboxProfiles] = useState({})
+  const [outgoingProfiles, setOutgoingProfiles] = useState({})
   const [loading, setLoading] = useState(true)
   const [viewProfile, setViewProfile] = useState(null)
-  const [showOutgoing, setShowOutgoing] = useState(false)
-  const [outgoingProfiles, setOutgoingProfiles] = useState({})
-  const [outgoingLoading, setOutgoingLoading] = useState(false)
 
   const outgoingIds = useMemo(() => getOutgoingRequestIds(profile), [profile])
   const knownLikesRef = useRef(new Set())
@@ -46,6 +49,8 @@ export default function LikedYou() {
     }
     return { unreadLikes: unread, readLikes: read }
   }, [likes, sessionUnreadIds])
+
+  const unreadInbox = useMemo(() => inboxItems.filter((item) => !item.read), [inboxItems])
 
   useEffect(() => {
     knownLikesRef.current = new Set()
@@ -105,6 +110,53 @@ export default function LikedYou() {
   }, [user?.uid])
 
   useEffect(() => {
+    if (!user?.uid) return
+    return subscribeInbox(user.uid, setInboxItems)
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (!inboxItems.length) return
+    let cancelled = false
+
+    ;(async () => {
+      const profileMap = {}
+      const actorIds = [...new Set(inboxItems.map((item) => item.actorId).filter(Boolean))]
+      await Promise.all(
+        actorIds.map(async (id) => {
+          profileMap[id] = (await fetchUser(id)) || (await fetchDeletedUser(id))
+        })
+      )
+      if (!cancelled) setInboxProfiles(profileMap)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [inboxItems])
+
+  useEffect(() => {
+    if (!outgoingIds.length) {
+      setOutgoingProfiles({})
+      return
+    }
+    let cancelled = false
+
+    ;(async () => {
+      const profileMap = {}
+      await Promise.all(
+        outgoingIds.map(async (id) => {
+          profileMap[id] = (await fetchUser(id)) || (await fetchDeletedUser(id))
+        })
+      )
+      if (!cancelled) setOutgoingProfiles(profileMap)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [outgoingIds])
+
+  useEffect(() => {
     likes.forEach((like) => {
       if (!like.read) {
         markLikeAsRead(user.uid, like.fromUserId || like.id)
@@ -113,26 +165,9 @@ export default function LikedYou() {
   }, [likes, user?.uid])
 
   useEffect(() => {
-    if (!showOutgoing) return
-    let cancelled = false
-
-    async function loadOutgoing() {
-      setOutgoingLoading(true)
-      const profileMap = {}
-      for (const id of outgoingIds) {
-        profileMap[id] = (await fetchUser(id)) || (await fetchDeletedUser(id))
-      }
-      if (!cancelled) {
-        setOutgoingProfiles(profileMap)
-        setOutgoingLoading(false)
-      }
-    }
-
-    loadOutgoing()
-    return () => {
-      cancelled = true
-    }
-  }, [showOutgoing, outgoingIds])
+    if (section !== 'inbox' || !user?.uid || unreadInbox.length === 0) return
+    markAllInboxRead(user.uid).catch(() => {})
+  }, [section, user?.uid, unreadInbox.length])
 
   const handleAccept = (fromUserId) => {
     setLikes((prev) => prev.filter((l) => (l.fromUserId || l.id) !== fromUserId))
@@ -179,7 +214,7 @@ export default function LikedYou() {
 
   if (loading) {
     return (
-      <PageShell title="Friend Requests">
+      <PageShell title="Inbox">
         <div className="flex-1 flex items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -215,7 +250,10 @@ export default function LikedYou() {
                 className="w-16 h-16 rounded-full object-cover shrink-0"
               />
               <div className="min-w-0">
-                <p className="font-semibold truncate">{p.username}</p>
+                <p className="font-semibold truncate inline-flex items-center gap-1">
+                  {p.username}
+                  <VerifiedBadge username={p.username} size={14} />
+                </p>
                 <p className="text-sm text-white/50">
                   {isDeleted ? 'Account deleted' : `${p.age} years old`}
                 </p>
@@ -253,91 +291,181 @@ export default function LikedYou() {
     )
   }
 
-  return (
-    <PageShell
-      title="Friend Requests"
-      trailing={
+  const renderOutgoingRequest = (targetId) => {
+    const p = outgoingProfiles[targetId]
+    if (!p) return null
+    const isDeleted = p.deleted === true
+
+    return (
+      <div
+        key={targetId}
+        className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10"
+      >
         <button
-          onClick={() => setShowOutgoing(true)}
-          className="text-sm text-blue-400 hover:text-blue-300 transition-colors shrink-0"
+          onClick={() => setViewProfile(targetId)}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left"
         >
-          Requests{outgoingIds.length > 0 ? ` (${outgoingIds.length})` : ''}
+          <img
+            src={isDeleted ? sad : p.photos?.[0] || sad}
+            alt=""
+            className="w-12 h-12 rounded-full object-cover shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="font-medium truncate inline-flex items-center gap-1">
+              {p.username}
+              <VerifiedBadge username={p.username} size={14} />
+            </p>
+            <p className="text-xs text-white/50">{isDeleted ? 'Account deleted' : 'Pending'}</p>
+          </div>
         </button>
-      }
-      contentClassName="flex flex-col min-h-0"
-    >
-      {likes.length === 0 ? (
-        <EmptyState message="No friend requests yet. Keep discovering!" className="flex-1" />
-      ) : (
-        <div className="px-[var(--ios-page-x-lg)] mt-2 space-y-4 overflow-y-auto">
-          {unreadLikes.map(renderRequest)}
-          {unreadLikes.length > 0 && readLikes.length > 0 && (
-            <div className="flex items-center gap-3 py-1">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-xs font-medium text-white/40 shrink-0">Earlier</span>
-              <div className="flex-1 h-px bg-white/10" />
-            </div>
-          )}
-          {readLikes.map(renderRequest)}
+        <button
+          onClick={() => handleCancelRequest(targetId)}
+          className="px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-full border border-red-500/30 shrink-0"
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  const inboxMessage = (item) => {
+    const name = item.actorUsername || inboxProfiles[item.actorId]?.username || 'Someone'
+    if (item.type === 'story_reaction') {
+      return (
+        <>
+          <span className="font-medium">{name}</span> reacted {item.emoji} to your story
+        </>
+      )
+    }
+    return (
+      <>
+        You and <span className="font-medium">{name}</span> are now friends
+      </>
+    )
+  }
+
+  const renderInboxItem = (item) => {
+    const actorId = item.actorId
+    const p = inboxProfiles[actorId]
+    const isDeleted = p?.deleted === true
+    const photo = isDeleted ? sad : p?.photos?.[0] || sad
+
+    return (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() => {
+          if (!item.read) markInboxRead(user.uid, item.id)
+          if (actorId) setViewProfile(actorId)
+        }}
+        className={`w-full flex items-center gap-3 py-3 text-left transition-colors ${
+          item.read ? 'opacity-80' : 'bg-white/[0.03]'
+        }`}
+      >
+        <img src={photo} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-white/90 leading-snug">{inboxMessage(item)}</p>
+          <p className="text-xs text-white/45 mt-1">{formatLastSeen(item.timestamp)}</p>
         </div>
-      )}
+        {item.type === 'story_reaction' && (
+          <span className="text-xl shrink-0" aria-hidden>
+            {item.emoji}
+          </span>
+        )}
+        {!item.read && (
+          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" aria-label="Unread" />
+        )}
+      </button>
+    )
+  }
+
+  const requestsContent =
+    likes.length === 0 && outgoingIds.length === 0 ? (
+      <EmptyState message="No friend requests yet. Keep discovering!" className="flex-1" />
+    ) : (
+      <div className="px-[var(--ios-page-x-lg)] mt-2 space-y-4 overflow-y-auto flex-1 min-h-0">
+        {outgoingIds.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-white/40 uppercase tracking-wider px-1">Sent</p>
+            {outgoingIds.map(renderOutgoingRequest)}
+          </div>
+        )}
+        {likes.length > 0 && (
+          <div className="space-y-4">
+            {outgoingIds.length > 0 && (
+              <p className="text-xs font-medium text-white/40 uppercase tracking-wider px-1 pt-1">
+                Received
+              </p>
+            )}
+            {unreadLikes.map(renderRequest)}
+            {unreadLikes.length > 0 && readLikes.length > 0 && (
+              <div className="flex items-center gap-3 py-1">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-xs font-medium text-white/40 shrink-0">Earlier</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+            )}
+            {readLikes.map(renderRequest)}
+          </div>
+        )}
+      </div>
+    )
+
+  const inboxContent =
+    inboxItems.length === 0 ? (
+      <EmptyState message="No notifications yet" className="flex-1" />
+    ) : (
+      <div className="px-[var(--ios-page-x-lg)] mt-2 overflow-y-auto flex-1 min-h-0 divide-y divide-white/5">
+        {inboxItems.map(renderInboxItem)}
+      </div>
+    )
+
+  return (
+    <PageShell title="Inbox" contentClassName="flex flex-col min-h-0">
+      <InboxSectionTabs
+        section={section}
+        onSectionChange={setSection}
+        requestCount={likes.length}
+        inboxUnread={unreadInbox.length}
+      />
+      {section === 'requests' ? requestsContent : inboxContent}
 
       <Modal isOpen={!!viewProfile} onClose={() => setViewProfile(null)} fullscreen>
         {viewProfile && (
           <PublicProfileView userId={viewProfile} onClose={() => setViewProfile(null)} />
         )}
       </Modal>
-
-      <Modal isOpen={showOutgoing} onClose={() => setShowOutgoing(false)} className="max-w-lg">
-        <div className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Requests</h2>
-          {outgoingLoading ? (
-            <LoadingSpinner />
-          ) : outgoingIds.length === 0 ? (
-            <EmptyState message="No pending requests" />
-          ) : (
-            <div className="space-y-3">
-              {outgoingIds.map((targetId) => {
-                const p = outgoingProfiles[targetId]
-                if (!p) return null
-                const isDeleted = p.deleted === true
-                return (
-                  <div
-                    key={targetId}
-                    className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10"
-                  >
-                    <button
-                      onClick={() => {
-                        setShowOutgoing(false)
-                        setViewProfile(targetId)
-                      }}
-                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                    >
-                      <img
-                        src={isDeleted ? sad : p.photos?.[0] || sad}
-                        alt=""
-                        className="w-12 h-12 rounded-full object-cover shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{p.username}</p>
-                        <p className="text-xs text-white/50">
-                          {isDeleted ? 'Account deleted' : 'Pending'}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleCancelRequest(targetId)}
-                      className="px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-full border border-red-500/30 shrink-0"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </Modal>
     </PageShell>
+  )
+}
+
+function InboxSectionTabs({ section, onSectionChange, requestCount, inboxUnread }) {
+  return (
+    <>
+      <div className="mx-[var(--ios-page-x-lg)] border-t border-white/10" aria-hidden />
+      <div className="flex px-[var(--ios-page-x-lg)] pt-3 pb-2 z-10">
+        {[
+          {
+            id: 'requests',
+            label: requestCount > 0 ? `Requests (${requestCount})` : 'Requests',
+          },
+          {
+            id: 'inbox',
+            label: inboxUnread > 0 ? `Inbox (${inboxUnread})` : 'Inbox',
+          },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onSectionChange(id)}
+            className={`flex-1 py-1 text-center text-sm font-semibold transition-colors ${
+              section === id ? 'text-white' : 'text-white/45 hover:text-white/70'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </>
   )
 }

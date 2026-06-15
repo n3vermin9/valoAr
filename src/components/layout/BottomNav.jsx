@@ -7,7 +7,7 @@ import { navGlassClass, navGlassInnerClass } from '../../utils/designSystem'
 const tabs = [
   { path: '/discover', icon: IconFlame, label: 'Discover' },
   { path: '/chats', icon: IconMessage, label: 'Chats', badgeKey: 'unreadChats' },
-  { path: '/liked', icon: IconInbox, label: 'Requests', badgeKey: 'newLikes' },
+  { path: '/liked', icon: IconInbox, label: 'Inbox', badgeKey: 'inboxBadge' },
   { path: '/profile', icon: IconUser, label: 'Profile' },
 ]
 
@@ -99,7 +99,10 @@ export default function BottomNav({ badges = {} }) {
           {tabs.map((tab, index) => {
             const isActive = location.pathname.startsWith(tab.path)
             const Icon = tab.icon
-            const count = badges[tab.badgeKey] || 0
+            const count =
+              tab.badgeKey === 'inboxBadge'
+                ? (badges.newLikes || 0) + (badges.inboxUnread || 0)
+                : badges[tab.badgeKey] || 0
             const isChatsTab = tab.path === '/chats'
 
             return (

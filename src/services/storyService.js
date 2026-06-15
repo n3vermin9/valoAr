@@ -6,6 +6,8 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  updateDoc,
+  deleteField,
   onSnapshot,
   query,
   orderBy,
@@ -15,6 +17,7 @@ import {
 import { db } from '../firebase/config'
 import { sendMessage } from './chatService'
 import { getMatchId } from '../utils/helpers'
+import { pushInboxNotification } from './inboxService'
 import {
   isStoryActive,
   storyCreatedMs,
@@ -70,15 +73,16 @@ export function subscribeStoriesFeed(viewerId, friendIds = [], callback) {
 
   const cache = new Map()
   const userUnsubs = new Map()
+  let activeFriendIds = [...friendIds]
 
-  const getCoreIds = () => new Set([viewerId, ...friendIds])
+  const getCoreIds = () => new Set([viewerId, ...activeFriendIds])
 
   const emit = () => {
     const coreIds = getCoreIds()
     const feed = [...coreIds]
       .map((userId) => ({
         userId,
-        stories: filterForViewer(cache.get(userId) || [], viewerId, userId, friendIds),
+        stories: filterForViewer(cache.get(userId) || [], viewerId, userId, activeFriendIds),
       }))
       .filter((entry) => entry.stories.length > 0)
     callback(feed)
@@ -110,13 +114,21 @@ export function subscribeStoriesFeed(viewerId, friendIds = [], callback) {
     emit()
   }
 
+  const updateFriendIds = (nextFriendIds = []) => {
+    activeFriendIds = [...nextFriendIds]
+    syncSubs()
+  }
+
   syncSubs()
 
-  return () => {
+  const unsubscribe = () => {
     userUnsubs.forEach((unsub) => unsub())
     userUnsubs.clear()
     cache.clear()
   }
+
+  unsubscribe.updateFriendIds = updateFriendIds
+  return unsubscribe
 }
 
 /** @deprecated Use subscribeStoriesFeed */
@@ -198,6 +210,58 @@ export async function deleteStory(userId, storyId) {
   batch.delete(doc(db, 'users', userId, 'stories', storyId))
   await batch.commit()
   await syncPublicStoryAuthor(userId)
+}
+
+export function subscribeStoryReactions(ownerId, storyId, callback) {
+  if (!ownerId || !storyId) {
+    callback({})
+    return () => {}
+  }
+
+  const storyRef = doc(db, 'users', ownerId, 'stories', storyId)
+  return onSnapshot(
+    storyRef,
+    (snap) => {
+      if (!snap.exists()) {
+        callback({})
+        return
+      }
+      callback(snap.data()?.reactions || {})
+    },
+    () => callback({})
+  )
+}
+
+export async function setStoryReaction(ownerId, storyId, userId, emoji, actorUsername = 'User') {
+  if (!ownerId || !storyId || !userId || !emoji) return null
+
+  const storyRef = doc(db, 'users', ownerId, 'stories', storyId)
+  const snap = await getDoc(storyRef)
+  if (!snap.exists()) return null
+
+  const reactions = { ...(snap.data().reactions || {}) }
+  const removing = reactions[userId] === emoji
+  if (removing) {
+    delete reactions[userId]
+  } else {
+    reactions[userId] = emoji
+  }
+
+  await updateDoc(storyRef, {
+    reactions: Object.keys(reactions).length ? reactions : deleteField(),
+  })
+
+  if (!removing && ownerId !== userId) {
+    await pushInboxNotification(ownerId, {
+      type: 'story_reaction',
+      actorId: userId,
+      actorUsername,
+      emoji,
+      storyId,
+    }).catch(() => {})
+  }
+
+  return reactions[userId] || null
 }
 
 export async function recordStoryView(
