@@ -11,6 +11,7 @@ import {
   IconSearch,
   IconChevronDown,
   IconX,
+  IconSettings,
 } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -35,6 +36,7 @@ import {
   subscribePresence,
   subscribeToUser,
   getUserIdByUsername,
+  fetchUsersMap,
 } from '../../services/userService'
 import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
 import {
@@ -65,6 +67,11 @@ import { preloadAvatarImage } from '../../services/avatarImageCache'
 import { PublicProfileView } from '../profile/ProfileView'
 import ChatStoryViewer from '../stories/ChatStoryViewer'
 import LoadingSpinner from '../ui/LoadingSpinner'
+import {
+  isGroupChat,
+  getGroupDisplayName,
+  isGroupAdmin,
+} from '../../utils/groupChat'
 
 function getMessageTimeMs(message) {
   if (message.clientCreatedAt) return message.clientCreatedAt
@@ -129,6 +136,7 @@ export default function ChatRoom() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchMatchIndex, setSearchMatchIndex] = useState(0)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+  const [memberProfiles, setMemberProfiles] = useState({})
   const messagesEndRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
@@ -140,7 +148,8 @@ export default function ChatRoom() {
 
   const isSavedMessages =
     isSavedMessagesChat(matchId, user?.uid) || chatMeta?.isSavedMessages === true
-  const otherId = isSavedMessages ? null : matchId?.split('_').find((id) => id !== user?.uid)
+  const isGroup = isGroupChat(chatMeta)
+  const otherId = isSavedMessages || isGroup ? null : matchId?.split('_').find((id) => id !== user?.uid)
   const iBlockedThem = !isSavedMessages && profile?.blocked?.includes(otherId)
   const theyBlockedMe = !isSavedMessages && chatMeta?.blockedBy?.includes(otherId) && !iBlockedThem
   const unfriended = !isSavedMessages && chatMeta?.unfriended === true
@@ -150,8 +159,13 @@ export default function ChatRoom() {
   const otherDisplayName = opponentRemoved
     ? getRemovedChatUsername(chatMeta, otherId)
     : otherUser?.username || 'User'
-  const chatFrozen = !isSavedMessages && (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)
+  const chatFrozen =
+    !isSavedMessages &&
+    !isGroup &&
+    (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)
   const isMuted = chatMeta?.mutedBy?.includes(user.uid)
+  const groupName = isGroup ? getGroupDisplayName(chatMeta) : null
+  const groupMemberCount = isGroup ? chatMeta?.participants?.length || 0 : 0
 
   if (otherId !== trackedOtherId) {
     setTrackedOtherId(otherId)
@@ -194,12 +208,17 @@ export default function ChatRoom() {
   }, [matchId, user?.uid, isSavedMessages, isDraft])
 
   useEffect(() => {
-    if (!otherId || isSavedMessages) return
+    if (!isGroup || !chatMeta?.participants?.length) return
+    fetchUsersMap(chatMeta.participants).then(setMemberProfiles)
+  }, [isGroup, chatMeta?.participants?.join(',')])
+
+  useEffect(() => {
+    if (!otherId || isSavedMessages || isGroup) return
     return subscribeToUser(otherId, (userData) => {
       setOtherUser(userData)
       setOtherUserLoaded(true)
     })
-  }, [otherId, isSavedMessages])
+  }, [otherId, isSavedMessages, isGroup])
 
   useEffect(() => {
     if (!matchId || !user?.uid) return
@@ -207,8 +226,10 @@ export default function ChatRoom() {
     const unsubMeta = subscribeChat(matchId, (chat) => {
       const hidden = chat?.hiddenFor?.includes(user.uid)
       const visible = chat && !hidden
+      const isGroupChatDoc = isGroupChat(chat)
+      const isMember = chat?.participants?.includes(user.uid)
 
-      if (visible) {
+      if (visible && (!isGroupChatDoc || isMember)) {
         chatWasVisibleRef.current = true
         setChatMeta(chat)
         setChatAvailable(true)
@@ -278,14 +299,15 @@ export default function ChatRoom() {
   }, [matchId, user?.uid, chatAvailable])
 
   useEffect(() => {
-    if (!otherId || isSavedMessages) return
+    if (!otherId || isSavedMessages || isGroup) return
     return subscribePresence(otherId, setPresence)
-  }, [otherId, isSavedMessages])
+  }, [otherId, isSavedMessages, isGroup])
 
   useEffect(() => {
     if (!matchId || !user?.uid || isSavedMessages) return
-    return subscribeTyping(matchId, user.uid, setIsTyping)
-  }, [matchId, user?.uid, isSavedMessages])
+    const participantIds = isGroup ? chatMeta?.participants : null
+    return subscribeTyping(matchId, user.uid, setIsTyping, { participantIds })
+  }, [matchId, user?.uid, isSavedMessages, isGroup, chatMeta?.participants?.join(',')])
 
   const updateMenuPosition = useCallback(() => {
     const el = menuButtonRef.current
@@ -655,9 +677,10 @@ export default function ChatRoom() {
     (senderId) => {
       if (senderId === user?.uid) return 'You'
       if (isSavedMessages) return 'Saved Messages'
+      if (isGroup) return memberProfiles[senderId]?.username || 'User'
       return otherDisplayName
     },
-    [user?.uid, isSavedMessages, otherDisplayName]
+    [user?.uid, isSavedMessages, isGroup, memberProfiles, otherDisplayName]
   )
 
   useEffect(() => {
@@ -683,7 +706,14 @@ export default function ChatRoom() {
 
   const chatStatus = opponentRemoved
     ? { text: 'Account deleted', variant: 'offline' }
-    : getChatStatusLabel({ isTyping, presence })
+    : isGroup
+      ? {
+          text: isTyping
+            ? 'Someone is typing…'
+            : `${groupMemberCount} member${groupMemberCount === 1 ? '' : 's'}`,
+          variant: isTyping ? 'typing' : 'offline',
+        }
+      : getChatStatusLabel({ isTyping, presence })
   const statusColor =
     chatStatus.variant === 'typing'
       ? 'text-blue-300'
@@ -707,6 +737,9 @@ export default function ChatRoom() {
       if (isSavedMessages) {
         await ensureSavedMessagesChat(user.uid)
         toast.success('Saved messages cleared')
+      } else if (isGroup) {
+        toast.success('Left group')
+        navigate('/chats')
       } else {
         toast.success('Chat removed')
         navigate('/chats')
@@ -752,6 +785,10 @@ export default function ChatRoom() {
   }
 
   const openProfile = () => {
+    if (isGroup) {
+      navigate(`/groups/${matchId}`)
+      return
+    }
     if (!otherId) return
     if (messagesContainerRef.current) {
       setSavedScrollPosition(messagesContainerRef.current.scrollTop)
@@ -815,6 +852,11 @@ export default function ChatRoom() {
           <MenuItem icon={IconSearch} onClick={openSearch}>
             Search
           </MenuItem>
+          {isGroup && isGroupAdmin(chatMeta, user?.uid) && (
+            <MenuItem icon={IconSettings} onClick={() => { setShowMenu(false); navigate(`/groups/${matchId}/settings`) }}>
+              Group settings
+            </MenuItem>
+          )}
           {!isSavedMessages && (
             <MenuItem icon={isMuted ? IconBell : IconBellOff} onClick={handleMute}>
               {isMuted ? 'Unmute' : 'Mute'}
@@ -828,7 +870,7 @@ export default function ChatRoom() {
             }}
             danger
           >
-            {isSavedMessages ? 'Clear chat' : 'Remove Chat'}
+            {isSavedMessages ? 'Clear chat' : isGroup ? 'Leave group' : 'Remove Chat'}
           </MenuItem>
         </motion.div>
       )}
@@ -865,6 +907,11 @@ export default function ChatRoom() {
               currentUserId={user.uid}
               militaryTime={militaryTime}
               replyAuthorName={msg.replyTo ? getReplyAuthorName(msg.replyTo.senderId) : undefined}
+              senderName={
+                isGroup && msg.senderId !== user.uid
+                  ? memberProfiles[msg.senderId]?.username || 'User'
+                  : undefined
+              }
             highlighted={highlightedMessageId === msg.id}
             searchActive={showSearch && activeSearchMatch?.messageId === msg.id}
             searchQuery={showSearch ? searchQuery : ''}
@@ -936,6 +983,9 @@ export default function ChatRoom() {
               <ChatHeaderCenter
                 showSearch={showSearch}
                 isSavedMessages={isSavedMessages}
+                isGroupChat={isGroup}
+                groupName={groupName}
+                groupMemberCount={groupMemberCount}
                 otherDisplayName={otherDisplayName}
                 otherUser={otherUser}
                 opponentRemoved={opponentRemoved}
@@ -1015,10 +1065,13 @@ export default function ChatRoom() {
 
             {!deleteTarget && !chatFrozen && (
               <>
-                {isTyping && !isSavedMessages && otherUser && !opponentRemoved && (
+                {isTyping && !isSavedMessages && !isGroup && otherUser && !opponentRemoved && (
                   <div className="px-5 py-2 text-xs text-blue-300/90 italic">
                     {otherUser.username} is typing…
                   </div>
+                )}
+                {isTyping && isGroup && (
+                  <div className="px-5 py-2 text-xs text-blue-300/90 italic">Someone is typing…</div>
                 )}
                 <ChatInput
                   key={matchId}
@@ -1076,13 +1129,15 @@ export default function ChatRoom() {
         isOpen={confirmAction === 'removeChat'}
         onClose={() => setConfirmAction(null)}
         onConfirm={runConfirmAction}
-        title={isSavedMessages ? 'Clear saved messages?' : 'Remove chat?'}
+        title={isSavedMessages ? 'Clear saved messages?' : isGroup ? 'Leave group?' : 'Remove chat?'}
         message={
           isSavedMessages
             ? 'All saved messages will be deleted. The chat will stay in your list.'
-            : 'This will delete all messages and hide the chat for both of you.'
+            : isGroup
+              ? 'You will leave this group and stop receiving messages.'
+              : 'This will delete all messages and hide the chat for both of you.'
         }
-        confirmLabel={isSavedMessages ? 'Clear messages' : 'Remove Chat'}
+        confirmLabel={isSavedMessages ? 'Clear messages' : isGroup ? 'Leave group' : 'Remove Chat'}
         danger
         loading={confirmLoading}
       />

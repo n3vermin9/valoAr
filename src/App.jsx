@@ -8,6 +8,9 @@ import Register from './components/auth/Register'
 import ProfileSetup from './components/profile/ProfileSetup'
 import { PublicProfileView } from './components/profile/ProfileView'
 import ChatNotifications from './components/chat/ChatNotifications'
+import GroupJoinPage from './components/chat/GroupJoinPage'
+import GroupInfoView from './components/chat/GroupInfoView'
+import EditGroupSettings from './components/chat/EditGroupSettings'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import Modal from './components/ui/Modal'
 import { subscribeChats, getUnreadCount } from './services/chatService'
@@ -53,6 +56,7 @@ function AppLayout() {
 
   const hideNav =
     (location.pathname.startsWith('/chats/') && location.pathname !== '/chats') ||
+    location.pathname.startsWith('/groups/') ||
     storyComposerOpen
 
   return (
@@ -103,6 +107,48 @@ export default function App() {
         element={user && !profile?.username ? <ProfileSetup /> : <Navigate to="/discover" />}
       />
       <Route path="/profile/:userId" element={<PublicProfileRoute />} />
+      <Route
+        path="/join/:inviteCode"
+        element={
+          user ? (
+            profile?.username ? (
+              <GroupJoinPage />
+            ) : (
+              <Navigate to="/setup" />
+            )
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+      <Route
+        path="/groups/:chatId/settings"
+        element={
+          user ? (
+            profile?.username ? (
+              <EditGroupSettings />
+            ) : (
+              <Navigate to="/setup" />
+            )
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+      <Route
+        path="/groups/:chatId"
+        element={
+          user ? (
+            profile?.username ? (
+              <GroupInfoView />
+            ) : (
+              <Navigate to="/setup" />
+            )
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
       <Route
         path="/*"
         element={

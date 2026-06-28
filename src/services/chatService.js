@@ -19,7 +19,18 @@ import {
 import { ref, set, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
 import { getMatchId, getSavedMessagesChatId, formatMessagePreview } from '../utils/helpers'
+import { isGroupChat, getDirectOtherId, getOtherParticipantIds } from '../utils/groupChat'
+import { leaveGroupChat } from './groupChatService'
 import { invalidateUser } from './userCache'
+
+function getRecipientIds(chatData, matchId, senderId) {
+  if (chatData?.isSavedMessages) return []
+  if (isGroupChat(chatData)) {
+    return getOtherParticipantIds(chatData.participants || [], senderId)
+  }
+  const otherId = getDirectOtherId(chatData, senderId) || matchId.split('_').find((id) => id !== senderId)
+  return otherId ? [otherId] : []
+}
 
 export function getChatSortTime(chat, userId) {
   const lastMsgTime = chat.lastMessage?.createdAt?.toMillis?.()
@@ -189,7 +200,7 @@ async function reconcileChatPreviewIfStale(matchId, chatData) {
 async function hydrateChatsForUser(userId, chats) {
   return Promise.all(
     chats.map(async (chat) => {
-      if (chat.isSavedMessages) return chat
+      if (chat.isSavedMessages || isGroupChat(chat)) return chat
 
       const otherId = chat.participants?.find((id) => id !== userId)
       if (!otherId) return chat
@@ -308,12 +319,14 @@ export async function sendMessage(
     throw new Error('This account has been deleted')
   }
 
-  const otherId = matchId.split('_').find((id) => id !== senderId)
-  if (otherId && chatData?.blockedBy?.includes(otherId)) {
-    throw new Error('You can no longer message this user')
-  }
-  if (otherId && chatData?.blockedBy?.includes(senderId)) {
-    throw new Error('You can no longer message this user')
+  if (!isGroupChat(chatData)) {
+    const otherId = getDirectOtherId(chatData, senderId) || matchId.split('_').find((id) => id !== senderId)
+    if (otherId && chatData?.blockedBy?.includes(otherId)) {
+      throw new Error('You can no longer message this user')
+    }
+    if (otherId && chatData?.blockedBy?.includes(senderId)) {
+      throw new Error('You can no longer message this user')
+    }
   }
 
   const messageData = {
@@ -346,7 +359,7 @@ export async function sendMessage(
   }
 
   const msgRef = doc(collection(db, 'chats', matchId, 'messages'))
-  const recipientId = isSaved ? null : matchId.split('_').find((id) => id !== senderId)
+  const recipientIds = isSaved ? [] : getRecipientIds(chatData, matchId, senderId)
   const preview = formatMessagePreview({ text, imageUrl, audioUrl, storyReply })
   const lastMessage = {
     text: preview,
@@ -361,9 +374,9 @@ export async function sendMessage(
   const updates = {
     lastMessage,
   }
-  if (recipientId) {
+  recipientIds.forEach((recipientId) => {
     updates[`unreadCount.${recipientId}`] = increment(1)
-  }
+  })
 
   const batch = writeBatch(db)
   batch.set(msgRef, messageData)
@@ -455,12 +468,17 @@ export async function deleteChat(matchId) {
 }
 
 export async function removeChatForUser(matchId, userId) {
-  void userId
   const chatRef = doc(db, 'chats', matchId)
   const chatSnap = await getDoc(chatRef)
   if (!chatSnap.exists()) return
 
-  const participants = chatSnap.data()?.participants || matchId.split('_')
+  const chatData = chatSnap.data()
+  if (isGroupChat(chatData)) {
+    await leaveGroupChat(matchId, userId)
+    return
+  }
+
+  const participants = chatData?.participants || matchId.split('_')
   const messagesSnap = await getDocs(collection(db, 'chats', matchId, 'messages'))
 
   const batch = writeBatch(db)
@@ -609,14 +627,34 @@ export function setTyping(matchId, userId, isTyping) {
   set(ref(rtdb, `typing/${matchId}/${userId}`), isTyping)
 }
 
-export function subscribeTyping(matchId, userId, callback) {
-  const otherParticipants = matchId.split('_').filter((id) => id !== userId)
-  const otherId = otherParticipants[0]
-  if (!otherId) return () => {}
+export function subscribeTyping(matchId, userId, callback, { participantIds = null } = {}) {
+  const others = participantIds?.length
+    ? participantIds.filter((id) => id !== userId)
+    : matchId.split('_').filter((id) => id !== userId)
 
-  const typingRef = ref(rtdb, `typing/${matchId}/${otherId}`)
-  onValue(typingRef, (snap) => callback(!!snap.val()))
-  return () => off(typingRef)
+  if (!others.length) {
+    callback(false)
+    return () => {}
+  }
+
+  const typingState = {}
+  const cleanups = []
+
+  const emit = () => {
+    callback(Object.values(typingState).some(Boolean))
+  }
+
+  others.forEach((otherId) => {
+    const typingRef = ref(rtdb, `typing/${matchId}/${otherId}`)
+    onValue(typingRef, (snap) => {
+      typingState[otherId] = !!snap.val()
+      emit()
+    })
+    cleanups.push(() => off(typingRef))
+  })
+
+  emit()
+  return () => cleanups.forEach((fn) => fn())
 }
 
 export function subscribeChatListActivity(userId, chats, callback) {
@@ -629,11 +667,23 @@ export function subscribeChatListActivity(userId, chats, callback) {
     const result = {}
     for (const chat of chats) {
       if (chat.isSavedMessages || chat.id?.startsWith('saved_')) continue
-      const otherId = chat.participants?.find((id) => id !== userId)
-      if (!otherId) continue
+      const isGroup = isGroupChat(chat)
+      const otherIds = isGroup
+        ? getOtherParticipantIds(chat.participants || [], userId)
+        : [chat.participants?.find((id) => id !== userId)].filter(Boolean)
+      if (!otherIds.length) continue
+
+      const typingValue = typingState[chat.id]
+      const isTyping = isGroup
+        ? Object.values(typingValue || {}).some(Boolean)
+        : !!typingValue
+
       result[chat.id] = {
-        typing: !!typingState[chat.id],
-        presence: presenceState[otherId] || null,
+        typing: isTyping,
+        presence: isGroup ? null : presenceState[otherIds[0]] || null,
+        onlineCount: isGroup
+          ? otherIds.filter((id) => presenceState[id]?.online).length
+          : undefined,
       }
     }
     callback(result)
@@ -642,25 +692,37 @@ export function subscribeChatListActivity(userId, chats, callback) {
   for (const chat of chats) {
     const chatId = chat.id
     if (chat.isSavedMessages || chatId?.startsWith('saved_')) continue
-    const otherId = chat.participants?.find((id) => id !== userId)
-    if (!otherId) continue
 
-    if (!presenceSubscribed.has(otherId)) {
-      presenceSubscribed.add(otherId)
-      const presenceRef = ref(rtdb, `presence/${otherId}`)
-      onValue(presenceRef, (snap) => {
-        presenceState[otherId] = snap.val()
+    const isGroup = isGroupChat(chat)
+    const otherIds = isGroup
+      ? getOtherParticipantIds(chat.participants || [], userId)
+      : [chat.participants?.find((id) => id !== userId)].filter(Boolean)
+
+    if (!otherIds.length) continue
+
+    otherIds.forEach((otherId) => {
+      if (!presenceSubscribed.has(otherId)) {
+        presenceSubscribed.add(otherId)
+        const presenceRef = ref(rtdb, `presence/${otherId}`)
+        onValue(presenceRef, (snap) => {
+          presenceState[otherId] = snap.val()
+          emit()
+        })
+        cleanups.push(() => off(presenceRef))
+      }
+
+      const typingRef = ref(rtdb, `typing/${chatId}/${otherId}`)
+      onValue(typingRef, (snap) => {
+        if (isGroup) {
+          typingState[chatId] = typingState[chatId] || {}
+          typingState[chatId][otherId] = !!snap.val()
+        } else {
+          typingState[chatId] = !!snap.val()
+        }
         emit()
       })
-      cleanups.push(() => off(presenceRef))
-    }
-
-    const typingRef = ref(rtdb, `typing/${chatId}/${otherId}`)
-    onValue(typingRef, (snap) => {
-      typingState[chatId] = !!snap.val()
-      emit()
+      cleanups.push(() => off(typingRef))
     })
-    cleanups.push(() => off(typingRef))
   }
 
   emit()

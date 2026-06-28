@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconCheck, IconChecks, IconBellOff, IconBell, IconPin, IconPinnedOff, IconTrash, IconBan } from '@tabler/icons-react'
+import { IconCheck, IconChecks, IconBellOff, IconBell, IconPin, IconPinnedOff, IconTrash, IconBan, IconPlus, IconUsers } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeChats,
@@ -20,7 +20,9 @@ import StoryAvatarButton from '../stories/StoryAvatarButton'
 import CachedAvatar from '../ui/CachedAvatar'
 import { formatChatTime, isSavedMessagesChat, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass, iconButtonClass } from '../../utils/designSystem'
+import { isGroupChat, getGroupDisplayName, formatGroupPreview } from '../../utils/groupChat'
+import CreateGroupModal from './CreateGroupModal'
 import PageShell from '../layout/PageShell'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
@@ -38,6 +40,7 @@ export default function ChatList() {
   const [confirmAction, setConfirmAction] = useState(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [chatActivity, setChatActivity] = useState({})
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
   const listRef = useRef(null)
   const rowRefs = useRef({})
 
@@ -54,9 +57,10 @@ export default function ChatList() {
 
       const otherIds = [
         ...new Set(
-          chatList
-            .map((chat) => chat.participants?.find((id) => id !== user.uid))
-            .filter(Boolean)
+          chatList.flatMap((chat) => {
+            if (isGroupChat(chat)) return chat.participants || []
+            return chat.participants?.find((id) => id !== user.uid) || []
+          }).filter(Boolean)
         ),
       ]
 
@@ -137,8 +141,10 @@ export default function ChatList() {
   const selectedOtherUser = selectedOtherId ? users[selectedOtherId] : null
   const selectedOtherUserLoaded = !selectedOtherId || Object.hasOwn(users, selectedOtherId)
   const selectedIsSaved = isSavedMessagesChat(selectedChat, user?.uid)
+  const selectedIsGroup = isGroupChat(selectedChat)
   const selectedIsRemoved =
     !selectedIsSaved &&
+    !selectedIsGroup &&
     isRemovedChatOpponent(selectedChat, selectedOtherId, selectedOtherUser, selectedOtherUserLoaded)
 
   const closeMenu = () => setSelectedChatId(null)
@@ -256,7 +262,7 @@ export default function ChatList() {
           >
             {selectedIsSaved ? 'Clear saved messages' : 'Delete chat'}
           </ContextMenuItem>
-          {!selectedIsRemoved && !selectedIsSaved && (
+          {!selectedIsRemoved && !selectedIsSaved && !selectedIsGroup && (
             <ContextMenuItem
               icon={IconBan}
               onClick={() => {
@@ -283,21 +289,39 @@ export default function ChatList() {
   }
 
   return (
-    <PageShell title="Chats" blurTitle={!!selectedChatId}>
+    <PageShell
+      title="Chats"
+      blurTitle={!!selectedChatId}
+      trailing={
+        <button
+          type="button"
+          onClick={() => setShowCreateGroup(true)}
+          className={iconButtonClass}
+          aria-label="Create group chat"
+        >
+          <IconPlus size={22} stroke={2} />
+        </button>
+      }
+    >
       {chats.length === 0 ? (
         <EmptyState message="No friends yet. Start discovering people!" className="flex-1" />
       ) : (
         <div ref={listRef} className="mt-2 overflow-y-auto relative z-10">
           {chats.map((chat) => {
             const isSaved = isSavedMessagesChat(chat, user?.uid)
-            const otherId = isSaved ? null : chat.participants.find((id) => id !== user.uid)
+            const isGroup = isGroupChat(chat)
+            const otherId = isSaved || isGroup ? null : chat.participants.find((id) => id !== user.uid)
             const otherUser = otherId ? users[otherId] : null
             const otherUserLoaded = !otherId || Object.hasOwn(users, otherId)
             const isRemoved =
-              !isSaved && isRemovedChatOpponent(chat, otherId, otherUser, otherUserLoaded)
-            const displayName = isRemoved
-              ? getRemovedChatUsername(chat, otherId)
-              : otherUser?.username || 'User'
+              !isSaved && !isGroup && isRemovedChatOpponent(chat, otherId, otherUser, otherUserLoaded)
+            const displayName = isSaved
+              ? 'Saved Messages'
+              : isGroup
+                ? getGroupDisplayName(chat)
+                : isRemoved
+                  ? getRemovedChatUsername(chat, otherId)
+                  : otherUser?.username || 'User'
             const isMuted = chat.mutedBy?.includes(user.uid)
             const isPinned = chat.pinnedBy?.includes(user.uid)
             const lastMsg = chat.lastMessage
@@ -352,6 +376,10 @@ export default function ChatList() {
                     {isSaved ? (
                       <div className="w-14 h-14 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
                         <img src={logo} alt="Logo" className="w-10 h-10 object-cover" />
+                      </div>
+                    ) : isGroup ? (
+                      <div className="w-14 h-14 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
+                        <IconUsers size={28} className="text-blue-400" stroke={1.5} />
                       </div>
                     ) : isRemoved ? (
                       <CachedAvatar
@@ -433,9 +461,18 @@ export default function ChatList() {
                           <span className="truncate">
                             {isSaved
                               ? lastMsg?.text || 'Save notes and messages here'
-                              : isRemoved
-                                ? 'This account is no longer available'
-                                : lastMsg?.text || 'Start a conversation'}
+                              : isGroup
+                                ? formatGroupPreview(
+                                    lastMsg,
+                                    lastMsg && !sentByYou
+                                      ? users[lastMsg.senderId]?.username
+                                      : sentByYou
+                                        ? 'You'
+                                        : null
+                                  )
+                                : isRemoved
+                                  ? 'This account is no longer available'
+                                  : lastMsg?.text || 'Start a conversation'}
                           </span>
                         </>
                       )}
@@ -474,6 +511,13 @@ export default function ChatList() {
         confirmLabel="Block"
         danger
         loading={actionLoading}
+      />
+
+      <CreateGroupModal
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        userId={user?.uid}
+        onCreated={(group) => navigate(`/chats/${group.id}`)}
       />
     </PageShell>
   )

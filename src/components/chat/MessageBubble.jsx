@@ -22,6 +22,7 @@ export default function MessageBubble({
   onReactionClick,
   onMentionClick,
   replyAuthorName,
+  senderName,
   highlighted = false,
   militaryTime = false,
   searchActive = false,
@@ -169,6 +170,9 @@ export default function MessageBubble({
           className="transition-transform duration-75"
         >
           <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
+            {!isOwn && senderName && (
+              <p className="text-[11px] font-medium text-blue-300/90 px-1">{senderName}</p>
+            )}
             {storyReply && (
               <StoryReplyQuote
                 storyReply={storyReply}

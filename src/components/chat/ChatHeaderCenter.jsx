@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconBellOff } from '@tabler/icons-react'
+import { IconBellOff, IconUsers } from '@tabler/icons-react'
 import { storyGlassBlur } from '../../utils/designSystem'
 import CachedAvatar from '../ui/CachedAvatar'
 import ChatSearchBar from './ChatSearchBar'
@@ -12,6 +12,9 @@ const shellTransition = { type: 'spring', stiffness: 260, damping: 30, mass: 1.0
 export default function ChatHeaderCenter({
   showSearch,
   isSavedMessages,
+  isGroupChat,
+  groupName,
+  groupMemberCount,
   otherDisplayName,
   otherUser,
   opponentRemoved,
@@ -74,6 +77,31 @@ export default function ChatHeaderCenter({
               <p className="text-[11px] text-white/65 leading-tight">Only you can see this</p>
             </div>
           </motion.div>
+        ) : isGroupChat ? (
+          <motion.button
+            key="group"
+            type="button"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onOpenProfile}
+            className="flex items-center gap-6 min-w-0 h-full text-left cursor-pointer"
+            aria-label={`Open ${groupName} settings`}
+          >
+            <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+              <IconUsers size={18} className="text-blue-400" stroke={1.75} />
+            </div>
+            <div className="min-w-0 text-left">
+              <div className="flex items-center gap-1">
+                <p className="font-semibold text-sm truncate text-white">{groupName}</p>
+                {isMuted && (
+                  <IconBellOff size={13} className="text-white/50 shrink-0" aria-label="Muted" />
+                )}
+              </div>
+              <p className={`text-[11px] leading-tight truncate ${statusColor}`}>{statusText}</p>
+            </div>
+          </motion.button>
         ) : (
           <motion.button
             key="profile"
