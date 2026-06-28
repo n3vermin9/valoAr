@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconBellOff, IconUsers } from '@tabler/icons-react'
+import { IconBellOff } from '@tabler/icons-react'
 import { storyGlassBlur } from '../../utils/designSystem'
 import CachedAvatar from '../ui/CachedAvatar'
+import GroupAvatar from './GroupAvatar'
 import ChatSearchBar from './ChatSearchBar'
 import { sad, logo } from '../../assets'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
@@ -15,6 +16,7 @@ export default function ChatHeaderCenter({
   isGroupChat,
   groupName,
   groupMemberCount,
+  groupPhotoUrl,
   otherDisplayName,
   otherUser,
   opponentRemoved,
@@ -89,9 +91,7 @@ export default function ChatHeaderCenter({
             className="flex items-center gap-6 min-w-0 h-full text-left cursor-pointer"
             aria-label={`Open ${groupName} settings`}
           >
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
-              <IconUsers size={18} className="text-blue-400" stroke={1.75} />
-            </div>
+            <GroupAvatar photoUrl={groupPhotoUrl} size={32} className="ring-1 ring-white/20" />
             <div className="min-w-0 text-left">
               <div className="flex items-center gap-1">
                 <p className="font-semibold text-sm truncate text-white">{groupName}</p>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconSearch, IconUsers } from '@tabler/icons-react'
+import { IconSearch } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   getDiscoverFeed,
@@ -12,6 +12,7 @@ import {
 } from '../../services/userService'
 import { searchPublicGroups } from '../../services/groupChatService'
 import { getGroupDisplayName } from '../../utils/groupChat'
+import GroupAvatar from '../chat/GroupAvatar'
 import SwipeCard from './SwipeCard'
 import LikeMessageModal from './LikeMessageModal'
 import EmptyState from '../ui/EmptyState'
@@ -553,12 +554,11 @@ function DiscoverSearchPage({
               onClick={() => onSelectGroup(group.id)}
               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
             >
-              <div className="w-12 h-12 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center shrink-0">
-                <IconUsers size={22} className="text-blue-400" stroke={1.75} />
-              </div>
+              <GroupAvatar photoUrl={group.photoUrl} size={48} />
               <div className="text-left min-w-0">
                 <p className="font-medium truncate">{getGroupDisplayName(group)}</p>
                 <p className="text-sm text-white/50">
+                  {group.username ? `@${group.username} · ` : ''}
                   {group.participants?.length || 0} members · Public
                 </p>
               </div>

@@ -5,7 +5,9 @@ import toast from 'react-hot-toast'
 import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
-import { subscribeChat, toggleMuteChat } from '../../services/chatService'
+import { subscribeChat } from '../../services/chatService'
+import { isChatMuteActive } from '../../utils/chatMute'
+import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { shareProfile, getMatchId } from '../../utils/helpers'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass } from '../../utils/designSystem'
@@ -143,13 +145,7 @@ export default function ProfileView() {
         >
           <IconShare size={22} className="text-white/80" />
         </button>
-        <button
-          onClick={() => setShowSettings(true)}
-          className="p-2 hover:bg-white/10 rounded-full transition-colors"
-          aria-label="Settings"
-        >
-          <IconSettings size={22} className="text-white/80" />
-        </button>
+        <span className="w-10" aria-hidden />
       </div>
 
       <div className="flex flex-col items-center px-6">
@@ -171,6 +167,17 @@ export default function ProfileView() {
           <CopyableUsername username={profile.username} className="text-2xl font-bold" />
         </h2>
         <p className="text-white/60">{profile.age} years old</p>
+
+        <div className="mt-4 w-full flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            aria-label="Settings"
+            className={profileActionBtnClass}
+          >
+            <IconSettings size={20} className="text-white/70" stroke={3} />
+          </button>
+        </div>
       </div>
 
       <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
@@ -399,7 +406,7 @@ export function PublicProfileView({
   const [incomingRequest, setIncomingRequest] = useState(null)
   const [outgoingRequestActive, setOutgoingRequestActive] = useState(false)
   const [accepting, setAccepting] = useState(false)
-  const [muting, setMuting] = useState(false)
+  const [showMuteModal, setShowMuteModal] = useState(false)
   const [storySession, setStorySession] = useState(null)
   const menuRef = useRef(null)
 
@@ -531,7 +538,7 @@ export function PublicProfileView({
   const hasIncomingRequest = !!incomingRequest
   const showAcceptRequest = !isMatched && hasIncomingRequest
   const showSendRequest = !isMatched && !hasIncomingRequest
-  const isMuted = chatData?.mutedBy?.includes(user?.uid)
+  const isMuted = isChatMuteActive(chatData, user?.uid)
   const friendRequestPending =
     !isMatched && me?.swipes?.[userId] === 'like' && outgoingRequestActive
   const friendCount = profile.matches?.length || 0
@@ -600,18 +607,9 @@ export function PublicProfileView({
     })
   }
 
-  const handleToggleMute = async () => {
-    if (muting || !hasActiveChat) return
-    const matchId = getMatchId(user.uid, userId)
-    setMuting(true)
-    try {
-      const muted = await toggleMuteChat(matchId, user.uid)
-      toast.success(muted ? 'Chat muted' : 'Chat unmuted')
-    } catch {
-      toast.error('Failed to update mute')
-    } finally {
-      setMuting(false)
-    }
+  const handleOpenMute = () => {
+    if (!hasActiveChat) return
+    setShowMuteModal(true)
   }
 
   const handleRemoveMatch = async (mode) => {
@@ -806,9 +804,8 @@ export function PublicProfileView({
               {showMuteButton && (
                 <button
                   type="button"
-                  onClick={handleToggleMute}
-                  disabled={muting}
-                  aria-label={isMuted ? 'Unmute chat' : 'Mute chat'}
+                  onClick={handleOpenMute}
+                  aria-label="Notification settings"
                   className={profileActionBtnClass}
                 >
                   {isMuted ? (
@@ -899,6 +896,15 @@ export function PublicProfileView({
           onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
         />
       )}
+
+      <MuteChatModal
+        isOpen={showMuteModal}
+        onClose={() => setShowMuteModal(false)}
+        chatId={user?.uid && userId ? getMatchId(user.uid, userId) : null}
+        chat={chatData}
+        userId={user?.uid}
+        title="Chat notifications"
+      />
     </div>
   )
 }

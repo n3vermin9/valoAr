@@ -21,7 +21,6 @@ import {
   markMessagesRead,
   deleteMessage,
   removeChatForUser,
-  toggleMuteChat,
   setTyping,
   subscribeTyping,
   getUnreadCount,
@@ -72,13 +71,33 @@ import {
   getGroupDisplayName,
   isGroupAdmin,
 } from '../../utils/groupChat'
+import { getMessageClusterMeta } from '../../utils/messageCluster'
+import { isChatMuteActive } from '../../utils/chatMute'
+import MuteChatModal from './MuteChatModal'
 
 function getMessageTimeMs(message) {
+  if (message.pending) {
+    return message.clientCreatedAt ?? Date.now()
+  }
   if (message.clientCreatedAt) return message.clientCreatedAt
   const ts = message.createdAt
   if (!ts) return 0
   if (typeof ts === 'number') return ts
   return ts.toMillis?.() ?? 0
+}
+
+function appendOptimisticMessage(prev, optimistic) {
+  const serverMsgs = prev.filter((message) => !message.pending)
+  const pendingMsgs = [...prev.filter((message) => message.pending), optimistic]
+  const latestServerMs = serverMsgs.reduce((max, message) => Math.max(max, getMessageTimeMs(message)), 0)
+  const normalized = {
+    ...optimistic,
+    clientCreatedAt: Math.max(Date.now(), latestServerMs + 1, optimistic.clientCreatedAt ?? 0),
+  }
+  return mergeServerMessages(
+    serverMsgs,
+    pendingMsgs.map((message) => (message.id === optimistic.id ? normalized : message))
+  )
 }
 
 function messageMatchesPending(serverMsg, pending) {
@@ -91,10 +110,19 @@ function messageMatchesPending(serverMsg, pending) {
 }
 
 function mergeServerMessages(serverMsgs, pendingMsgs) {
+  const enrichedServer = serverMsgs.map((serverMsg) => {
+    const pending = pendingMsgs.find((p) => messageMatchesPending(serverMsg, p))
+    if (pending?.clientCreatedAt) {
+      return { ...serverMsg, clientCreatedAt: pending.clientCreatedAt }
+    }
+    return serverMsg
+  })
+
   const unmatched = pendingMsgs.filter(
-    (pending) => !serverMsgs.some((serverMsg) => messageMatchesPending(serverMsg, pending))
+    (pending) => !enrichedServer.some((serverMsg) => messageMatchesPending(serverMsg, pending))
   )
-  return [...serverMsgs, ...unmatched].sort((a, b) => getMessageTimeMs(a) - getMessageTimeMs(b))
+
+  return [...enrichedServer, ...unmatched].sort((a, b) => getMessageTimeMs(a) - getMessageTimeMs(b))
 }
 
 function readCachedOtherUser(userId) {
@@ -137,10 +165,12 @@ export default function ChatRoom() {
   const [searchMatchIndex, setSearchMatchIndex] = useState(0)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [memberProfiles, setMemberProfiles] = useState({})
+  const [showMuteModal, setShowMuteModal] = useState(false)
   const messagesEndRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
   const knownMessageIdsRef = useRef(new Set())
+  const pendingMessageIdsRef = useRef(new Set())
   const typingTimeoutRef = useRef(null)
   const menuButtonRef = useRef(null)
   const chatWasVisibleRef = useRef(false)
@@ -163,7 +193,7 @@ export default function ChatRoom() {
     !isSavedMessages &&
     !isGroup &&
     (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)
-  const isMuted = chatMeta?.mutedBy?.includes(user.uid)
+  const isMuted = isChatMuteActive(chatMeta, user.uid)
   const groupName = isGroup ? getGroupDisplayName(chatMeta) : null
   const groupMemberCount = isGroup ? chatMeta?.participants?.length || 0 : 0
 
@@ -358,13 +388,23 @@ export default function ChatRoom() {
     if (deleteTarget) return
 
     const prevIds = knownMessageIdsRef.current
-    const hasNewMessage = messages.some((msg) => !prevIds.has(msg.id))
+    const prevPendingIds = pendingMessageIdsRef.current
+    const nextPendingIds = new Set(messages.filter((msg) => msg.pending).map((msg) => msg.id))
+
+    const hasNewMessage = messages.some((msg) => {
+      if (prevIds.has(msg.id)) return false
+      if (msg.pending) return false
+      if (msg.senderId === user?.uid && prevPendingIds.size > 0) return false
+      return true
+    })
+
     knownMessageIdsRef.current = new Set(messages.map((msg) => msg.id))
+    pendingMessageIdsRef.current = nextPendingIds
 
     if (hasNewMessage) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages, deleteTarget])
+  }, [messages, deleteTarget, user?.uid])
 
   const handleTyping = useCallback(
     (typing) => {
@@ -389,22 +429,22 @@ export default function ChatRoom() {
       optimisticId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
       setReplyTo(null)
       setTyping(matchId, user.uid, false)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: optimisticId,
-          senderId: user.uid,
-          text: text || null,
-          imageUrl: imageUrl || null,
-          audioUrl: null,
-          replyTo: replyData,
-          createdAt: { toMillis: () => Date.now() },
-          clientCreatedAt: Date.now(),
-          pending: true,
-          read: isSavedMessages,
-        },
-      ])
-      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }))
+      const optimistic = {
+        id: optimisticId,
+        senderId: user.uid,
+        text: text || null,
+        imageUrl: imageUrl || null,
+        audioUrl: null,
+        replyTo: replyData,
+        createdAt: null,
+        clientCreatedAt: Date.now(),
+        pending: true,
+        read: isSavedMessages,
+      }
+      setMessages((prev) => appendOptimisticMessage(prev, optimistic))
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+      })
     }
 
     try {
@@ -721,14 +761,9 @@ export default function ChatRoom() {
         ? 'text-green-400'
         : 'text-white/50'
 
-  const handleMute = async () => {
+  const handleMute = () => {
     setShowMenu(false)
-    try {
-      const muted = await toggleMuteChat(matchId, user.uid)
-      toast.success(muted ? 'Chat muted' : 'Chat unmuted')
-    } catch {
-      toast.error('Failed to update mute')
-    }
+    setShowMuteModal(true)
   }
 
   const handleRemoveChat = async () => {
@@ -786,7 +821,7 @@ export default function ChatRoom() {
 
   const openProfile = () => {
     if (isGroup) {
-      navigate(`/groups/${matchId}`)
+      navigate(`/groups/${matchId}`, { state: { fromChat: true } })
       return
     }
     if (!otherId) return
@@ -853,7 +888,7 @@ export default function ChatRoom() {
             Search
           </MenuItem>
           {isGroup && isGroupAdmin(chatMeta, user?.uid) && (
-            <MenuItem icon={IconSettings} onClick={() => { setShowMenu(false); navigate(`/groups/${matchId}/settings`) }}>
+            <MenuItem icon={IconSettings} onClick={() => { setShowMenu(false); navigate(`/groups/${matchId}/settings`, { state: { fromChat: true } }) }}>
               Group settings
             </MenuItem>
           )}
@@ -896,7 +931,10 @@ export default function ChatRoom() {
             deleteTarget ? '!pb-52 pointer-events-none' : ''
           }`}
         >
-          {visibleMessages.map((msg) => (
+          {visibleMessages.map((msg, index) => {
+            const cluster = getMessageClusterMeta(visibleMessages, index, user.uid, isGroup)
+            const senderProfile = isGroup ? memberProfiles[msg.senderId] : null
+            return (
             <MessageBubble
               key={msg.id}
               message={{
@@ -906,10 +944,15 @@ export default function ChatRoom() {
               isOwn={msg.senderId === user.uid}
               currentUserId={user.uid}
               militaryTime={militaryTime}
+              isGroupChat={isGroup}
+              showAvatar={cluster.showAvatar}
+              showSenderNameInBubble={cluster.showSenderNameInBubble}
+              tightBottom={cluster.tightBottom}
+              senderAvatar={senderProfile?.photos?.[0]}
               replyAuthorName={msg.replyTo ? getReplyAuthorName(msg.replyTo.senderId) : undefined}
               senderName={
-                isGroup && msg.senderId !== user.uid
-                  ? memberProfiles[msg.senderId]?.username || 'User'
+                isGroup && msg.senderId !== user.uid && cluster.showSenderNameInBubble
+                  ? senderProfile?.username || 'User'
                   : undefined
               }
             highlighted={highlightedMessageId === msg.id}
@@ -926,7 +969,8 @@ export default function ChatRoom() {
               onLongPress={handleSelectMessageAction}
               onMentionClick={handleMentionClick}
             />
-          ))}
+            )
+          })}
           <div ref={messagesEndRef} />
         </div>
 
@@ -986,6 +1030,7 @@ export default function ChatRoom() {
                 isGroupChat={isGroup}
                 groupName={groupName}
                 groupMemberCount={groupMemberCount}
+                groupPhotoUrl={chatMeta?.photoUrl}
                 otherDisplayName={otherDisplayName}
                 otherUser={otherUser}
                 opponentRemoved={opponentRemoved}
@@ -1160,6 +1205,15 @@ export default function ChatRoom() {
           onClose={() => setStoryViewerTarget(null)}
         />
       )}
+
+      <MuteChatModal
+        isOpen={showMuteModal}
+        onClose={() => setShowMuteModal(false)}
+        chatId={matchId}
+        chat={chatMeta}
+        userId={user?.uid}
+        title={isGroup ? 'Group notifications' : 'Chat notifications'}
+      />
     </div>
   )
 }

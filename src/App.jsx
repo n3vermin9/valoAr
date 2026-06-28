@@ -14,6 +14,7 @@ import EditGroupSettings from './components/chat/EditGroupSettings'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import Modal from './components/ui/Modal'
 import { subscribeChats, getUnreadCount } from './services/chatService'
+import { isChatFullyMuted } from './utils/chatMute'
 import { subscribeLikesReceived } from './services/userService'
 import { subscribeInbox } from './services/inboxService'
 import { subscribeStoryComposerOpen } from './utils/storyOverlay'
@@ -33,7 +34,7 @@ function AppLayout() {
 
     const unsubChats = subscribeChats(user.uid, (chats) => {
       const unread = chats.reduce((sum, chat) => {
-        if (chat.mutedBy?.includes(user.uid)) return sum
+        if (isChatFullyMuted(chat, user.uid)) return sum
         return sum + getUnreadCount(chat, user.uid)
       }, 0)
       setBadges((b) => ({ ...b, unreadChats: unread }))

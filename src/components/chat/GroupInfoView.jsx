@@ -1,26 +1,31 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   IconShare,
   IconSettings,
-  IconUsers,
   IconMessage,
   IconUserPlus,
+  IconBell,
+  IconBellOff,
+  IconLink,
 } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { subscribeChat } from '../../services/chatService'
 import { fetchUsersMap } from '../../services/userService'
 import { joinGroupViaButton } from '../../services/groupChatService'
 import {
-  canAdmin,
   getGroupDisplayName,
   getGroupInviteUrl,
+  getGroupUsername,
   isGroupAdmin,
   isGroupMember,
   isGroupOwner,
 } from '../../utils/groupChat'
+import { isChatMuteActive } from '../../utils/chatMute'
 import { profileActionBtnClass } from '../../utils/designSystem'
+import GroupAvatar from './GroupAvatar'
+import MuteChatModal from './MuteChatModal'
 import CachedAvatar from '../ui/CachedAvatar'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import ChevronBack from '../ui/ChevronBack'
@@ -38,11 +43,15 @@ function InfoRow({ label, value }) {
 export default function GroupInfoView() {
   const { chatId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const [chat, setChat] = useState(null)
   const [members, setMembers] = useState({})
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
+  const [showMuteModal, setShowMuteModal] = useState(false)
+
+  const fromChat = location.state?.fromChat === true
 
   useEffect(() => {
     if (!chatId) return
@@ -62,7 +71,15 @@ export default function GroupInfoView() {
     fetchUsersMap(chat.participants).then(setMembers)
   }, [chat?.participants?.join(',')])
 
-  const handleShare = async () => {
+  const handleBack = () => {
+    if (fromChat) {
+      navigate(`/chats/${chatId}`)
+      return
+    }
+    navigate(-1)
+  }
+
+  const handleCopyLink = async () => {
     if (!chat?.inviteCode) return
     try {
       await navigator.clipboard.writeText(getGroupInviteUrl(chat.inviteCode))
@@ -71,6 +88,8 @@ export default function GroupInfoView() {
       toast.error('Could not copy link')
     }
   }
+
+  const handleShare = handleCopyLink
 
   const handleJoin = async () => {
     if (!user?.uid) return
@@ -90,7 +109,11 @@ export default function GroupInfoView() {
   }
 
   const handleOpenSettings = () => {
-    navigate(`/groups/${chatId}/settings`)
+    navigate(`/groups/${chatId}/settings`, { state: location.state })
+  }
+
+  const handleOpenMute = () => {
+    setShowMuteModal(true)
   }
 
   if (loading) {
@@ -105,7 +128,7 @@ export default function GroupInfoView() {
     return (
       <div className="h-full overflow-y-auto pb-24">
         <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
-          <ChevronBack onClick={() => navigate(-1)} />
+          <ChevronBack onClick={handleBack} />
         </div>
         <p className="px-6 mt-8 text-center text-white/60">Group not found</p>
       </div>
@@ -114,49 +137,47 @@ export default function GroupInfoView() {
 
   const isMember = isGroupMember(chat, user?.uid)
   const isAdmin = isGroupAdmin(chat, user?.uid)
+  const isMuted = isChatMuteActive(chat, user?.uid)
   const memberCount = chat.participants?.length || 0
   const showJoin = !isMember && chat.settings?.joinViaButton
   const showMessage = isMember
   const showSettingsTop = isMember && isAdmin
 
   return (
+    <>
     <div className="h-full overflow-y-auto pb-24">
       <div className="flex items-center justify-between px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
-        <ChevronBack onClick={() => navigate(-1)} />
-        <div className="flex items-center gap-1">
-          {isMember && (
-            <button
-              type="button"
-              onClick={handleShare}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              aria-label="Share invite link"
-            >
-              <IconShare size={22} className="text-white/80" />
-            </button>
-          )}
-          {showSettingsTop && (
-            <button
-              type="button"
-              onClick={handleOpenSettings}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              aria-label="Group settings"
-            >
-              <IconSettings size={22} className="text-white/80" />
-            </button>
-          )}
-        </div>
+        <ChevronBack onClick={handleBack} />
+        {isMember && chat?.inviteCode ? (
+          <button
+            type="button"
+            onClick={handleShare}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            aria-label="Share invite link"
+          >
+            <IconShare size={22} className="text-white/80" />
+          </button>
+        ) : (
+          <span className="w-10" aria-hidden />
+        )}
       </div>
 
       <div className="flex flex-col items-center px-6">
-        <div className="w-32 h-32 rounded-full bg-blue-500/15 border-4 border-white/10 flex items-center justify-center">
-          <IconUsers size={52} className="text-blue-400" stroke={1.5} />
-        </div>
+        <GroupAvatar photoUrl={chat.photoUrl} size={128} className="border-4 border-white/10" iconClassName="scale-125" />
         <h2 className="text-2xl font-bold mt-4 text-center">{getGroupDisplayName(chat)}</h2>
-        <p className="text-white/60">
-          {memberCount} member{memberCount === 1 ? '' : 's'}
-        </p>
+        {getGroupUsername(chat) && (
+          <p className="text-sm text-white/50 mt-0.5">@{getGroupUsername(chat)}</p>
+        )}
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-white/60">
+            {memberCount} member{memberCount === 1 ? '' : 's'}
+          </p>
+          {isMuted && (
+            <IconBellOff size={16} className="text-white/50 shrink-0" aria-label="Muted" />
+          )}
+        </div>
 
-        {(showMessage || showJoin) && (
+        {(showMessage || showJoin || isMember) && (
           <div className="mt-4 w-full flex items-center justify-center gap-2">
             {showMessage && (
               <button
@@ -166,6 +187,30 @@ export default function GroupInfoView() {
                 className={profileActionBtnClass}
               >
                 <IconMessage size={20} className="text-white/70" stroke={3} />
+              </button>
+            )}
+            {isMember && (
+              <button
+                type="button"
+                onClick={handleOpenMute}
+                aria-label="Notification settings"
+                className={profileActionBtnClass}
+              >
+                {isMuted ? (
+                  <IconBell size={20} className="text-white/70" stroke={3} />
+                ) : (
+                  <IconBellOff size={20} className="text-white/70" stroke={3} />
+                )}
+              </button>
+            )}
+            {showSettingsTop && (
+              <button
+                type="button"
+                onClick={handleOpenSettings}
+                aria-label="Group settings"
+                className={profileActionBtnClass}
+              >
+                <IconSettings size={20} className="text-white/70" stroke={3} />
               </button>
             )}
             {showJoin && (
@@ -182,6 +227,17 @@ export default function GroupInfoView() {
           </div>
         )}
       </div>
+
+      {isMember && chat?.inviteCode && (
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          className="mx-6 mt-6 w-[calc(100%-3rem)] flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors text-left min-w-0"
+        >
+          <IconLink size={18} className="text-blue-400 shrink-0" />
+          <span className="text-sm text-blue-300/90 truncate">{getGroupInviteUrl(chat.inviteCode)}</span>
+        </button>
+      )}
 
       <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
         <div className="pb-4 mb-4 border-b border-white/10 min-w-0">
@@ -232,18 +288,6 @@ export default function GroupInfoView() {
         </div>
       </div>
 
-      {isMember && isAdmin && (
-        <div className="mx-6 mt-6">
-          <button
-            type="button"
-            onClick={handleOpenSettings}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-          >
-            Group settings
-          </button>
-        </div>
-      )}
-
       {!isMember && chat.settings?.joinViaButton && (
         <div className="mx-6 mt-6">
           <button
@@ -257,5 +301,15 @@ export default function GroupInfoView() {
         </div>
       )}
     </div>
+
+      <MuteChatModal
+        isOpen={showMuteModal}
+        onClose={() => setShowMuteModal(false)}
+        chatId={chatId}
+        chat={chat}
+        userId={user?.uid}
+        title="Group notifications"
+      />
+    </>
   )
 }

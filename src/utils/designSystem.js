@@ -97,7 +97,7 @@ export const iconButtonClass =
   'p-2 rounded-full text-[var(--ios-label)] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors'
 
 export const profileActionBtnClass =
-  'flex-1 min-w-0 h-11 flex items-center justify-center rounded-[var(--ios-radius-md)] bg-white/10 hover:bg-white/15 border border-white/10 disabled:opacity-50 transition-colors'
+  'flex-1 min-w-0 h-14 flex items-center justify-center rounded-[var(--ios-radius-md)] bg-white/10 hover:bg-white/15 border border-white/10 disabled:opacity-50 transition-colors'
 
 export const contextMenuMotion = {
   initial: { opacity: 0, scale: 0.95, y: -4 },

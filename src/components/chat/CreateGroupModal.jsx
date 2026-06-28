@@ -1,31 +1,66 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import toast from 'react-hot-toast'
 import Modal from '../ui/Modal'
 import TextField from '../ui/TextField'
 import Button from '../ui/Button'
 import { createGroupChat } from '../../services/groupChatService'
 import { listRowClass } from '../../utils/designSystem'
+import { normalizeUsername } from '../../utils/helpers'
+import { useGroupUsernameCheck } from '../../hooks/useGroupUsernameCheck'
 
 export default function CreateGroupModal({ isOpen, onClose, userId, onCreated }) {
   const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
   const [description, setDescription] = useState('')
   const [visibility, setVisibility] = useState('private')
   const [loading, setLoading] = useState(false)
+  const usernameRef = useRef(null)
+
+  const isPublic = visibility === 'public'
+  const normalizedUsername = normalizeUsername(username)
+  const { status: usernameStatus, error: usernameError } = useGroupUsernameCheck(
+    username,
+    null,
+    isPublic
+  )
+
+  const usernameValid =
+    !isPublic || (normalizedUsername.length >= 4 && usernameStatus === 'available')
 
   const handleClose = () => {
     if (loading) return
     setName('')
+    setUsername('')
     setDescription('')
     setVisibility('private')
     onClose()
   }
 
+  const handleSelectPublic = () => {
+    if (!normalizedUsername) {
+      toast.error('Choose a group username before making the group public')
+      usernameRef.current?.focus()
+      return
+    }
+    if (usernameStatus !== 'available') {
+      toast.error(usernameError || 'Choose a valid available username')
+      return
+    }
+    setVisibility('public')
+  }
+
   const handleCreate = async () => {
     if (!userId) return
+    if (isPublic && !usernameValid) {
+      toast.error('Set a valid group username for public groups')
+      return
+    }
+
     setLoading(true)
     try {
       const group = await createGroupChat(userId, {
         name,
+        username: isPublic ? normalizedUsername : '',
         description,
         settings: { visibility },
       })
@@ -67,6 +102,29 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
         </div>
 
         <div>
+          <label className="block text-sm text-white/70 mb-1.5">
+            Group username {isPublic ? '(required)' : '(required for public groups)'}
+          </label>
+          <div className="flex items-center bg-white/10 rounded-full border border-white/10 focus-within:border-blue-500">
+            <span className="pl-4 pr-1 text-white/60">@</span>
+            <input
+              ref={usernameRef}
+              value={username}
+              onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+              placeholder="groupname"
+              maxLength={20}
+              className="flex-1 px-1 py-3 bg-transparent outline-none"
+            />
+          </div>
+          {isPublic && usernameError && (
+            <p className="text-red-400 text-sm mt-1">{usernameError}</p>
+          )}
+          {isPublic && !usernameError && usernameStatus === 'available' && normalizedUsername && (
+            <p className="text-green-400 text-sm mt-1">This username is available</p>
+          )}
+        </div>
+
+        <div>
           <p className="text-sm text-white/70 mb-2">Visibility</p>
           <button
             type="button"
@@ -80,7 +138,7 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
           </button>
           <button
             type="button"
-            onClick={() => setVisibility('public')}
+            onClick={handleSelectPublic}
             className={`${listRowClass} w-full text-left mt-2 ${visibility === 'public' ? 'ring-1 ring-blue-500/50' : ''}`}
           >
             <div>
@@ -95,7 +153,7 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
         <Button variant="bordered" fullWidth onClick={handleClose} disabled={loading}>
           Cancel
         </Button>
-        <Button fullWidth onClick={handleCreate} disabled={loading || !name.trim()}>
+        <Button fullWidth onClick={handleCreate} disabled={loading || !name.trim() || !usernameValid}>
           {loading ? 'Creating…' : 'Create group'}
         </Button>
       </div>

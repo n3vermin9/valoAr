@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import { subscribeChats } from '../../services/chatService'
 import { subscribeLikesReceived, fetchUser } from '../../services/userService'
+import { isGroupChat, getGroupDisplayName, getGroupPhotoUrl } from '../../utils/groupChat'
+import { shouldSuppressChatNotification } from '../../utils/chatMute'
 import { notificationGlassClass } from '../../utils/helpers'
 import { sad } from '../../assets'
 
@@ -178,7 +180,7 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
   )
 }
 
-function ChatNotificationSession({ userId, pathname }) {
+function ChatNotificationSession({ userId, pathname, username }) {
   const navigate = useNavigate()
   const [activeNotification, setActiveNotification] = useState(null)
   const queueRef = useRef([])
@@ -266,7 +268,7 @@ function ChatNotificationSession({ userId, pathname }) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
-        if (chat.mutedBy?.includes(userId)) {
+        if (shouldSuppressChatNotification(chat, userId, chat.lastMessage, username)) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
@@ -275,13 +277,36 @@ function ChatNotificationSession({ userId, pathname }) {
           continue
         }
 
-        const otherId = chat.participants.find((id) => id !== userId)
-        if (!otherId) {
-          knownMessagesRef.current.set(chat.id, newKey)
+        knownMessagesRef.current.set(chat.id, newKey)
+
+        const previewText =
+          chat.lastMessage.storyReply && chat.lastMessage.text
+            ? chat.lastMessage.text
+            : chat.lastMessage.text || '📷 Photo'
+
+        if (isGroupChat(chat)) {
+          const senderId = chat.lastMessage.senderId
+          if (!senderId) continue
+
+          if (!usersRef.current[senderId]) {
+            usersRef.current[senderId] = await fetchUser(senderId)
+          }
+          const sender = usersRef.current[senderId]
+
+          enqueueNotification({
+            id: `chat_${chat.id}_${newKey}`,
+            sourceId: `chat_${newKey}`,
+            type: 'chat',
+            chatId: chat.id,
+            username: `${getGroupDisplayName(chat)} · ${sender?.username || 'User'}`,
+            photo: getGroupPhotoUrl(chat),
+            preview: previewText,
+          })
           continue
         }
 
-        knownMessagesRef.current.set(chat.id, newKey)
+        const otherId = chat.participants.find((id) => id !== userId)
+        if (!otherId) continue
 
         if (!usersRef.current[otherId]) {
           usersRef.current[otherId] = await fetchUser(otherId)
@@ -295,14 +320,11 @@ function ChatNotificationSession({ userId, pathname }) {
           chatId: chat.id,
           username: otherUser?.username || 'User',
           photo: otherUser?.photos?.[0],
-          preview:
-            chat.lastMessage.storyReply && chat.lastMessage.text
-              ? chat.lastMessage.text
-              : chat.lastMessage.text || '📷 Photo',
+          preview: previewText,
         })
       }
     })
-  }, [userId, pathname, enqueueNotification])
+  }, [userId, pathname, username, enqueueNotification])
 
   useEffect(() => {
     return subscribeLikesReceived(userId, async (likes) => {
@@ -366,14 +388,19 @@ function ChatNotificationSession({ userId, pathname }) {
 }
 
 export default function ChatNotifications() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const location = useLocation()
 
   if (!user?.uid) return null
 
   return (
     <div className="fixed top-12 left-0 right-0 z-[100] pointer-events-none isolate">
-      <ChatNotificationSession key={user.uid} userId={user.uid} pathname={location.pathname} />
+      <ChatNotificationSession
+        key={user.uid}
+        userId={user.uid}
+        pathname={location.pathname}
+        username={profile?.username}
+      />
     </div>
   )
 }

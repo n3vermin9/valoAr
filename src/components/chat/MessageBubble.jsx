@@ -6,7 +6,9 @@ import ReplyQuote from './ReplyQuote'
 import StoryReplyQuote from './StoryReplyQuote'
 import MessageReactions from './MessageReactions'
 import MessageText from './MessageText'
+import CachedAvatar from '../ui/CachedAvatar'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
+import { sad } from '../../assets'
 
 const SWIPE_REPLY_THRESHOLD = 56
 
@@ -23,6 +25,11 @@ export default function MessageBubble({
   onMentionClick,
   replyAuthorName,
   senderName,
+  senderAvatar,
+  isGroupChat = false,
+  showAvatar = false,
+  showSenderNameInBubble = false,
+  tightBottom = false,
   highlighted = false,
   militaryTime = false,
   searchActive = false,
@@ -110,6 +117,9 @@ export default function MessageBubble({
 
   const renderBubbleContent = () => (
     <>
+      {showSenderNameInBubble && senderName && (
+        <p className="text-[11px] font-semibold text-blue-300/90 mb-1">{senderName}</p>
+      )}
       {message.replyTo && (
         <ReplyQuote
           reply={message.replyTo}
@@ -137,10 +147,28 @@ export default function MessageBubble({
         <img
           src={message.imageUrl}
           alt=""
-          className="rounded-xl max-w-full mb-1 cursor-pointer"
+          className="rounded-xl max-w-full cursor-pointer"
           onClick={() => message.onImageClick?.(message.imageUrl)}
           onDoubleClick={(e) => e.stopPropagation()}
         />
+      )}
+      {(sentTime || isOwn) && (
+        <span
+          className={`inline-flex items-center gap-1 float-right ml-3 mt-1 translate-y-0.5 select-none ${
+            isOwn ? 'text-white/55' : 'text-white/40'
+          }`}
+        >
+          <span className="text-[10px] tabular-nums leading-none">{sentTime}</span>
+          {isOwn && (
+            <span className="inline-flex shrink-0">
+              {message.read ? (
+                <IconChecks size={13} className="text-blue-200" stroke={2} />
+              ) : (
+                <IconCheck size={13} className="text-white/45" stroke={2} />
+              )}
+            </span>
+          )}
+        </span>
       )}
     </>
   )
@@ -148,11 +176,86 @@ export default function MessageBubble({
   const hasMessageBubble =
     displayText || message.replyTo || message.audioUrl || message.imageUrl
 
-  return (
+  const bubbleBlock = (
     <div
-      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2`}
-      data-message-id={message.id}
+      style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
+      className="transition-transform duration-75 min-w-0"
     >
+      <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
+        {storyReply && (
+          <StoryReplyQuote
+            storyReply={storyReply}
+            onClick={onStoryReplyClick}
+            isOwn={isOwn}
+            stacked={Boolean(displayText)}
+          />
+        )}
+        {hasMessageBubble && (
+          <div
+            ref={bubbleRef}
+            onContextMenu={handleContextMenu}
+            onDoubleClick={handleDoubleClick}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
+            className={`px-4 py-2 pb-1.5 transition-colors duration-200 message-bubble w-fit max-w-full overflow-hidden ${bubbleRadius} ${bubbleSurfaceClass}`}
+            data-allow-contextmenu
+          >
+            {renderBubbleContent()}
+          </div>
+        )}
+      </div>
+
+      {hasReactions && (
+        <MessageReactions
+          reactions={message.reactions}
+          isOwn={isOwn}
+          currentUserId={currentUserId}
+          onEmojiClick={onReactionClick ? (emoji) => onReactionClick(message, emoji) : undefined}
+          className={`mt-1 flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+        />
+      )}
+    </div>
+  )
+
+  const rowClass = `flex ${isOwn ? 'justify-end' : 'justify-start'} ${tightBottom ? 'mb-0.5' : 'mb-2'}`
+
+  if (!isOwn && isGroupChat) {
+    return (
+      <div className={rowClass} data-message-id={message.id}>
+        <div className="flex items-end gap-2 max-w-[85%] min-w-0">
+          <div className="w-8 shrink-0 flex justify-center">
+            {showAvatar ? (
+              <CachedAvatar
+                src={senderAvatar}
+                fallback={sad}
+                size={32}
+                alt=""
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <span className="w-8 h-8" aria-hidden />
+            )}
+          </div>
+          <div className="relative min-w-0 flex-1">
+            {Math.abs(swipeOffset) > 12 && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 right-full mr-2 flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/70 pointer-events-none"
+                style={{ opacity: Math.min(Math.abs(swipeOffset) / SWIPE_REPLY_THRESHOLD, 1) }}
+              >
+                <IconArrowBackUp size={16} />
+              </div>
+            )}
+            {bubbleBlock}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={rowClass} data-message-id={message.id}>
       <div className="relative max-w-[75%]">
         {Math.abs(swipeOffset) > 12 && (
           <div
@@ -164,69 +267,7 @@ export default function MessageBubble({
             <IconArrowBackUp size={16} />
           </div>
         )}
-
-        <div
-          style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
-          className="transition-transform duration-75"
-        >
-          <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
-            {!isOwn && senderName && (
-              <p className="text-[11px] font-medium text-blue-300/90 px-1">{senderName}</p>
-            )}
-            {storyReply && (
-              <StoryReplyQuote
-                storyReply={storyReply}
-                onClick={onStoryReplyClick}
-                isOwn={isOwn}
-                stacked={Boolean(displayText)}
-              />
-            )}
-            {hasMessageBubble && (
-              <div
-                ref={bubbleRef}
-                onContextMenu={handleContextMenu}
-                onDoubleClick={handleDoubleClick}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onTouchCancel={handleTouchCancel}
-                className={`px-4 py-2 transition-colors duration-200 message-bubble w-fit max-w-full ${bubbleRadius} ${bubbleSurfaceClass}`}
-                data-allow-contextmenu
-              >
-                {renderBubbleContent()}
-              </div>
-            )}
-          </div>
-
-          {hasReactions && (
-            <MessageReactions
-              reactions={message.reactions}
-              isOwn={isOwn}
-              currentUserId={currentUserId}
-              onEmojiClick={onReactionClick ? (emoji) => onReactionClick(message, emoji) : undefined}
-              className={`mt-1 flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-            />
-          )}
-
-          {(sentTime || isOwn) && (
-            <div className="flex items-center justify-between gap-3 mt-1 px-1 min-h-[16px]">
-              {sentTime ? (
-                <span className="text-[11px] text-white/40 tabular-nums">{sentTime}</span>
-              ) : (
-                <span />
-              )}
-              {isOwn && (
-                <span className="inline-flex shrink-0">
-                  {message.read ? (
-                    <IconChecks size={14} className="text-blue-400" stroke={2} />
-                  ) : (
-                    <IconCheck size={14} className="text-white/40" stroke={2} />
-                  )}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        {bubbleBlock}
       </div>
     </div>
   )

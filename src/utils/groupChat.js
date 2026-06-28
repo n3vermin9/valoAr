@@ -4,6 +4,16 @@ export const DEFAULT_GROUP_SETTINGS = {
   joinViaButton: true,
 }
 
+export const DEFAULT_GROUP_PHOTO_URL =
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTW1giTnfMYo-a9fxSEp3dZ9ELIt0ymWnLBcg&s'
+
+export function getGroupPhotoUrl(chatOrUrl) {
+  if (typeof chatOrUrl === 'string') {
+    return chatOrUrl.trim() || DEFAULT_GROUP_PHOTO_URL
+  }
+  return chatOrUrl?.photoUrl?.trim() || DEFAULT_GROUP_PHOTO_URL
+}
+
 export const DEFAULT_ADMIN_PERMISSIONS = {
   editGroupInfo: true,
   addMembers: true,
@@ -81,6 +91,10 @@ export function isGroupMember(chat, userId) {
 
 export function getGroupDisplayName(chat) {
   return chat?.name?.trim() || 'Group chat'
+}
+
+export function getGroupUsername(chat) {
+  return chat?.username?.trim() || null
 }
 
 export function getGroupInviteUrl(inviteCode) {

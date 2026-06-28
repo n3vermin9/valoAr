@@ -3,12 +3,11 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconCheck, IconChecks, IconBellOff, IconBell, IconPin, IconPinnedOff, IconTrash, IconBan, IconPlus, IconUsers } from '@tabler/icons-react'
+import { IconCheck, IconChecks, IconBellOff, IconPin, IconPinnedOff, IconTrash, IconBan, IconPlus } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeChats,
   getUnreadCount,
-  toggleMuteChat,
   togglePinChat,
   removeChatForUser,
   subscribeChatListActivity,
@@ -22,7 +21,10 @@ import { formatChatTime, isSavedMessagesChat, isRemovedChatOpponent, getRemovedC
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass, iconButtonClass } from '../../utils/designSystem'
 import { isGroupChat, getGroupDisplayName, formatGroupPreview } from '../../utils/groupChat'
+import { isChatMuteActive } from '../../utils/chatMute'
 import CreateGroupModal from './CreateGroupModal'
+import GroupAvatar from './GroupAvatar'
+import MuteChatModal from './MuteChatModal'
 import PageShell from '../layout/PageShell'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
@@ -41,6 +43,7 @@ export default function ChatList() {
   const [actionLoading, setActionLoading] = useState(false)
   const [chatActivity, setChatActivity] = useState({})
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [muteModalChatId, setMuteModalChatId] = useState(null)
   const listRef = useRef(null)
   const rowRefs = useRef({})
 
@@ -136,7 +139,6 @@ export default function ChatList() {
 
   const selectedChat = chats.find((c) => c.id === selectedChatId)
   const selectedOtherId = selectedChat?.participants.find((id) => id !== user.uid)
-  const selectedIsMuted = selectedChat?.mutedBy?.includes(user.uid)
   const selectedIsPinned = selectedChat?.pinnedBy?.includes(user.uid)
   const selectedOtherUser = selectedOtherId ? users[selectedOtherId] : null
   const selectedOtherUserLoaded = !selectedOtherId || Object.hasOwn(users, selectedOtherId)
@@ -156,24 +158,11 @@ export default function ChatList() {
     setSelectedChatId(chatId)
   }
 
-  const handleMuteToggle = () => {
+  const handleMuteOpen = () => {
     const chatId = selectedChatId
-    if (!chatId || !user?.uid) return
-    const wasMuted = selectedIsMuted
+    if (!chatId) return
     closeMenu()
-    setChats((prev) =>
-      prev.map((c) => {
-        if (c.id !== chatId) return c
-        const mutedBy = c.mutedBy || []
-        return {
-          ...c,
-          mutedBy: wasMuted ? mutedBy.filter((id) => id !== user.uid) : [...mutedBy, user.uid],
-        }
-      })
-    )
-    toggleMuteChat(chatId, user.uid).catch(() => {
-      toast.error('Failed to update mute')
-    })
+    setMuteModalChatId(chatId)
   }
 
   const handlePinToggle = () => {
@@ -240,10 +229,10 @@ export default function ChatList() {
         >
           {!selectedIsSaved && (
             <ContextMenuItem
-              icon={selectedIsMuted ? IconBell : IconBellOff}
-              onClick={handleMuteToggle}
+              icon={IconBellOff}
+              onClick={handleMuteOpen}
             >
-              {selectedIsMuted ? 'Unmute' : 'Mute'}
+              Notifications
             </ContextMenuItem>
           )}
           <ContextMenuItem
@@ -322,7 +311,7 @@ export default function ChatList() {
                 : isRemoved
                   ? getRemovedChatUsername(chat, otherId)
                   : otherUser?.username || 'User'
-            const isMuted = chat.mutedBy?.includes(user.uid)
+            const isMuted = isChatMuteActive(chat, user.uid)
             const isPinned = chat.pinnedBy?.includes(user.uid)
             const lastMsg = chat.lastMessage
             const sentByYou = lastMsg?.senderId === user.uid
@@ -378,9 +367,7 @@ export default function ChatList() {
                         <img src={logo} alt="Logo" className="w-10 h-10 object-cover" />
                       </div>
                     ) : isGroup ? (
-                      <div className="w-14 h-14 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
-                        <IconUsers size={28} className="text-blue-400" stroke={1.5} />
-                      </div>
+                      <GroupAvatar photoUrl={chat.photoUrl} size={56} />
                     ) : isRemoved ? (
                       <CachedAvatar
                         src={deletedAccountAvatarSrc}
@@ -518,6 +505,19 @@ export default function ChatList() {
         onClose={() => setShowCreateGroup(false)}
         userId={user?.uid}
         onCreated={(group) => navigate(`/chats/${group.id}`)}
+      />
+
+      <MuteChatModal
+        isOpen={Boolean(muteModalChatId)}
+        onClose={() => setMuteModalChatId(null)}
+        chatId={muteModalChatId}
+        chat={chats.find((c) => c.id === muteModalChatId)}
+        userId={user?.uid}
+        title={
+          isGroupChat(chats.find((c) => c.id === muteModalChatId))
+            ? 'Group notifications'
+            : 'Chat notifications'
+        }
       />
     </PageShell>
   )

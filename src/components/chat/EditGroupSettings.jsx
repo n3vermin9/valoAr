@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { IconCopy, IconLink, IconShield, IconLogout } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -23,10 +23,13 @@ import {
   DEFAULT_ADMIN_PERMISSIONS,
 } from '../../utils/groupChat'
 import { listRowClass } from '../../utils/designSystem'
+import { normalizeUsername } from '../../utils/helpers'
+import { useGroupUsernameCheck } from '../../hooks/useGroupUsernameCheck'
 import TextField from '../ui/TextField'
 import Button from '../ui/Button'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import CachedAvatar from '../ui/CachedAvatar'
+import PhotoUrlSection from '../profile/PhotoUrlSection'
 import { sad } from '../../assets'
 
 const PERMISSION_LABELS = {
@@ -37,9 +40,20 @@ const PERMISSION_LABELS = {
   manageInviteSettings: 'Manage invite settings',
 }
 
+function SettingsSection({ title, children, className = '' }) {
+  return (
+    <section className={className}>
+      <p className="text-xs uppercase tracking-wider text-white/40 mb-2 px-1">{title}</p>
+      <div className="rounded-2xl border border-white/10 overflow-hidden bg-white/[0.03]">
+        {children}
+      </div>
+    </section>
+  )
+}
+
 function SettingSwitch({ label, description, checked, onChange, disabled }) {
   return (
-    <div className="px-4 py-4 border-b border-white/10">
+    <div className="px-4 py-4 border-b border-white/10 last:border-b-0">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="font-medium">{label}</p>
@@ -69,14 +83,27 @@ function SettingSwitch({ label, description, checked, onChange, disabled }) {
 export default function EditGroupSettings() {
   const { chatId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const [chat, setChat] = useState(null)
   const [members, setMembers] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
   const [description, setDescription] = useState('')
+  const [photos, setPhotos] = useState([''])
+  const [visiblePhotoSlots, setVisiblePhotoSlots] = useState(1)
   const [selectedAdminId, setSelectedAdminId] = useState(null)
+
+  const isPublic = chat?.settings?.visibility === 'public'
+  const normalizedUsername = normalizeUsername(username)
+  const usernameChanged = normalizedUsername !== normalizeUsername(chat?.username || '')
+  const { status: usernameStatus, error: usernameError } = useGroupUsernameCheck(
+    username,
+    chatId,
+    isPublic || usernameChanged
+  )
 
   useEffect(() => {
     if (!chatId) return
@@ -88,7 +115,9 @@ export default function EditGroupSettings() {
       }
       setChat(data)
       setName(data?.name || '')
+      setUsername(data?.username || '')
       setDescription(data?.description || '')
+      setPhotos([data?.photoUrl || ''])
       setLoading(false)
     })
   }, [chatId])
@@ -103,22 +132,67 @@ export default function EditGroupSettings() {
   const canManageSettings = canAdmin(chat, user?.uid, 'manageInviteSettings')
   const canManageAdmins = canAdmin(chat, user?.uid, 'manageAdmins')
 
+  const updatePhoto = (index, url) => {
+    setPhotos((prev) => {
+      const next = [...prev]
+      next[index] = url
+      return next
+    })
+  }
+
   const handleCancel = () => {
-    navigate(`/groups/${chatId}`)
+    navigate(`/groups/${chatId}`, { state: location.state })
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!canEditInfo) return
+    if (isPublic && (!normalizedUsername || usernameStatus !== 'available')) {
+      toast.error('Set a valid group username for public groups')
+      return
+    }
     setSaving(true)
     try {
-      await updateGroupInfo(chatId, user.uid, { name, description })
+      await updateGroupInfo(chatId, user.uid, {
+        name,
+        description,
+        photoUrl: photos[0] || '',
+        username: normalizedUsername,
+      })
       toast.success('Group updated!')
-      navigate(`/groups/${chatId}`)
+      navigate(`/groups/${chatId}`, { state: location.state })
     } catch (err) {
       toast.error(err.message || 'Failed to update group')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleVisibilityChange = async (makePublic) => {
+    if (makePublic) {
+      if (!normalizedUsername) {
+        toast.error('Set a group username before making the group public')
+        return
+      }
+      if (usernameStatus !== 'available' && usernameChanged) {
+        toast.error(usernameError || 'Choose a valid available username')
+        return
+      }
+      if (usernameChanged) {
+        try {
+          await updateGroupInfo(chatId, user.uid, { username: normalizedUsername })
+        } catch (err) {
+          toast.error(err.message || 'Failed to save username')
+          return
+        }
+      }
+    }
+
+    try {
+      await updateGroupSettings(chatId, user.uid, { visibility: makePublic ? 'public' : 'private' })
+      toast.success(makePublic ? 'Group is now public' : 'Group is now private')
+    } catch (err) {
+      toast.error(err.message || 'Failed to update settings')
     }
   }
 
@@ -232,8 +306,16 @@ export default function EditGroupSettings() {
 
       <form onSubmit={handleSubmit} className="px-6 space-y-6 pb-4">
         {canEditInfo && (
-          <>
-            <div>
+          <SettingsSection title="Group info">
+            <div className="px-4 py-4 border-b border-white/10">
+              <PhotoUrlSection
+                photos={photos}
+                updatePhoto={updatePhoto}
+                visiblePhotoSlots={visiblePhotoSlots}
+                setVisiblePhotoSlots={setVisiblePhotoSlots}
+              />
+            </div>
+            <div className="px-4 py-4 border-b border-white/10">
               <label className="text-sm text-white/60 mb-2 block">Group name</label>
               <TextField
                 value={name}
@@ -242,7 +324,28 @@ export default function EditGroupSettings() {
                 maxLength={64}
               />
             </div>
-            <div>
+            <div className="px-4 py-4 border-b border-white/10">
+              <label className="text-sm text-white/60 mb-2 block">
+                Group username {isPublic ? '(required)' : '(required for public)'}
+              </label>
+              <div className="flex items-center bg-white/10 rounded-full border border-white/10 focus-within:border-blue-500">
+                <span className="pl-4 pr-1 text-white/60">@</span>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+                  placeholder="groupname"
+                  maxLength={20}
+                  className="flex-1 px-1 py-3 bg-transparent outline-none"
+                />
+              </div>
+              {isPublic && usernameError && (
+                <p className="text-red-400 text-sm mt-1">{usernameError}</p>
+              )}
+              {isPublic && !usernameError && usernameStatus === 'available' && normalizedUsername && (
+                <p className="text-green-400 text-sm mt-1">This username is available</p>
+              )}
+            </div>
+            <div className="px-4 py-4">
               <label className="text-sm text-white/60 mb-2 block">Description</label>
               <TextField
                 value={description}
@@ -251,12 +354,11 @@ export default function EditGroupSettings() {
                 maxLength={280}
               />
             </div>
-          </>
+          </SettingsSection>
         )}
 
         {canManageSettings && (
-          <div className="rounded-2xl border border-white/10 overflow-hidden bg-white/[0.03]">
-            <p className="px-4 pt-4 pb-2 text-xs uppercase tracking-wider text-white/40">Join settings</p>
+          <SettingsSection title="Join settings">
             <SettingSwitch
               label="Allow join via link"
               description="Anyone with the invite link can join"
@@ -272,10 +374,10 @@ export default function EditGroupSettings() {
             <SettingSwitch
               label="Public group"
               description="Discoverable in search (private groups are hidden)"
-              checked={chat.settings?.visibility === 'public'}
-              onChange={(value) => handleSettingChange('visibility', value ? 'public' : 'private')}
+              checked={isPublic}
+              onChange={(value) => handleVisibilityChange(value)}
             />
-            <div className="px-4 py-4 border-b border-white/10">
+            <div className="px-4 py-4">
               <div className="flex items-center gap-2 text-white/70 text-sm mb-2">
                 <IconLink size={16} />
                 Invite link
@@ -291,20 +393,19 @@ export default function EditGroupSettings() {
                 </Button>
               </div>
             </div>
-          </div>
+          </SettingsSection>
         )}
 
         {canManageAdmins && (
-          <div>
-            <label className="text-sm text-white/60 mb-2 block">Admins</label>
-            <div className="space-y-2">
+          <SettingsSection title="Admins">
+            <div className="px-4 py-4 space-y-2">
               {(chat.participants || []).map((memberId) => {
                 const member = members[memberId]
                 const admin = isGroupAdmin(chat, memberId)
                 const owner = isGroupOwner(chat, memberId)
                 if (owner) return null
                 return (
-                  <div key={memberId} className={`${listRowClass} gap-3`}>
+                  <div key={memberId} className={`${listRowClass} gap-3 bg-transparent border-0 px-0`}>
                     <CachedAvatar
                       src={member?.photos?.[0]}
                       fallback={sad}
@@ -342,14 +443,14 @@ export default function EditGroupSettings() {
                 )
               })}
             </div>
-          </div>
+          </SettingsSection>
         )}
 
         {selectedAdminId && selectedAdminPerms && isGroupOwner(chat, user?.uid) && (
-          <div className="rounded-2xl border border-white/10 overflow-hidden bg-white/[0.03]">
-            <p className="px-4 pt-4 pb-2 text-sm font-medium flex items-center gap-2">
+          <SettingsSection title="Admin permissions">
+            <p className="px-4 pt-4 pb-2 text-sm font-medium flex items-center gap-2 border-b border-white/10">
               <IconShield size={16} />
-              {members[selectedAdminId]?.username || 'User'} permissions
+              {members[selectedAdminId]?.username || 'User'}
             </p>
             {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
               <SettingSwitch
@@ -359,28 +460,30 @@ export default function EditGroupSettings() {
                 onChange={(value) => handlePermissionChange(selectedAdminId, key, value)}
               />
             ))}
-          </div>
+          </SettingsSection>
         )}
 
         {canEditInfo && (
           <button
             type="submit"
-            disabled={saving || !name.trim()}
+            disabled={saving || !name.trim() || (isPublic && (!normalizedUsername || (usernameChanged && usernameStatus !== 'available')))}
             className="w-full py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 rounded-full font-medium transition-colors"
           >
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={handleLeave}
-          disabled={saving}
-          className="w-full flex items-center justify-center gap-2 py-3 text-red-400 hover:bg-red-500/10 rounded-full transition-colors"
-        >
-          <IconLogout size={18} />
-          Leave group
-        </button>
+        <SettingsSection title="Danger zone">
+          <button
+            type="button"
+            onClick={handleLeave}
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 py-4 text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <IconLogout size={18} />
+            Leave group
+          </button>
+        </SettingsSection>
       </form>
     </div>
   )

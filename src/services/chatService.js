@@ -15,11 +15,14 @@ import {
   writeBatch,
   increment,
   deleteField,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore'
 import { ref, set, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
 import { getMatchId, getSavedMessagesChatId, formatMessagePreview } from '../utils/helpers'
 import { isGroupChat, getDirectOtherId, getOtherParticipantIds } from '../utils/groupChat'
+import { getChatMuteMode, CHAT_MUTE_OFF, CHAT_MUTE_ALL } from '../utils/chatMute'
 import { leaveGroupChat } from './groupChatService'
 import { invalidateUser } from './userCache'
 
@@ -585,12 +588,30 @@ function onSnapshotOnce(colRef) {
 export async function toggleMuteChat(matchId, userId) {
   const chatRef = doc(db, 'chats', matchId)
   const chatSnap = await getDoc(chatRef)
-  const mutedBy = chatSnap.data()?.mutedBy || []
-  const isMuted = mutedBy.includes(userId)
-  await updateDoc(chatRef, {
-    mutedBy: isMuted ? mutedBy.filter((id) => id !== userId) : [...mutedBy, userId],
-  })
-  return !isMuted
+  const chatData = chatSnap.data() || {}
+  const mode = getChatMuteMode(chatData, userId)
+  const next = mode === CHAT_MUTE_OFF ? CHAT_MUTE_ALL : CHAT_MUTE_OFF
+  return setChatMuteMode(matchId, userId, next)
+}
+
+export async function setChatMuteMode(matchId, userId, mode) {
+  const chatRef = doc(db, 'chats', matchId)
+  const updates = {}
+
+  if (mode === 'off') {
+    updates[`muteSettings.${userId}`] = deleteField()
+    updates.mutedBy = arrayRemove(userId)
+  } else {
+    updates[`muteSettings.${userId}`] = mode
+    if (mode === 'all') {
+      updates.mutedBy = arrayUnion(userId)
+    } else {
+      updates.mutedBy = arrayRemove(userId)
+    }
+  }
+
+  await updateDoc(chatRef, updates)
+  return mode
 }
 
 export async function togglePinChat(matchId, userId) {
