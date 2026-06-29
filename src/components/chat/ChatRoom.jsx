@@ -72,12 +72,15 @@ import {
   getGroupDisplayName,
   isGroupAdmin,
   isGroupMember,
+  isGroupMemberMuted,
   getGroupMemberProfileIds,
+  canAdmin,
 } from '../../utils/groupChat'
 import { leaveGroupChat, joinGroupViaButton, joinGroupByInviteCode } from '../../services/groupChatService'
 import { getMessageClusterMeta } from '../../utils/messageCluster'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
+import UsernameLabel from '../ui/UsernameLabel'
 
 function getMessageTimeMs(message) {
   if (message.pending) {
@@ -198,8 +201,8 @@ export default function ChatRoom() {
     : otherUser?.username || 'User'
   const chatFrozen =
     !isSavedMessages &&
-    !isGroup &&
-    (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)
+    ((!isGroup && (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)) ||
+      (isGroup && isGroupMemberMuted(chatMeta, user?.uid)))
   const isMuted = isChatMuteActive(chatMeta, user.uid)
   const groupName = isGroup ? getGroupDisplayName(chatMeta) : null
   const groupMemberCount = isGroup ? chatMeta?.participants?.length || 0 : 0
@@ -207,6 +210,8 @@ export default function ChatRoom() {
   const isPublicGroup = isGroup && chatMeta?.settings?.visibility === 'public'
   const isGroupPreview =
     groupPreviewRequested && isGroup && isPublicGroup && !isGroupMemberUser
+  const canDeleteOthersMessages =
+    isGroup && !isGroupPreview && canAdmin(chatMeta, user?.uid, 'deleteMessages')
 
   if (otherId !== trackedOtherId) {
     setTrackedOtherId(otherId)
@@ -585,7 +590,7 @@ export default function ChatRoom() {
     setDeleteTarget(null)
     setRemovedMessageIds((prev) => new Set(prev).add(message.id))
     try {
-      await deleteMessage(matchId, message.id)
+      await deleteMessage(matchId, message.id, user.uid)
     } catch {
       setRemovedMessageIds((prev) => {
         const next = new Set(prev)
@@ -765,7 +770,7 @@ export default function ChatRoom() {
       if (isGroup) return memberProfiles[senderId]?.username || 'User'
       return otherDisplayName
     },
-    [user?.uid, isSavedMessages, isGroup, memberProfiles, otherDisplayName]
+    [user.uid, isSavedMessages, isGroup, memberProfiles, otherDisplayName]
   )
 
   useEffect(() => {
@@ -1071,6 +1076,7 @@ export default function ChatRoom() {
                   ? senderProfile?.username || 'User'
                   : undefined
               }
+              groupChat={isGroup ? chatMeta : undefined}
               senderId={isGroup ? msg.senderId : undefined}
               onSenderClick={isGroup ? openMemberProfile : undefined}
               readOnly={isGroupPreview}
@@ -1229,11 +1235,18 @@ export default function ChatRoom() {
               </div>
             )}
 
+            {!deleteTarget && isGroup && isGroupMemberMuted(chatMeta, user?.uid) && (
+              <div className="px-4 py-4 text-center">
+                <p className="text-white/60 text-sm">You are muted in this group — messaging is disabled</p>
+              </div>
+            )}
+
             {!deleteTarget && !chatFrozen && !isGroupPreview && (
               <>
                 {isTyping && !isSavedMessages && !isGroup && otherUser && !opponentRemoved && (
-                  <div className="px-5 py-2 text-xs text-blue-300/90 italic">
-                    {otherUser.username} is typing…
+                  <div className="px-5 py-2 text-xs text-blue-300/90 italic flex items-center gap-1">
+                    <UsernameLabel username={otherUser.username} className="text-xs italic" badgeSize={10} />
+                    <span>is typing…</span>
                   </div>
                 )}
                 {isTyping && isGroup && (
@@ -1285,6 +1298,9 @@ export default function ChatRoom() {
             message={deleteTarget.message}
             originRect={deleteTarget.rect}
             isOwn={deleteTarget.message.senderId === user.uid}
+            canDelete={
+              deleteTarget.message.senderId === user.uid || canDeleteOthersMessages
+            }
             currentUserId={user.uid}
             militaryTime={militaryTime}
             replyAuthorName={
@@ -1292,6 +1308,14 @@ export default function ChatRoom() {
                 ? getReplyAuthorName(deleteTarget.message.replyTo.senderId)
                 : undefined
             }
+            isGroupChat={isGroup}
+            senderName={
+              isGroup && deleteTarget.message.senderId !== user.uid
+                ? memberProfiles[deleteTarget.message.senderId]?.username || 'User'
+                : undefined
+            }
+            groupChat={isGroup ? chatMeta : undefined}
+            senderId={isGroup ? deleteTarget.message.senderId : undefined}
             onDelete={handleDeleteMessage}
             onCopy={handleCopyMessage}
             onReply={handleReplyToMessage}

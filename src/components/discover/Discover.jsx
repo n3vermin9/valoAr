@@ -18,6 +18,7 @@ import LikeMessageModal from './LikeMessageModal'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import Modal from '../ui/Modal'
+import UsernameLabel from '../ui/UsernameLabel'
 import { sad } from '../../assets'
 import { PublicProfileView } from '../profile/ProfileView'
 import StoriesHost from '../stories/StoriesHost'
@@ -517,7 +518,7 @@ function DiscoverSearchPage({
               className="w-12 h-12 rounded-full object-cover"
             />
             <div className="text-left">
-              <p className="font-medium">{profile.username}</p>
+              <UsernameLabel username={profile.username} className="font-medium" badgeSize={14} />
               <p className="text-sm text-white/50">{profile.age} years old</p>
             </div>
           </button>

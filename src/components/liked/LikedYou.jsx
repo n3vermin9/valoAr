@@ -13,6 +13,7 @@ import {
   cancelFriendRequest,
   patchProfileAfterMatch,
 } from '../../services/userService'
+import UsernameLabel from '../ui/UsernameLabel'
 import { subscribeInbox, markInboxRead, markAllInboxRead } from '../../services/inboxService'
 import { sad, star } from '../../assets'
 import { APP_NAME, formatLastSeen } from '../../utils/helpers'
@@ -330,16 +331,19 @@ export default function LikedYou() {
 
   const inboxMessage = (item) => {
     const name = item.actorUsername || inboxProfiles[item.actorId]?.username || 'Someone'
+    const nameLabel = (
+      <UsernameLabel username={name} className="font-medium inline-flex" badgeSize={12} as="span" />
+    )
     if (item.type === 'story_reaction') {
       return (
         <>
-          <span className="font-medium">{name}</span> reacted {item.emoji} to your story
+          {nameLabel} reacted {item.emoji} to your story
         </>
       )
     }
     return (
       <>
-        You and <span className="font-medium">{name}</span> are now friends
+        You and {nameLabel} are now friends
       </>
     )
   }

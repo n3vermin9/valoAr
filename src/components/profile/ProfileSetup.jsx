@@ -9,7 +9,7 @@ import { normalizeUsername } from '../../utils/helpers'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
 import Modal from '../ui/Modal'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { pageTitleClass, typoSubheadClass, fieldLabelClass, btnFilledClass } from '../../utils/designSystem'
 
 export default function ProfileSetup() {
   const { user, refreshProfile } = useAuth()
@@ -85,8 +85,8 @@ export default function ProfileSetup() {
   return (
     <div className="h-full overflow-y-auto pb-24">
       <div className="px-6 pt-8 pb-4">
-        <h1 className="text-2xl font-bold">Set up your profile</h1>
-        <p className="text-white/60 mt-1">Tell us about yourself</p>
+        <h1 className={pageTitleClass}>Set up your profile</h1>
+        <p className={`${typoSubheadClass} mt-1`}>Tell us about yourself</p>
       </div>
 
       <form onSubmit={handleSubmit} className="px-6 space-y-6">

@@ -15,7 +15,6 @@ export default function ChatHeaderCenter({
   isSavedMessages,
   isGroupChat,
   groupName,
-  groupMemberCount,
   groupPhotoUrl,
   otherDisplayName,
   otherUser,

@@ -1,4 +1,3 @@
-import { IconUsers } from '@tabler/icons-react'
 import CachedAvatar from '../ui/CachedAvatar'
 import { getGroupPhotoUrl } from '../../utils/groupChat'
 

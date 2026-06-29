@@ -7,7 +7,28 @@ import { subscribeLikesReceived, fetchUser } from '../../services/userService'
 import { isGroupChat, getGroupDisplayName, getGroupPhotoUrl } from '../../utils/groupChat'
 import { shouldSuppressChatNotification } from '../../utils/chatMute'
 import { notificationGlassClass } from '../../utils/helpers'
+import UsernameLabel from '../ui/UsernameLabel'
 import { sad } from '../../assets'
+
+function NotificationTitle({ username }) {
+  if (!username) return null
+  const sep = ' · '
+  const idx = username.indexOf(sep)
+  if (idx >= 0) {
+    const groupName = username.slice(0, idx)
+    const senderName = username.slice(idx + sep.length)
+    return (
+      <p className="font-semibold text-sm truncate text-white flex items-center gap-1 min-w-0">
+        <span className="truncate shrink">{groupName}</span>
+        <span className="shrink-0 text-white/60">·</span>
+        <UsernameLabel username={senderName} className="truncate min-w-0" badgeSize={12} />
+      </p>
+    )
+  }
+  return (
+    <UsernameLabel username={username} className="font-semibold text-sm truncate text-white" badgeSize={12} />
+  )
+}
 
 const AUTO_DISMISS_MS = 5000
 const DRAG_THRESHOLD = 10
@@ -171,7 +192,7 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
             className="w-11 h-11 rounded-full object-cover shrink-0 ring-1 ring-white/10"
           />
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm truncate text-white">{notification.username}</p>
+            <NotificationTitle username={notification.username} />
             <p className="text-xs text-white/70 truncate mt-0.5">{preview}</p>
           </div>
         </div>

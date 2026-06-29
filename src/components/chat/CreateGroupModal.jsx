@@ -4,7 +4,7 @@ import Modal from '../ui/Modal'
 import TextField from '../ui/TextField'
 import Button from '../ui/Button'
 import { createGroupChat } from '../../services/groupChatService'
-import { listRowClass } from '../../utils/designSystem'
+import { listRowClass, typoTitle3Class, typoSubheadClass } from '../../utils/designSystem'
 import { normalizeUsername } from '../../utils/helpers'
 import { useGroupUsernameCheck } from '../../hooks/useGroupUsernameCheck'
 
@@ -76,8 +76,8 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} glass className="p-6">
-      <h2 className="text-xl font-semibold text-white mb-1">New group chat</h2>
-      <p className="text-sm text-white/55 mb-5">Create a group and invite people with a link.</p>
+      <h2 className={`${typoTitle3Class} mb-1`}>New group chat</h2>
+      <p className={`${typoSubheadClass} mb-5`}>Create a group and invite people with a link.</p>
 
       <div className="space-y-4">
         <div>

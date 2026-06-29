@@ -7,6 +7,8 @@ import StoryReplyQuote from './StoryReplyQuote'
 import MessageReactions from './MessageReactions'
 import MessageText from './MessageText'
 import CachedAvatar from '../ui/CachedAvatar'
+import UsernameLabel from '../ui/UsernameLabel'
+import GroupRoleBadge from './GroupRoleBadge'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 import { sad } from '../../assets'
 
@@ -49,6 +51,8 @@ export default function MessageBubble({
   replyAuthorName,
   senderName,
   senderId,
+  senderRole,
+  groupChat,
   senderAvatar,
   onSenderClick,
   isGroupChat = false,
@@ -159,9 +163,19 @@ export default function MessageBubble({
             if (senderId) onSenderClick?.(senderId)
           }}
           onDoubleClick={(e) => e.stopPropagation()}
-          className="text-[11px] font-semibold text-blue-300/90 mb-1 hover:text-blue-200 transition-colors text-left"
+          className="flex items-center justify-between gap-2 w-full mb-1 hover:opacity-90 transition-opacity text-left min-w-0"
         >
-          {senderName}
+          <UsernameLabel
+            username={senderName}
+            className="text-[11px] font-semibold text-blue-300/90 min-w-0"
+            badgeSize={11}
+            as="span"
+          />
+          {groupChat && senderId ? (
+            <GroupRoleBadge chat={groupChat} userId={senderId} />
+          ) : senderRole && senderRole !== 'member' ? (
+            <GroupRoleBadge role={senderRole} />
+          ) : null}
         </button>
       )}
       {message.replyTo && (

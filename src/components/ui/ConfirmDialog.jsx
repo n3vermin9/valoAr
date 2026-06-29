@@ -1,5 +1,6 @@
 import Modal from './Modal'
 import Button from './Button'
+import { typoTitle3Class, typoSubheadClass } from '../../utils/designSystem'
 
 export default function ConfirmDialog({
   isOpen,
@@ -15,8 +16,8 @@ export default function ConfirmDialog({
   return (
     <Modal isOpen={isOpen} onClose={onClose} glass overlayClassName={overlayClassName}>
       <div className="p-6">
-        <h3 className="text-[20px] font-semibold mb-2 text-left">{title}</h3>
-        <p className="text-[var(--ios-label-secondary)] text-[15px] mb-6 text-left">{message}</p>
+        <h3 className={`${typoTitle3Class} mb-2 text-left`}>{title}</h3>
+        <p className={`${typoSubheadClass} mb-6 text-left`}>{message}</p>
         <div className="flex gap-3">
           <Button variant="bordered" fullWidth onClick={onClose} disabled={loading}>
             Cancel

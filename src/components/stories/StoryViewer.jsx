@@ -47,7 +47,7 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import Modal from '../ui/Modal'
 import { PublicProfileView } from '../profile/ProfileView'
 import MessageReactions, { ReactionPicker } from '../chat/MessageReactions'
-import VerifiedBadge from '../ui/VerifiedBadge'
+import UsernameLabel from '../ui/UsernameLabel'
 import { sad } from '../../assets'
 
 function getTapZone(clientX) {
@@ -625,8 +625,11 @@ export default function StoryViewer({
             />
             <div className="min-w-0 text-left">
               <p className="font-semibold text-sm truncate text-white inline-flex items-center gap-1">
-                {owner?.username || 'User'}
-                <VerifiedBadge username={owner?.username} size={14} />
+                <UsernameLabel
+                  username={owner?.username}
+                  className="font-semibold text-sm truncate text-white"
+                  badgeSize={14}
+                />
               </p>
               <p className="text-[11px] text-white/65 leading-tight">
                 {formatStoryTime(storyCreatedMs(story))}
@@ -941,9 +944,11 @@ export default function StoryViewer({
                           }`}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate text-white">
-                            {w.username || 'User'}
-                          </p>
+                          <UsernameLabel
+                            username={w.username}
+                            className="font-medium text-sm truncate text-white"
+                            badgeSize={12}
+                          />
                           <p className="text-xs text-white/50 mt-0.5">
                             {formatStoryViewTime(w.viewedAt?.toMillis?.() ?? w.viewedAt)}
                           </p>

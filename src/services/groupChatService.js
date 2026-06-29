@@ -23,8 +23,6 @@ import {
   DEFAULT_ADMIN_PERMISSIONS,
   DEFAULT_GROUP_PHOTO_URL,
   generateInviteCode,
-  isGroupAdmin,
-  isGroupMember,
   isGroupOwner,
   canAdmin,
   normalizeGroupJoinSettings,
@@ -141,6 +139,9 @@ export async function createGroupChat(
     inviteCode,
     settings: mergedSettings,
     adminSettings: {},
+    adminTags: {},
+    bannedUserIds: [],
+    mutedMemberIds: [],
     lastMessage: null,
     mutedBy: [],
     pinnedBy: [],
@@ -227,6 +228,9 @@ export async function joinGroupChat(chatId, userId) {
   }
 
   const data = snap.data()
+  if (data.bannedUserIds?.includes(userId)) {
+    throw new Error('You are banned from this group')
+  }
   if (data.participants?.includes(userId)) {
     const hiddenFor = data.hiddenFor || []
     if (hiddenFor.includes(userId)) {
@@ -285,6 +289,7 @@ export async function leaveGroupChat(chatId, userId) {
     hiddenFor: arrayUnion(userId),
     [`unreadCount.${userId}`]: deleteField(),
     [`adminSettings.${userId}`]: deleteField(),
+    [`adminTags.${userId}`]: deleteField(),
   }
 
   await updateDoc(chatRef, updates)
@@ -543,19 +548,55 @@ export async function updateAdminPermissions(chatId, actorId, targetUserId, perm
   })
 }
 
-export async function addGroupAdmin(chatId, actorId, targetUserId) {
+export async function setAdminTag(chatId, actorId, targetUserId, tag) {
   const chatRef = doc(db, 'chats', chatId)
   const snap = await getDoc(chatRef)
   if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
 
   const data = snap.data()
-  if (!canAdmin(data, actorId, 'manageAdmins')) throw new Error('You do not have permission to manage admins')
+  if (!isGroupOwner(data, actorId)) throw new Error('Only the group owner can set admin tags')
+  if (targetUserId === data.createdBy) throw new Error('Cannot tag the group owner')
+  if (!data.admins?.includes(targetUserId)) throw new Error('User is not an admin')
+
+  const trimmed = tag?.trim().slice(0, 32) || ''
+  if (trimmed) {
+    await updateDoc(chatRef, { [`adminTags.${targetUserId}`]: trimmed })
+  } else {
+    await updateDoc(chatRef, { [`adminTags.${targetUserId}`]: deleteField() })
+  }
+}
+
+export async function setGroupMemberRole(chatId, actorId, targetUserId, role) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+
+  const data = snap.data()
+  if (targetUserId === data.createdBy) throw new Error('Cannot change the group owner role')
+  if (!canAdmin(data, actorId, 'manageAdmins') && !isGroupOwner(data, actorId)) {
+    throw new Error('You do not have permission to manage admins')
+  }
   if (!data.participants?.includes(targetUserId)) throw new Error('User is not a member')
+
+  if (role === 'member') {
+    await updateDoc(chatRef, {
+      admins: arrayRemove(targetUserId),
+      [`adminSettings.${targetUserId}`]: deleteField(),
+      [`adminTags.${targetUserId}`]: deleteField(),
+    })
+    return
+  }
+
+  if (role !== 'admin') throw new Error('Invalid role')
 
   await updateDoc(chatRef, {
     admins: arrayUnion(targetUserId),
-    [`adminSettings.${targetUserId}`]: data.adminSettings?.[targetUserId] || { ...DEFAULT_ADMIN_PERMISSIONS },
+    [`adminSettings.${targetUserId}`]: { ...DEFAULT_ADMIN_PERMISSIONS },
   })
+}
+
+export async function addGroupAdmin(chatId, actorId, targetUserId) {
+  return setGroupMemberRole(chatId, actorId, targetUserId, 'admin')
 }
 
 export async function removeGroupAdmin(chatId, actorId, targetUserId) {
@@ -570,6 +611,7 @@ export async function removeGroupAdmin(chatId, actorId, targetUserId) {
   await updateDoc(chatRef, {
     admins: arrayRemove(targetUserId),
     [`adminSettings.${targetUserId}`]: deleteField(),
+    [`adminTags.${targetUserId}`]: deleteField(),
   })
 }
 
@@ -599,8 +641,62 @@ export async function removeGroupMember(chatId, actorId, memberId) {
     participants: arrayRemove(memberId),
     admins: arrayRemove(memberId),
     hiddenFor: arrayUnion(memberId),
+    mutedMemberIds: arrayRemove(memberId),
     [`unreadCount.${memberId}`]: deleteField(),
     [`adminSettings.${memberId}`]: deleteField(),
+    [`adminTags.${memberId}`]: deleteField(),
+  })
+}
+
+export async function muteGroupMember(chatId, actorId, memberId) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+
+  const data = snap.data()
+  if (!canAdmin(data, actorId, 'removeMembers')) {
+    throw new Error('You do not have permission to mute members')
+  }
+  if (memberId === data.createdBy) throw new Error('Cannot mute the group owner')
+  if (!data.participants?.includes(memberId)) throw new Error('Member not found')
+
+  await updateDoc(chatRef, { mutedMemberIds: arrayUnion(memberId) })
+}
+
+export async function unmuteGroupMember(chatId, actorId, memberId) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+
+  const data = snap.data()
+  if (!canAdmin(data, actorId, 'removeMembers')) {
+    throw new Error('You do not have permission to unmute members')
+  }
+
+  await updateDoc(chatRef, { mutedMemberIds: arrayRemove(memberId) })
+}
+
+export async function banGroupMember(chatId, actorId, memberId) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+
+  const data = snap.data()
+  if (!canAdmin(data, actorId, 'removeMembers')) {
+    throw new Error('You do not have permission to ban members')
+  }
+  if (memberId === data.createdBy) throw new Error('Cannot ban the group owner')
+  if (memberId === actorId) throw new Error('Cannot ban yourself')
+
+  await updateDoc(chatRef, {
+    participants: arrayRemove(memberId),
+    admins: arrayRemove(memberId),
+    hiddenFor: arrayUnion(memberId),
+    bannedUserIds: arrayUnion(memberId),
+    mutedMemberIds: arrayRemove(memberId),
+    [`unreadCount.${memberId}`]: deleteField(),
+    [`adminSettings.${memberId}`]: deleteField(),
+    [`adminTags.${memberId}`]: deleteField(),
   })
 }
 

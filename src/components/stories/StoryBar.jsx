@@ -1,5 +1,6 @@
 import { hasUnseenStories, storyOpenOriginFromRect } from '../../utils/storyHelpers'
 import StoryRing from './StoryRing'
+import UsernameLabel from '../ui/UsernameLabel'
 
 export default function StoryBar({
   profile,
@@ -93,9 +94,11 @@ export default function StoryBar({
                   )
                 }
               />
-              <span className="text-xs text-[var(--ios-label-secondary)] truncate w-full text-center">
-                {user?.username || 'User'}
-              </span>
+              <UsernameLabel
+                username={user?.username}
+                className="text-xs text-[var(--ios-label-secondary)] truncate w-full justify-center"
+                badgeSize={10}
+              />
             </div>
           )
         })}

@@ -10,7 +10,7 @@ import { PublicProfileView } from './components/profile/ProfileView'
 import ChatNotifications from './components/chat/ChatNotifications'
 import GroupJoinPage from './components/chat/GroupJoinPage'
 import GroupInfoView from './components/chat/GroupInfoView'
-import EditGroupSettings from './components/chat/EditGroupSettings'
+import GroupSettingsRoutes from './components/chat/groupSettings/GroupSettingsRoutes'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import Modal from './components/ui/Modal'
 import { subscribeChats, getUnreadCount } from './services/chatService'
@@ -123,11 +123,11 @@ export default function App() {
         }
       />
       <Route
-        path="/groups/:chatId/settings"
+        path="/groups/:chatId/settings/*"
         element={
           user ? (
             profile?.username ? (
-              <EditGroupSettings />
+              <GroupSettingsRoutes />
             ) : (
               <Navigate to="/setup" />
             )

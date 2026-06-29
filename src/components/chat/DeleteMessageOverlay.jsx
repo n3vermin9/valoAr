@@ -8,6 +8,8 @@ import ReplyQuote from './ReplyQuote'
 import StoryReplyQuote from './StoryReplyQuote'
 import MessageReactions, { ReactionPicker } from './MessageReactions'
 import MessageText from './MessageText'
+import UsernameLabel from '../ui/UsernameLabel'
+import GroupRoleBadge from './GroupRoleBadge'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 
 const MAX_MESSAGE_HEIGHT = 'max-h-[min(50vh,calc(100vh-12rem))]'
@@ -23,6 +25,7 @@ export default function MessageActionOverlay({
   message,
   originRect,
   isOwn,
+  canDelete = false,
   currentUserId,
   onDelete,
   onCopy,
@@ -32,6 +35,11 @@ export default function MessageActionOverlay({
   onCancel,
   replyAuthorName,
   militaryTime = false,
+  isGroupChat = false,
+  senderName,
+  senderRole,
+  groupChat,
+  senderId,
 }) {
   const [deleting, setDeleting] = useState(false)
   const [adjustedTop, setAdjustedTop] = useState(originRect.top)
@@ -39,16 +47,21 @@ export default function MessageActionOverlay({
   const panelRef = useRef(null)
 
   const bubbleWidth = originRect.width
+  const showSenderHeader = isGroupChat && !isOwn && Boolean(senderName)
+  const panelWidth = showSenderHeader
+    ? Math.max(bubbleWidth, Math.min(320, window.innerWidth - VIEWPORT_PADDING * 2))
+    : bubbleWidth
+
   const containerStyle = isOwn
     ? {
         top: adjustedTop,
         right: Math.max(VIEWPORT_PADDING, window.innerWidth - originRect.right),
-        width: bubbleWidth,
+        width: panelWidth,
       }
     : {
         top: adjustedTop,
-        left: clampHorizontal(originRect.left, bubbleWidth),
-        width: bubbleWidth,
+        left: clampHorizontal(originRect.left, panelWidth),
+        width: panelWidth,
       }
 
   const sentTime = formatMessageTime(message.createdAt, militaryTime)
@@ -112,6 +125,22 @@ export default function MessageActionOverlay({
           onClick={(e) => e.stopPropagation()}
         >
         <div className="w-full min-w-0">
+          {showSenderHeader && (
+            <div className="flex items-center justify-between gap-2 w-full mb-1.5 min-w-0">
+              <UsernameLabel
+                username={senderName}
+                className="text-[11px] font-semibold text-blue-300/90 min-w-0"
+                badgeSize={11}
+                truncate={false}
+                as="span"
+              />
+              {groupChat && senderId ? (
+                <GroupRoleBadge chat={groupChat} userId={senderId} />
+              ) : senderRole && senderRole !== 'member' ? (
+                <GroupRoleBadge role={senderRole} />
+              ) : null}
+            </div>
+          )}
           <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
             {storyReply && (
               <StoryReplyQuote
@@ -212,8 +241,8 @@ export default function MessageActionOverlay({
                   Copy
                 </ActionItem>
               )}
-              {isOwn && canCopy && <div className="my-1.5 mx-3 border-t border-white/10" />}
-              {isOwn && (
+              {canDelete && canCopy && <div className="my-1.5 mx-3 border-t border-white/10" />}
+              {canDelete && (
                 <ActionItem
                   icon={IconTrash}
                   danger

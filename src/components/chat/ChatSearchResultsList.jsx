@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { listRowClass, listRowSelectedClass } from '../../utils/designSystem'
 import { formatChatTime, getMessagePreviewText } from '../../utils/helpers'
 import { getSearchResultPreview } from '../../utils/chatSearch'
+import UsernameLabel from '../ui/UsernameLabel'
 
 function highlightPreview(text, query) {
   const term = query.trim()
@@ -85,8 +86,12 @@ export default function ChatSearchResultsList({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-3">
-                    <p className={`truncate text-sm ${isSelected ? 'font-bold text-white' : 'font-semibold'}`}>
-                      {getSenderLabel(message.senderId)}
+                    <p className={`truncate text-sm flex items-center gap-1 min-w-0 ${isSelected ? 'font-bold text-white' : 'font-semibold'}`}>
+                      <UsernameLabel
+                        username={getSenderLabel(message.senderId)}
+                        className="truncate min-w-0"
+                        badgeSize={12}
+                      />
                       {group.matchCount > 1 ? (
                         <span className="ml-1.5 text-xs font-medium text-white/45">
                           · {group.matchCount} matches

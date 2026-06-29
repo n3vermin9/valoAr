@@ -26,6 +26,7 @@ import { isChatMuteActive } from '../../utils/chatMute'
 import CreateGroupModal from './CreateGroupModal'
 import GroupAvatar from './GroupAvatar'
 import MuteChatModal from './MuteChatModal'
+import UsernameLabel from '../ui/UsernameLabel'
 import PageShell from '../layout/PageShell'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
@@ -433,11 +434,21 @@ export default function ChatList() {
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        <p
-                          className={`truncate ${unreadCount > 0 ? 'font-bold' : 'font-semibold'} ${isRemoved ? 'text-white/50' : ''}`}
+                      <div
+                          className={`truncate min-w-0 ${unreadCount > 0 ? 'font-bold' : 'font-semibold'} ${isRemoved ? 'text-white/50' : ''}`}
                         >
-                          {isSaved ? 'Saved Messages' : displayName}
-                        </p>
+                        {isSaved ? (
+                          'Saved Messages'
+                        ) : isGroup ? (
+                          displayName
+                        ) : (
+                          <UsernameLabel
+                            username={displayName}
+                            className="truncate min-w-0"
+                            badgeSize={14}
+                          />
+                        )}
+                        </div>
                         {isMuted && (
                           <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
                         )}

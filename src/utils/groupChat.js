@@ -29,6 +29,7 @@ export const DEFAULT_ADMIN_PERMISSIONS = {
   removeMembers: false,
   manageAdmins: false,
   manageInviteSettings: false,
+  deleteMessages: false,
 }
 
 export const OWNER_ADMIN_PERMISSIONS = {
@@ -37,6 +38,7 @@ export const OWNER_ADMIN_PERMISSIONS = {
   removeMembers: true,
   manageAdmins: true,
   manageInviteSettings: true,
+  deleteMessages: true,
 }
 
 export function isGroupChat(chatOrId) {
@@ -87,7 +89,36 @@ export function getAdminPermissions(chat, userId) {
     }
   }
   if (isGroupOwner(chat, userId)) return { ...OWNER_ADMIN_PERMISSIONS }
-  return { ...DEFAULT_ADMIN_PERMISSIONS, ...(chat.adminSettings?.[userId] || {}) }
+  const stored = chat.adminSettings?.[userId] || {}
+  const { role: _role, ...permissions } = stored
+  return { ...DEFAULT_ADMIN_PERMISSIONS, ...permissions }
+}
+
+export function getGroupMemberRole(chat, userId) {
+  if (!chat || !userId) return 'member'
+  if (isGroupOwner(chat, userId)) return 'owner'
+  if (chat.admins?.includes(userId)) return 'admin'
+  return 'member'
+}
+
+export function getGroupRoleLabel(role) {
+  switch (role) {
+    case 'owner':
+      return 'Owner'
+    case 'admin':
+      return 'Admin'
+    default:
+      return 'Member'
+  }
+}
+
+export function getAdminDisplayLabel(chat, userId) {
+  if (!chat || !userId) return null
+  const role = getGroupMemberRole(chat, userId)
+  if (role === 'member') return null
+  if (role === 'owner') return 'Owner'
+  const customTag = chat.adminTags?.[userId]?.trim()
+  return customTag || 'Admin'
 }
 
 export function canAdmin(chat, userId, permission) {
@@ -96,6 +127,10 @@ export function canAdmin(chat, userId, permission) {
 
 export function isGroupMember(chat, userId) {
   return chat?.participants?.includes(userId) ?? false
+}
+
+export function isGroupMemberMuted(chat, userId) {
+  return Boolean(chat?.mutedMemberIds?.includes(userId))
 }
 
 export function getGroupDisplayName(chat) {

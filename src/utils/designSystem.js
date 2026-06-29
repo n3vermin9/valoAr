@@ -70,8 +70,43 @@ export const pageTitleClass = 'text-[28px] font-bold tracking-tight text-[var(--
 export const pageHeaderClass = 'flex items-center justify-between px-[var(--ios-page-x-lg)] pt-[calc(var(--ios-safe-top)+20px)] pb-2'
 export const pageBottomClearanceClass = 'pb-[var(--ios-nav-clearance)]'
 
+/** iOS typography scale — use these instead of ad-hoc text-* / font-* on screens */
+export const typoLargeTitleClass = pageTitleClass
+export const typoTitle2Class = 'text-[22px] font-bold leading-tight text-[var(--ios-label)]'
+export const typoTitle3Class = 'text-[20px] font-semibold text-[var(--ios-label)]'
+export const typoHeadlineClass = 'text-[17px] font-semibold text-[var(--ios-label)]'
+export const typoBodyClass = 'text-[17px] text-[var(--ios-label)] leading-relaxed'
+export const typoSubheadClass = 'text-[15px] text-[var(--ios-label-secondary)]'
+export const typoFootnoteClass = 'text-[13px] text-[var(--ios-label-secondary)]'
+export const typoCaptionClass = 'text-[13px] font-medium text-[var(--ios-label-secondary)]'
+
+export const sectionLabelClass = `${typoCaptionClass} mb-2 px-[var(--ios-page-x-lg)]`
+export const insetCardClass =
+  'rounded-[var(--ios-radius-xl)] border border-white/10 bg-white/[0.03]'
+export const insetCardOuterClass = `mx-4 ${insetCardClass}`
+export const subpageHeaderClass =
+  'flex items-center gap-3 px-[var(--ios-page-x-lg)] pt-[max(1rem,var(--ios-safe-top))] pb-4 shrink-0'
+export const subpageTitleClass = 'text-[17px] font-medium text-[var(--ios-label)] flex-1 truncate'
+export const fieldLabelClass = `${typoSubheadClass} mb-2 block`
+export const linkActionClass =
+  'text-[15px] font-medium text-[var(--ios-blue)] hover:text-blue-400 transition-colors'
+export const btnSecondarySmClass =
+  'px-4 py-2 min-h-[36px] rounded-full text-[15px] font-medium bg-white/10 hover:bg-white/15 border border-white/10 transition-colors'
+
 export const listRowClass =
   'w-full flex items-center gap-3 px-[var(--ios-page-x-lg)] py-3.5 transition-colors hover:bg-white/[0.05] active:bg-white/[0.08]'
+
+export const settingsRowClass = `${listRowClass} w-full text-left border-b border-white/10 last:border-b-0 py-4 min-h-[60px]`
+
+export const ICON_TONE_CLASSES = {
+  blue: 'bg-blue-500/15 text-blue-400',
+  green: 'bg-green-500/15 text-green-400',
+  violet: 'bg-violet-500/15 text-violet-400',
+  amber: 'bg-amber-500/15 text-amber-400',
+  red: 'bg-red-500/15 text-red-400',
+}
+
+export const iconTileClass = 'w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0'
 
 export const listRowSelectedClass = 'bg-white/[0.06]'
 

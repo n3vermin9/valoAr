@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch } from '@tabler/icons-react'
+import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
@@ -10,7 +10,8 @@ import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { getMatchId } from '../../utils/helpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoCaptionClass, typoBodyClass, typoSubheadClass, insetCardOuterClass, btnBorderedClass } from '../../utils/designSystem'
+import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
 import MatchHistory from './MatchHistory'
@@ -154,16 +155,15 @@ export default function ProfileView() {
         >
           View photos
         </button>
-        <h2 className="text-2xl font-bold mt-4">
-          <CopyableUsername username={profile.username} className="text-2xl font-bold" />
+        <h2 className={`${typoTitle2Class} mt-4`}>
+          <CopyableUsername username={profile.username} className={typoTitle2Class} />
         </h2>
-        <p className="text-white/60">{profile.age} years old</p>
+        <p className={typoSubheadClass}>{profile.age} years old</p>
       </div>
 
-      <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
-        <div className="pb-4 mb-4 border-b border-white/10 min-w-0">
-          <p className="text-xs uppercase tracking-wider text-white/40 mb-2">Bio</p>
-          <p className="text-base text-white/90 leading-relaxed break-words whitespace-pre-wrap">
+      <div className={`${insetCardOuterClass} mt-6 min-w-0`}>
+        <div className="p-4 min-w-0">
+          <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
             {profile.bio || 'No bio yet'}
           </p>
           <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
@@ -172,139 +172,88 @@ export default function ProfileView() {
         <InfoRow label="Member Since" value={memberSince} small />
       </div>
 
-      <div className="mx-6 mt-4 flex flex-col gap-2">
-        <button
-          onClick={() => setShowMatches(true)}
-          className="w-full flex items-center justify-between px-4 py-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors text-left"
-        >
-          <span className="font-medium">Friends</span>
-          <span className="text-sm text-white/40">{profile.matches?.length || 0}</span>
-        </button>
-        <button
-          onClick={() => setShowBlocked(true)}
-          className="w-full flex items-center justify-between px-4 py-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors text-left"
-        >
-          <span className="font-medium">Blocked Users</span>
-          <span className="text-sm text-white/40">{profile.blocked?.length || 0}</span>
-        </button>
+      <div className="mt-4">
+        <SettingsSection>
+          <SettingsNavRow
+            icon={IconUsers}
+            iconTone="blue"
+            label="Friends"
+            value={String(profile.matches?.length || 0)}
+            onClick={() => setShowMatches(true)}
+          />
+          <SettingsNavRow
+            icon={IconBan}
+            iconTone="red"
+            label="Blocked Users"
+            value={String(profile.blocked?.length || 0)}
+            onClick={() => setShowBlocked(true)}
+          />
+        </SettingsSection>
       </div>
 
-      <div className="mx-6 mt-6">
+      <div className="mx-[var(--ios-page-x-lg)] mt-6">
         <button
           onClick={() => setEditing(true)}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+          className={`${btnBorderedClass} w-full`}
         >
-          Edit
+          Edit profile
         </button>
       </div>
 
       {showSettings && (
         <div className="fixed inset-0 z-[80] bg-black flex flex-col">
-          <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-white/10">
-            <ChevronBack onClick={() => setShowSettings(false)} />
-            <h1 className="text-lg font-semibold">Settings</h1>
-          </div>
+          <SubpageHeaderBar title="Settings" onBack={() => setShowSettings(false)} />
 
-          <div className="flex-1 overflow-y-auto pb-8">
-            <div className="px-4 py-4 border-b border-white/10">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium">Open to messages</p>
-                  <p className="text-sm text-white/50 mt-1">
-                    Let people message you without sending a friend request first
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={allowDirectMessages}
-                  disabled={savingSettings}
-                  onClick={handleToggleDirectMessages}
-                  className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
-                    allowDirectMessages ? 'bg-blue-500' : 'bg-white/20'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                      allowDirectMessages ? 'translate-x-5' : ''
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
+          <div className="flex-1 overflow-y-auto pb-8 space-y-6">
+            <SettingsSection title="Privacy">
+              <SettingSwitch
+                label="Open to messages"
+                description="Let people message you without sending a friend request first"
+                checked={allowDirectMessages}
+                disabled={savingSettings}
+                onChange={handleToggleDirectMessages}
+              />
+              <SettingSwitch
+                label="Show friend count"
+                description="Display how many friends you have on your public profile"
+                checked={showFriendCount}
+                disabled={savingSettings}
+                onChange={handleToggleShowFriendCount}
+              />
+              <SettingSwitch
+                label="24-hour time"
+                description="Show chat times in military format (14:30 instead of 2:30 PM)"
+                checked={useMilitaryTime}
+                disabled={savingSettings}
+                onChange={handleToggleUseMilitaryTime}
+              />
+            </SettingsSection>
 
-            <div className="px-4 py-4 border-b border-white/10">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium">Show friend count</p>
-                  <p className="text-sm text-white/50 mt-1">
-                    Display how many friends you have on your public profile
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={showFriendCount}
-                  disabled={savingSettings}
-                  onClick={handleToggleShowFriendCount}
-                  className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
-                    showFriendCount ? 'bg-blue-500' : 'bg-white/20'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                      showFriendCount ? 'translate-x-5' : ''
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
-            <div className="px-4 py-4 border-b border-white/10">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium">24-hour time</p>
-                  <p className="text-sm text-white/50 mt-1">
-                    Show chat times in military format (14:30 instead of 2:30 PM)
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={useMilitaryTime}
-                  disabled={savingSettings}
-                  onClick={handleToggleUseMilitaryTime}
-                  className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
-                    useMilitaryTime ? 'bg-blue-500' : 'bg-white/20'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                      useMilitaryTime ? 'translate-x-5' : ''
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                setShowSettings(false)
-                logout()
-              }}
-              className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors text-left border-b border-white/10"
-            >
-              <IconLogout size={18} /> Log Out
-            </button>
-            <button
-              onClick={() => {
-                setShowSettings(false)
-                setShowDeleteConfirm(true)
-              }}
-              className="w-full flex items-center gap-3 px-4 py-4 text-red-400 hover:bg-red-500/10 transition-colors text-left"
-            >
-              <IconTrash size={18} /> Delete Account
-            </button>
+            <SettingsSection title="Danger zone">
+              <SettingsNavRow
+                icon={IconLogout}
+                iconTone="red"
+                danger
+                label="Log out"
+                onClick={() => {
+                  setShowSettings(false)
+                  logout()
+                }}
+                trailing={null}
+              />
+              <SettingsNavRow
+                icon={IconTrash}
+                iconTone="red"
+                danger
+                label="Delete account"
+                description="Permanent — cannot be undone"
+                onClick={() => {
+                  setShowSettings(false)
+                  setShowDeleteConfirm(true)
+                }}
+                trailing={null}
+              />
+            </SettingsSection>
           </div>
         </div>
       )}
@@ -354,7 +303,11 @@ export default function ProfileView() {
 
 function InfoRow({ label, value, capitalize, small }) {
   return (
-    <div className={`flex justify-between ${small ? 'text-xs text-white/40' : ''}`}>
+    <div
+      className={`flex justify-between px-4 pb-4 pt-3 border-t border-white/10 ${
+        small ? 'text-xs text-white/40' : ''
+      }`}
+    >
       <span className={small ? '' : 'text-white/50'}>{label}</span>
       <span className={`${capitalize ? 'capitalize' : ''} ${small ? 'text-white/50' : ''}`}>{value}</span>
     </div>
@@ -497,8 +450,8 @@ export function PublicProfileView({
             className={`w-28 h-28 rounded-full object-cover border-4 border-white/10 ${deletedAccountAvatarClass}`}
           />
           <div className="flex items-center gap-2 mt-3">
-            <h2 className="text-xl font-bold">
-              <CopyableUsername username={deletedProfile.username} className="text-xl font-bold" />
+            <h2 className={typoTitle2Class}>
+              <CopyableUsername username={deletedProfile.username} className={typoTitle2Class} />
             </h2>
           </div>
           <p className="text-sm text-white/50 mt-1">Account deleted</p>
@@ -699,8 +652,8 @@ export function PublicProfileView({
           </button>
         )}
         <div className="flex items-center gap-2 mt-4">
-          <h2 className="text-2xl font-bold">
-            <CopyableUsername username={profile.username} className="text-2xl font-bold" />
+          <h2 className={typoTitle2Class}>
+            <CopyableUsername username={profile.username} className={typoTitle2Class} />
           </h2>
           {isMuted && (
             <IconBellOff size={18} className="text-white/50 shrink-0" aria-label="Muted" />
@@ -800,10 +753,9 @@ export function PublicProfileView({
           )}
       </div>
 
-      <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
-        <div className="pb-4 mb-4 border-b border-white/10 min-w-0">
-          <p className="text-xs uppercase tracking-wider text-white/40 mb-2">Bio</p>
-          <p className="text-base text-white/90 leading-relaxed break-words whitespace-pre-wrap">
+      <div className={`${insetCardOuterClass} mt-6 min-w-0`}>
+        <div className="p-4 min-w-0">
+          <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
             {profile.bio || 'No bio yet'}
           </p>
           <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />

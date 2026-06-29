@@ -18,8 +18,22 @@ Use Apple's iOS & iPadOS 26 UI kit as the source of truth for layout, materials,
 
 - Tokens: `src/styles/ios26-tokens.css` (CSS variables)
 - Class compositions: `src/utils/designSystem.js`
-- Layout: `PageShell`, `GlassNavBar`, `BottomNav`
+- Layout: `PageShell`, `SubpageShell`, `GlassNavBar`, `BottomNav`
+- Settings/lists: `SettingsSection`, `SettingsNavRow`, `SettingSwitch` in `src/components/ui/SettingsUI.jsx`
 - Controls: `Button`, `TextField` in `src/components/ui/`
+
+## Typography (always use designSystem classes — no ad-hoc `text-xl font-bold`)
+
+| Role | Class | Size |
+|------|-------|------|
+| Tab page title | `pageTitleClass` / `typoLargeTitleClass` | 28px bold |
+| Profile / group name | `typoTitle2Class` | 22px bold |
+| Sub-page / modal title | `typoTitle3Class` | 20px semibold |
+| Row label / headline | `typoHeadlineClass` | 17px semibold |
+| Body | `typoBodyClass` | 17px |
+| Secondary / description | `typoSubheadClass` | 15px |
+| Section label | `sectionLabelClass` / `typoCaptionClass` | 11px caps |
+| Form label | `fieldLabelClass` | 15px |
 
 ## Rules
 
@@ -42,6 +56,8 @@ import { formatChatTime } from '../utils/helpers'
 ## New screens
 
 - Wrap tab screens in `PageShell` with `title` prop.
+- Use `SubpageShell` for drill-in settings / edit flows (back chevron + title).
+- Group settings rows in `SettingsSection` + `SettingsNavRow` (with icon + chevron).
 - Use `GlassNavBar` for in-flow navigation headers (chat room, etc.).
 - Dropdowns: `dropdownMenuClass` + `navGlassMenuClass` + icon menu item classes.
 - Primary actions: `Button` variant `filled`; destructive: `danger`; secondary: `bordered`.

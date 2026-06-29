@@ -18,26 +18,16 @@ import {
   getGroupPhotoUrl,
   isGroupAdmin,
   isGroupMember,
-  isGroupOwner,
+  canAdmin,
 } from '../../utils/groupChat'
 import { isChatMuteActive } from '../../utils/chatMute'
-import { profileActionBtnClass } from '../../utils/designSystem'
+import { profileActionBtnClass, typoTitle2Class, typoBodyClass } from '../../utils/designSystem'
 import GroupAvatar from './GroupAvatar'
 import MuteChatModal from './MuteChatModal'
-import CachedAvatar from '../ui/CachedAvatar'
+import GroupMemberRow from './GroupMemberRow'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import ChevronBack from '../ui/ChevronBack'
 import PhotoGallery from '../ui/PhotoGallery'
-import { sad } from '../../assets'
-
-function InfoRow({ label, value }) {
-  return (
-    <div className="flex justify-between text-xs text-white/40">
-      <span>{label}</span>
-      <span className="text-white/50">{value}</span>
-    </div>
-  )
-}
 
 export default function GroupInfoView() {
   const { chatId } = useParams()
@@ -168,6 +158,8 @@ export default function GroupInfoView() {
   const showFullPreview = isMember || isPublic
   const showPrivatePreview = !isMember && !isPublic
   const showMembers = isMember || isPublic
+  const canManageMembers =
+    isMember && (canAdmin(chat, user?.uid, 'removeMembers') || canAdmin(chat, user?.uid, 'manageAdmins'))
 
   return (
     <>
@@ -185,7 +177,7 @@ export default function GroupInfoView() {
         >
           <GroupAvatar photoUrl={chat.photoUrl} size={128} className="border-4 border-white/10" />
         </button>
-        <h2 className="text-2xl font-bold mt-4 text-center">{getGroupDisplayName(chat)}</h2>
+        <h2 className={`${typoTitle2Class} mt-4 text-center`}>{getGroupDisplayName(chat)}</h2>
         {!showPrivatePreview && (
           <div className="flex items-center gap-2 mt-1">
             <p className="text-white/60">
@@ -246,52 +238,33 @@ export default function GroupInfoView() {
 
       {showFullPreview && (
         <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
-          <div className="pb-4 mb-4 border-b border-white/10 min-w-0">
-            <p className="text-xs uppercase tracking-wider text-white/40 mb-2">About</p>
-            <p className="text-base text-white/90 leading-relaxed break-words whitespace-pre-wrap">
+          <div className="min-w-0">
+            <p className={`${typoBodyClass} text-white/90 whitespace-pre-wrap break-words`}>
               {chat.description?.trim() || 'No description yet'}
             </p>
           </div>
-          <InfoRow
-            label="Visibility"
-            value={chat.settings?.visibility === 'public' ? 'Public' : 'Private'}
-          />
         </div>
       )}
 
       {showMembers && (
-        <div className="mx-6 mt-4">
+        <div className="mx-[var(--ios-page-x)] mt-4">
           <div className="w-full px-4 py-4 bg-white/5 rounded-2xl border border-white/10">
             <div className="flex items-center justify-between mb-3">
               <span className="font-medium">Members</span>
               <span className="text-sm text-white/40">{memberCount}</span>
             </div>
             <div className="space-y-2">
-              {(chat.participants || []).map((memberId) => {
-                const member = members[memberId]
-                const admin = isGroupAdmin(chat, memberId)
-                const owner = isGroupOwner(chat, memberId)
-                return (
-                  <div key={memberId} className="flex items-center gap-3 py-1">
-                    <CachedAvatar
-                      src={member?.photos?.[0]}
-                      fallback={sad}
-                      size={36}
-                      alt=""
-                      className="w-9 h-9 rounded-full object-cover shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">
-                        {member?.username || 'User'}
-                        {memberId === user?.uid ? ' (you)' : ''}
-                      </p>
-                      <p className="text-xs text-white/45">
-                        {owner ? 'Owner' : admin ? 'Admin' : 'Member'}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
+              {(chat.participants || []).map((memberId) => (
+                <GroupMemberRow
+                  key={memberId}
+                  chat={chat}
+                  chatId={chatId}
+                  memberId={memberId}
+                  member={members[memberId]}
+                  currentUserId={user?.uid}
+                  variant={canManageMembers ? 'info' : 'readonly'}
+                />
+              ))}
             </div>
           </div>
         </div>

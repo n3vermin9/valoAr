@@ -1,5 +1,7 @@
 import { getMessagePreviewText } from '../../utils/helpers'
 
+import UsernameLabel from '../ui/UsernameLabel'
+
 export default function ReplyQuote({ reply, authorName, isOwn, onClick, className = '' }) {
   if (!reply) return null
 
@@ -10,7 +12,12 @@ export default function ReplyQuote({ reply, authorName, isOwn, onClick, classNam
 
   const content = (
     <>
-      <p className={`text-xs font-semibold truncate ${authorClass}`}>{authorName}</p>
+      <UsernameLabel
+        username={authorName}
+        className={`text-xs font-semibold truncate ${authorClass}`}
+        badgeSize={10}
+        as="p"
+      />
       <p className={`text-xs truncate ${previewClass}`}>{preview}</p>
     </>
   )

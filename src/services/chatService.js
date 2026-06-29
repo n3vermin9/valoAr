@@ -21,7 +21,7 @@ import {
 import { ref, set, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
 import { getMatchId, getSavedMessagesChatId, formatMessagePreview } from '../utils/helpers'
-import { isGroupChat, getDirectOtherId, getOtherParticipantIds } from '../utils/groupChat'
+import { isGroupChat, getDirectOtherId, getOtherParticipantIds, canAdmin, isGroupMemberMuted } from '../utils/groupChat'
 import { getChatMuteMode, CHAT_MUTE_OFF, CHAT_MUTE_ALL } from '../utils/chatMute'
 import { leaveGroupChat } from './groupChatService'
 import { invalidateUser } from './userCache'
@@ -330,6 +330,8 @@ export async function sendMessage(
     if (otherId && chatData?.blockedBy?.includes(senderId)) {
       throw new Error('You can no longer message this user')
     }
+  } else if (isGroupMemberMuted(chatData, senderId)) {
+    throw new Error('You are muted in this group')
   }
 
   const messageData = {
@@ -418,7 +420,7 @@ export async function markMessagesRead(matchId, readerId) {
   await updateDoc(chatRef, updates)
 }
 
-export async function deleteMessage(matchId, messageId) {
+export async function deleteMessage(matchId, messageId, actorId = null) {
   const messageRef = doc(db, 'chats', matchId, 'messages', messageId)
   const chatRef = doc(db, 'chats', matchId)
 
@@ -427,6 +429,17 @@ export async function deleteMessage(matchId, messageId) {
 
   const deleted = messageSnap.data()
   const chatData = chatSnap.data() || {}
+
+  if (actorId && deleted.senderId !== actorId) {
+    if (isGroupChat(chatData)) {
+      if (!canAdmin(chatData, actorId, 'deleteMessages')) {
+        throw new Error('You do not have permission to delete this message')
+      }
+    } else {
+      throw new Error('You can only delete your own messages')
+    }
+  }
+
   const participants = chatData.participants || matchId.split('_')
 
   await deleteDoc(messageRef)

@@ -7,7 +7,7 @@ import { getGroupDisplayName, getGroupPhotoUrl, isGroupMember } from '../../util
 import GroupAvatar from './GroupAvatar'
 import Button from '../ui/Button'
 import LoadingSpinner from '../ui/LoadingSpinner'
-import PageShell from '../layout/PageShell'
+import { typoTitle2Class } from '../../utils/designSystem'
 import PhotoGallery from '../ui/PhotoGallery'
 
 export default function GroupJoinPage() {
@@ -95,7 +95,7 @@ export default function GroupJoinPage() {
           >
             <GroupAvatar photoUrl={group.photoUrl} size={128} className="border-4 border-white/10" />
           </button>
-          <h2 className="text-2xl font-bold mt-4 text-white">{getGroupDisplayName(group)}</h2>
+          <h2 className={`${typoTitle2Class} mt-4 text-center`}>{getGroupDisplayName(group)}</h2>
         </div>
       </div>
 
