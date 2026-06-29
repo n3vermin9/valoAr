@@ -8,12 +8,14 @@ import {
   query,
   where,
   limit,
+  documentId,
   serverTimestamp,
   arrayUnion,
   arrayRemove,
   deleteField,
   runTransaction,
   deleteDoc,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import {
@@ -25,6 +27,7 @@ import {
   isGroupMember,
   isGroupOwner,
   canAdmin,
+  normalizeGroupJoinSettings,
 } from '../utils/groupChat'
 import { normalizeUsername, validateUsername } from '../utils/helpers'
 
@@ -112,7 +115,7 @@ export async function createGroupChat(
   const trimmedName = normalizeGroupName(name)
   if (!trimmedName) throw new Error('Group name is required')
 
-  const mergedSettings = { ...DEFAULT_GROUP_SETTINGS, ...settings }
+  const mergedSettings = normalizeGroupJoinSettings({ ...DEFAULT_GROUP_SETTINGS, ...settings })
   const isPublic = mergedSettings.visibility === 'public'
   const normalizedUsername = normalizeGroupUsername(username)
 
@@ -143,6 +146,7 @@ export async function createGroupChat(
     pinnedBy: [],
     hiddenFor: [],
     unreadCount: { [creatorId]: 0 },
+    memberHistory: [creatorId],
   }
 
   if (isPublic) {
@@ -169,6 +173,44 @@ export async function getGroupByInviteCode(inviteCode) {
   if (snap.empty) return null
   const docSnap = snap.docs[0]
   return { id: docSnap.id, ...docSnap.data() }
+}
+
+export async function getGroupByUsername(username) {
+  const normalized = normalizeGroupUsername(username)
+  if (!normalized) return null
+
+  const handleSnap = await getDoc(doc(db, 'groupUsernames', normalized))
+  if (handleSnap.exists()) {
+    return getGroupById(handleSnap.data().chatId)
+  }
+
+  const snap = await getDocs(
+    query(
+      collection(db, 'chats'),
+      where('type', '==', 'group'),
+      where('usernameLower', '==', normalized),
+      limit(1)
+    )
+  )
+  if (snap.empty) {
+    const fallback = await getDocs(
+      query(collection(db, 'chats'), where('type', '==', 'group'), limit(200))
+    )
+    const match = fallback.docs.find((d) => {
+      const data = d.data()
+      return normalizeGroupUsername(data.username) === normalized
+    })
+    if (!match) return null
+    return { id: match.id, ...match.data() }
+  }
+  const docSnap = snap.docs[0]
+  return { id: docSnap.id, ...docSnap.data() }
+}
+
+export async function resolveGroupJoinSlug(slug) {
+  const byCode = await getGroupByInviteCode(slug)
+  if (byCode) return byCode
+  return getGroupByUsername(slug)
 }
 
 export async function getGroupById(chatId) {
@@ -198,6 +240,7 @@ export async function joinGroupChat(chatId, userId) {
 
   await updateDoc(chatRef, {
     participants: arrayUnion(userId),
+    memberHistory: arrayUnion(userId),
     [`unreadCount.${userId}`]: 0,
     hiddenFor: arrayRemove(userId),
   })
@@ -207,16 +250,20 @@ export async function joinGroupChat(chatId, userId) {
 }
 
 export async function joinGroupByInviteCode(inviteCode, userId) {
-  const group = await getGroupByInviteCode(inviteCode)
+  const group = await resolveGroupJoinSlug(inviteCode)
   if (!group) throw new Error('Invalid invite link')
-  if (!group.settings?.joinViaLink) throw new Error('This group does not allow joining via link')
+  const settings = normalizeGroupJoinSettings(group.settings)
+  if (!settings.joinViaLink) throw new Error('This group does not allow joining via link')
   return joinGroupChat(group.id, userId)
 }
 
 export async function joinGroupViaButton(chatId, userId) {
   const group = await getGroupById(chatId)
   if (!group) throw new Error('Group not found')
-  if (!group.settings?.joinViaButton) throw new Error('This group does not allow joining from settings')
+  const settings = normalizeGroupJoinSettings(group.settings)
+  if (settings.visibility !== 'public') {
+    throw new Error('This group can only be joined via invite link')
+  }
   return joinGroupChat(chatId, userId)
 }
 
@@ -254,29 +301,146 @@ export async function leaveGroupChat(chatId, userId) {
   }
 }
 
-export async function searchPublicGroups(searchQuery, { excludeChatIds = [] } = {}) {
-  const normalized = searchQuery.trim().toLowerCase()
+export async function searchPublicGroups(searchQuery, { excludeChatIds = [], userId = null } = {}) {
+  const normalized = normalizeGroupUsername(searchQuery)
   if (normalized.length < 2) return []
 
-  const snap = await getDocs(
-    query(
-      collection(db, 'chats'),
-      where('type', '==', 'group'),
-      where('settings.visibility', '==', 'public'),
-      limit(80)
-    )
+  const excluded = new Set(excludeChatIds)
+  const results = new Map()
+
+  const addGroup = (group, { skipTextMatch = false } = {}) => {
+    if (!group?.id || excluded.has(group.id)) return
+    const isPublic = group.settings?.visibility === 'public'
+    const isMember = Boolean(userId && group.participants?.includes(userId))
+    if (!isPublic && !isMember) return
+
+    if (!skipTextMatch) {
+      const name = group.nameLower || group.name?.toLowerCase() || ''
+      const handle = group.usernameLower || normalizeGroupUsername(group.username) || ''
+      if (
+        !name.includes(normalized) &&
+        !handle.includes(normalized) &&
+        handle !== normalized &&
+        name !== normalized
+      ) {
+        return
+      }
+    }
+
+    results.set(group.id, group)
+  }
+
+  try {
+    const exactByUsername = await getGroupByUsername(normalized)
+    if (exactByUsername) addGroup(exactByUsername, { skipTextMatch: true })
+  } catch {
+    // ignore
+  }
+
+  const handleDocs = await listGroupUsernameDocsForSearch(normalized)
+  await Promise.all(
+    handleDocs.map(async (handleDoc) => {
+      const chatId = handleDoc.data()?.chatId
+      if (!chatId) return
+      try {
+        addGroup(await getGroupById(chatId), { skipTextMatch: true })
+      } catch {
+        // ignore
+      }
+    })
   )
 
-  const excluded = new Set(excludeChatIds)
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((group) => {
-      if (excluded.has(group.id)) return false
-      const name = group.nameLower || group.name?.toLowerCase() || ''
-      const handle = group.usernameLower || group.username?.toLowerCase() || ''
-      return name.includes(normalized) || handle.includes(normalized)
-    })
-    .slice(0, 20)
+  try {
+    const publicGroups = await listPublicGroupsForSearch()
+    publicGroups.forEach((group) => addGroup(group))
+  } catch {
+    // ignore
+  }
+
+  if (userId) {
+    try {
+      const memberSnap = await getDocs(
+        query(
+          collection(db, 'chats'),
+          where('type', '==', 'group'),
+          where('participants', 'array-contains', userId),
+          limit(30)
+        )
+      )
+      memberSnap.docs.forEach((d) => addGroup({ id: d.id, ...d.data() }))
+    } catch {
+      try {
+        const allSnap = await getDocs(
+          query(collection(db, 'chats'), where('type', '==', 'group'), limit(100))
+        )
+        allSnap.docs.forEach((d) => {
+          const data = d.data()
+          if (data.participants?.includes(userId)) {
+            addGroup({ id: d.id, ...data })
+          }
+        })
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return Array.from(results.values()).slice(0, 20)
+}
+
+async function listGroupUsernameDocsForSearch(normalized) {
+  const docs = new Map()
+
+  try {
+    const exactSnap = await getDoc(doc(db, 'groupUsernames', normalized))
+    if (exactSnap.exists()) docs.set(exactSnap.id, exactSnap)
+  } catch {
+    // ignore
+  }
+
+  try {
+    const prefixSnap = await getDocs(
+      query(
+        collection(db, 'groupUsernames'),
+        where(documentId(), '>=', normalized),
+        where(documentId(), '<=', normalized + '\uf8ff'),
+        limit(20)
+      )
+    )
+    prefixSnap.docs.forEach((d) => docs.set(d.id, d))
+  } catch {
+    try {
+      const allSnap = await getDocs(collection(db, 'groupUsernames'))
+      allSnap.docs.forEach((d) => {
+        if (d.id.includes(normalized)) docs.set(d.id, d)
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  return Array.from(docs.values())
+}
+
+async function listPublicGroupsForSearch() {
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, 'chats'),
+        where('type', '==', 'group'),
+        where('settings.visibility', '==', 'public'),
+        limit(80)
+      )
+    )
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  } catch {
+    const snap = await getDocs(
+      query(collection(db, 'chats'), where('type', '==', 'group'), limit(120))
+    )
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((g) => g.settings?.visibility === 'public')
+  }
 }
 
 export async function updateGroupInfo(chatId, userId, { name, description, photoUrl, username } = {}) {
@@ -329,8 +493,8 @@ export async function updateGroupSettings(chatId, userId, settingsPatch) {
   }
 
   const data = snap.data()
-  const current = data.settings || {}
-  const next = { ...current, ...settingsPatch }
+  const current = normalizeGroupJoinSettings(data.settings || {})
+  const next = normalizeGroupJoinSettings({ ...current, ...settingsPatch })
 
   if (next.visibility === 'public' && current.visibility !== 'public') {
     const normalized = data.usernameLower || normalizeGroupUsername(data.username)
@@ -451,4 +615,22 @@ export async function regenerateInviteCode(chatId, userId) {
   const inviteCode = await uniqueInviteCode()
   await updateDoc(chatRef, { inviteCode })
   return inviteCode
+}
+
+export async function deleteGroupChat(chatId, userId) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+  if (!isGroupOwner(snap.data(), userId)) throw new Error('Only the group owner can delete the group')
+
+  const data = snap.data()
+  if (data.username) {
+    await releaseGroupUsername(data.username)
+  }
+
+  const messagesSnap = await getDocs(collection(db, 'chats', chatId, 'messages'))
+  const batch = writeBatch(db)
+  messagesSnap.docs.forEach((messageDoc) => batch.delete(messageDoc.ref))
+  batch.delete(chatRef)
+  await batch.commit()
 }

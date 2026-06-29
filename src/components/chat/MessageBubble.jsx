@@ -12,6 +12,29 @@ import { sad } from '../../assets'
 
 const SWIPE_REPLY_THRESHOLD = 56
 
+function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
+  if (!sentTime && !isOwn) return null
+
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 shrink-0 self-end select-none leading-none ${
+        tone === 'own' ? 'text-white/65' : 'text-white/45'
+      }`}
+    >
+      {sentTime && <span className="text-[10px] tabular-nums">{sentTime}</span>}
+      {isOwn && (
+        <span className="inline-flex shrink-0">
+          {read ? (
+            <IconChecks size={13} className="text-blue-200" stroke={2} />
+          ) : (
+            <IconCheck size={13} className="text-white/50" stroke={2} />
+          )}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export default function MessageBubble({
   message,
   isOwn,
@@ -25,7 +48,9 @@ export default function MessageBubble({
   onMentionClick,
   replyAuthorName,
   senderName,
+  senderId,
   senderAvatar,
+  onSenderClick,
   isGroupChat = false,
   showAvatar = false,
   showSenderNameInBubble = false,
@@ -35,6 +60,7 @@ export default function MessageBubble({
   searchActive = false,
   searchQuery = '',
   activeSearchMatch = null,
+  readOnly = false,
 }) {
   const bubbleRef = useRef(null)
   const touchStartRef = useRef({ x: 0, y: 0 })
@@ -45,6 +71,7 @@ export default function MessageBubble({
   const getRect = () => bubbleRef.current?.getBoundingClientRect()
 
   const handleContextMenu = (e) => {
+    if (readOnly) return
     e.preventDefault()
     onContextMenu?.(message, getRect())
   }
@@ -57,6 +84,7 @@ export default function MessageBubble({
   }
 
   const handleTouchStart = (e) => {
+    if (readOnly) return
     const touch = e.touches[0]
     touchStartRef.current = { x: touch.clientX, y: touch.clientY }
     swipingRef.current = false
@@ -97,12 +125,13 @@ export default function MessageBubble({
   }
 
   const handleDoubleClick = (e) => {
+    if (readOnly) return
     if (e.target.closest('button, audio, img')) return
     e.preventDefault()
     onReply?.(message)
   }
 
-  const sentTime = formatMessageTime(message.createdAt, militaryTime)
+  const sentTime = formatMessageTime(message.createdAt || message.clientCreatedAt, militaryTime)
   const hasReactions = message.reactions && Object.keys(message.reactions).length > 0
   const { storyReply, text: displayText } = getStoryReplyDisplay(message)
   const bubbleRadius = isOwn
@@ -115,10 +144,25 @@ export default function MessageBubble({
       : searchActive ? 'bg-white/[0.18]' : 'bg-white/10'
   } ${highlighted && !searchActive ? 'message-bubble-flash' : ''}`
 
+  const metaTone = isOwn ? 'own' : 'other'
+  const meta = (sentTime || isOwn) && (
+    <BubbleMeta sentTime={sentTime} isOwn={isOwn} read={message.read} tone={metaTone} />
+  )
+
   const renderBubbleContent = () => (
     <>
       {showSenderNameInBubble && senderName && (
-        <p className="text-[11px] font-semibold text-blue-300/90 mb-1">{senderName}</p>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (senderId) onSenderClick?.(senderId)
+          }}
+          onDoubleClick={(e) => e.stopPropagation()}
+          className="text-[11px] font-semibold text-blue-300/90 mb-1 hover:text-blue-200 transition-colors text-left"
+        >
+          {senderName}
+        </button>
       )}
       {message.replyTo && (
         <ReplyQuote
@@ -126,50 +170,44 @@ export default function MessageBubble({
           authorName={replyAuthorName}
           isOwn={isOwn}
           onClick={
-            onReplyQuoteClick && message.replyTo.id
+            !readOnly && onReplyQuoteClick && message.replyTo.id
               ? () => onReplyQuoteClick(message.replyTo.id)
               : undefined
           }
         />
       )}
       {displayText && (
-        <MessageText
-          text={displayText}
-          isOwn={isOwn}
-          onMentionClick={onMentionClick}
-          searchQuery={searchQuery}
-          activeSearchMatch={activeSearchMatch}
-          className="text-sm break-words"
-        />
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-0">
+          <MessageText
+            text={displayText}
+            isOwn={isOwn}
+            onMentionClick={onMentionClick}
+            searchQuery={searchQuery}
+            activeSearchMatch={activeSearchMatch}
+            className="text-sm break-words min-w-0"
+          />
+          {meta}
+        </div>
       )}
-      {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
+      {message.audioUrl && (
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-0">
+          <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />
+          {!displayText && meta}
+        </div>
+      )}
       {message.imageUrl && (
-        <img
-          src={message.imageUrl}
-          alt=""
-          className="rounded-xl max-w-full cursor-pointer"
-          onClick={() => message.onImageClick?.(message.imageUrl)}
-          onDoubleClick={(e) => e.stopPropagation()}
-        />
+        <div className="flex flex-col items-end gap-1">
+          <img
+            src={message.imageUrl}
+            alt=""
+            className="rounded-xl max-w-full cursor-pointer"
+            onClick={() => message.onImageClick?.(message.imageUrl)}
+            onDoubleClick={(e) => e.stopPropagation()}
+          />
+          {!displayText && !message.audioUrl && meta}
+        </div>
       )}
-      {(sentTime || isOwn) && (
-        <span
-          className={`inline-flex items-center gap-1 float-right ml-3 mt-1 translate-y-0.5 select-none ${
-            isOwn ? 'text-white/55' : 'text-white/40'
-          }`}
-        >
-          <span className="text-[10px] tabular-nums leading-none">{sentTime}</span>
-          {isOwn && (
-            <span className="inline-flex shrink-0">
-              {message.read ? (
-                <IconChecks size={13} className="text-blue-200" stroke={2} />
-              ) : (
-                <IconCheck size={13} className="text-white/45" stroke={2} />
-              )}
-            </span>
-          )}
-        </span>
-      )}
+      {!displayText && !message.audioUrl && !message.imageUrl && message.replyTo && meta}
     </>
   )
 
@@ -185,7 +223,7 @@ export default function MessageBubble({
         {storyReply && (
           <StoryReplyQuote
             storyReply={storyReply}
-            onClick={onStoryReplyClick}
+            onClick={readOnly ? undefined : onStoryReplyClick}
             isOwn={isOwn}
             stacked={Boolean(displayText)}
           />
@@ -193,14 +231,14 @@ export default function MessageBubble({
         {hasMessageBubble && (
           <div
             ref={bubbleRef}
-            onContextMenu={handleContextMenu}
-            onDoubleClick={handleDoubleClick}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchCancel}
-            className={`px-4 py-2 pb-1.5 transition-colors duration-200 message-bubble w-fit max-w-full overflow-hidden ${bubbleRadius} ${bubbleSurfaceClass}`}
-            data-allow-contextmenu
+            onContextMenu={readOnly ? undefined : handleContextMenu}
+            onDoubleClick={readOnly ? undefined : handleDoubleClick}
+            onTouchStart={readOnly ? undefined : handleTouchStart}
+            onTouchMove={readOnly ? undefined : handleTouchMove}
+            onTouchEnd={readOnly ? undefined : handleTouchEnd}
+            onTouchCancel={readOnly ? undefined : handleTouchCancel}
+            className={`px-3 py-1.5 transition-colors duration-200 message-bubble w-fit max-w-full ${bubbleRadius} ${bubbleSurfaceClass}`}
+            data-allow-contextmenu={readOnly ? undefined : true}
           >
             {renderBubbleContent()}
           </div>
@@ -212,7 +250,7 @@ export default function MessageBubble({
           reactions={message.reactions}
           isOwn={isOwn}
           currentUserId={currentUserId}
-          onEmojiClick={onReactionClick ? (emoji) => onReactionClick(message, emoji) : undefined}
+          onEmojiClick={!readOnly && onReactionClick ? (emoji) => onReactionClick(message, emoji) : undefined}
           className={`mt-1 flex ${isOwn ? 'justify-end' : 'justify-start'}`}
         />
       )}
@@ -227,13 +265,20 @@ export default function MessageBubble({
         <div className="flex items-end gap-2 max-w-[85%] min-w-0">
           <div className="w-8 shrink-0 flex justify-center">
             {showAvatar ? (
-              <CachedAvatar
-                src={senderAvatar}
-                fallback={sad}
-                size={32}
-                alt=""
-                className="w-8 h-8 rounded-full object-cover"
-              />
+              <button
+                type="button"
+                onClick={() => onSenderClick?.(senderId)}
+                className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                aria-label="View profile"
+              >
+                <CachedAvatar
+                  src={senderAvatar}
+                  fallback={sad}
+                  size={32}
+                  alt=""
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+              </button>
             ) : (
               <span className="w-8 h-8" aria-hidden />
             )}

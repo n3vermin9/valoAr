@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconCheck, IconChecks, IconBellOff, IconPin, IconPinnedOff, IconTrash, IconBan, IconPlus } from '@tabler/icons-react'
+import { IconCheck, IconChecks, IconBellOff, IconPin, IconPinnedOff, IconTrash, IconBan, IconPlus, IconLogout } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeChats,
@@ -13,6 +13,7 @@ import {
   subscribeChatListActivity,
 } from '../../services/chatService'
 import { fetchUsersMap, blockUser } from '../../services/userService'
+import { leaveGroupChat } from '../../services/groupChatService'
 import { getProfileSnapshots } from '../../services/profileSnapshotCache'
 import { preloadAvatarImages } from '../../services/avatarImageCache'
 import StoryAvatarButton from '../stories/StoryAvatarButton'
@@ -40,6 +41,7 @@ export default function ChatList() {
   const [selectedChatId, setSelectedChatId] = useState(null)
   const [menuPos, setMenuPos] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmTarget, setConfirmTarget] = useState(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [chatActivity, setChatActivity] = useState({})
   const [showCreateGroup, setShowCreateGroup] = useState(false)
@@ -186,17 +188,43 @@ export default function ChatList() {
   }
 
   const handleRemoveChat = async () => {
+    if (!confirmTarget?.chatId) return
     setActionLoading(true)
     try {
-      await removeChatForUser(selectedChatId, user.uid)
-      toast.success(selectedIsSaved ? 'Saved messages cleared' : 'Chat deleted')
+      if (confirmTarget.isSaved) {
+        await removeChatForUser(confirmTarget.chatId, user.uid)
+        toast.success('Saved messages cleared')
+      } else if (confirmTarget.isGroup) {
+        await leaveGroupChat(confirmTarget.chatId, user.uid)
+        toast.success('Left group')
+      } else {
+        await removeChatForUser(confirmTarget.chatId, user.uid)
+        toast.success('Chat deleted')
+      }
       setConfirmAction(null)
+      setConfirmTarget(null)
       closeMenu()
     } catch {
-      toast.error(selectedIsSaved ? 'Failed to clear saved messages' : 'Failed to delete chat')
+      toast.error(
+        confirmTarget.isSaved
+          ? 'Failed to clear saved messages'
+          : confirmTarget.isGroup
+            ? 'Failed to leave group'
+            : 'Failed to delete chat'
+      )
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const openLeaveOrRemoveConfirm = () => {
+    setConfirmTarget({
+      chatId: selectedChatId,
+      isGroup: selectedIsGroup,
+      isSaved: selectedIsSaved,
+    })
+    closeMenu()
+    setConfirmAction(selectedIsGroup ? 'leaveGroup' : 'removeChat')
   }
 
   const handleBlock = async () => {
@@ -242,14 +270,11 @@ export default function ChatList() {
             {selectedIsPinned ? 'Unpin' : 'Pin chat'}
           </ContextMenuItem>
           <ContextMenuItem
-            icon={IconTrash}
-            onClick={() => {
-              closeMenu()
-              setConfirmAction('removeChat')
-            }}
+            icon={selectedIsGroup ? IconLogout : IconTrash}
+            onClick={openLeaveOrRemoveConfirm}
             danger
           >
-            {selectedIsSaved ? 'Clear saved messages' : 'Delete chat'}
+            {selectedIsSaved ? 'Clear saved messages' : selectedIsGroup ? 'Leave group' : 'Delete chat'}
           </ContextMenuItem>
           {!selectedIsRemoved && !selectedIsSaved && !selectedIsGroup && (
             <ContextMenuItem
@@ -388,6 +413,11 @@ export default function ChatList() {
                           friendIds={profile?.matches}
                           stopPropagation
                           nested
+                          onNoStories={() => {
+                            if (document.querySelector('[data-story-viewer]')) return
+                            if (menuOpen) return
+                            navigate(`/chats/${chat.id}`)
+                          }}
                         />
                         {isOnline && !isTyping && (
                           <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-black rounded-full pointer-events-none" />
@@ -475,16 +505,33 @@ export default function ChatList() {
       {contextMenu}
 
       <ConfirmDialog
-        isOpen={confirmAction === 'removeChat'}
-        onClose={() => setConfirmAction(null)}
+        isOpen={confirmAction === 'removeChat' || confirmAction === 'leaveGroup'}
+        onClose={() => {
+          setConfirmAction(null)
+          setConfirmTarget(null)
+        }}
         onConfirm={handleRemoveChat}
-        title={selectedIsSaved ? 'Clear saved messages?' : 'Delete chat?'}
-        message={
-          selectedIsSaved
-            ? 'All saved messages will be deleted. The chat will stay in your list.'
-            : 'This will delete all messages and hide the chat for both of you.'
+        title={
+          confirmTarget?.isSaved
+            ? 'Clear saved messages?'
+            : confirmTarget?.isGroup
+              ? 'Leave group?'
+              : 'Delete chat?'
         }
-        confirmLabel={selectedIsSaved ? 'Clear messages' : 'Delete chat'}
+        message={
+          confirmTarget?.isSaved
+            ? 'All saved messages will be deleted. The chat will stay in your list.'
+            : confirmTarget?.isGroup
+              ? 'You will leave this group. Chat history stays in the group for other members.'
+              : 'This will delete all messages and hide the chat for both of you.'
+        }
+        confirmLabel={
+          confirmTarget?.isSaved
+            ? 'Clear messages'
+            : confirmTarget?.isGroup
+              ? 'Leave group'
+              : 'Delete chat'
+        }
         danger
         loading={actionLoading}
       />

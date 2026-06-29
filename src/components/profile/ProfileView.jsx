@@ -2,14 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconShare, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch } from '@tabler/icons-react'
+import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import { shareProfile, getMatchId } from '../../utils/helpers'
+import { getMatchId } from '../../utils/helpers'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass } from '../../utils/designSystem'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
@@ -60,15 +60,6 @@ export default function ProfileView() {
   const memberSince = profile.createdAt?.toDate?.()
     ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently'
-
-  const handleShare = async () => {
-    try {
-      await shareProfile(user.uid, profile.username)
-      toast.success('Profile link copied!')
-    } catch {
-      toast.error('Could not share profile')
-    }
-  }
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -137,15 +128,15 @@ export default function ProfileView() {
 
   return (
     <div className="h-full overflow-y-auto pb-24">
-      <div className="flex items-center justify-between px-6 pt-6">
+      <div className="flex items-center justify-end px-6 pt-6">
         <button
-          onClick={handleShare}
+          type="button"
+          onClick={() => setShowSettings(true)}
           className="p-2 hover:bg-white/10 rounded-full transition-colors"
-          aria-label="Share profile"
+          aria-label="Settings"
         >
-          <IconShare size={22} className="text-white/80" />
+          <IconSettings size={22} className="text-white/80" stroke={2} />
         </button>
-        <span className="w-10" aria-hidden />
       </div>
 
       <div className="flex flex-col items-center px-6">
@@ -167,17 +158,6 @@ export default function ProfileView() {
           <CopyableUsername username={profile.username} className="text-2xl font-bold" />
         </h2>
         <p className="text-white/60">{profile.age} years old</p>
-
-        <div className="mt-4 w-full flex items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            aria-label="Settings"
-            className={profileActionBtnClass}
-          >
-            <IconSettings size={20} className="text-white/70" stroke={3} />
-          </button>
-        </div>
       </div>
 
       <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">

@@ -1,43 +1,52 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { IconUsers } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { getGroupByInviteCode, joinGroupByInviteCode } from '../../services/groupChatService'
-import { getGroupDisplayName, isGroupMember } from '../../utils/groupChat'
+import { resolveGroupJoinSlug, joinGroupByInviteCode } from '../../services/groupChatService'
+import { getGroupDisplayName, getGroupPhotoUrl, isGroupMember } from '../../utils/groupChat'
+import GroupAvatar from './GroupAvatar'
 import Button from '../ui/Button'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import PageShell from '../layout/PageShell'
+import PhotoGallery from '../ui/PhotoGallery'
 
 export default function GroupJoinPage() {
-  const { inviteCode } = useParams()
+  const { inviteCode: joinSlug } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [group, setGroup] = useState(null)
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
+  const [galleryOpen, setGalleryOpen] = useState(false)
 
   useEffect(() => {
-    if (!inviteCode) return
-    getGroupByInviteCode(inviteCode)
+    if (!joinSlug) return
+    resolveGroupJoinSlug(joinSlug)
       .then((data) => setGroup(data))
       .finally(() => setLoading(false))
-  }, [inviteCode])
+  }, [joinSlug])
 
   useEffect(() => {
     if (!group || !user?.uid) return
     if (isGroupMember(group, user.uid)) {
-      navigate(`/groups/${group.id}`, { replace: true })
+      navigate(`/chats/${group.id}`, { replace: true })
+      return
     }
-  }, [group, user?.uid, navigate])
+    if (group.settings?.visibility === 'public') {
+      navigate(`/chats/${group.id}`, {
+        replace: true,
+        state: { groupPreview: true, joinSlug, previewReturnTo: '/chats' },
+      })
+    }
+  }, [group, user?.uid, navigate, joinSlug])
 
   const handleJoin = async () => {
-    if (!user?.uid || !inviteCode) return
+    if (!user?.uid || !joinSlug) return
     setJoining(true)
     try {
-      const joined = await joinGroupByInviteCode(inviteCode, user.uid)
+      const joined = await joinGroupByInviteCode(joinSlug, user.uid)
       toast.success('Joined group')
-      navigate(`/groups/${joined.id}`, { replace: true })
+      navigate(`/chats/${joined.id}`, { replace: true })
     } catch (err) {
       toast.error(err.message || 'Failed to join group')
     } finally {
@@ -64,34 +73,44 @@ export default function GroupJoinPage() {
     )
   }
 
-  const memberCount = group.participants?.length || 0
+  const isPublic = group.settings?.visibility === 'public'
+
+  if (isPublic) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    )
+  }
 
   return (
     <PageShell title="Join group">
-      <div className="flex flex-col items-center text-center px-4 pt-8">
-        <div className="w-24 h-24 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center mb-4">
-          <IconUsers size={44} className="text-blue-400" stroke={1.5} />
+      <div className="flex flex-col min-h-full pb-28">
+        <div className="flex flex-col items-center px-6 pt-8 text-center">
+          <button
+            type="button"
+            onClick={() => setGalleryOpen(true)}
+            className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+            aria-label="View group photo"
+          >
+            <GroupAvatar photoUrl={group.photoUrl} size={128} className="border-4 border-white/10" />
+          </button>
+          <h2 className="text-2xl font-bold mt-4 text-white">{getGroupDisplayName(group)}</h2>
         </div>
-        <h2 className="text-2xl font-semibold text-white">{getGroupDisplayName(group)}</h2>
-        {group.description && (
-          <p className="text-white/60 text-sm mt-2 max-w-sm">{group.description}</p>
-        )}
-        <p className="text-white/45 text-sm mt-3">
-          {memberCount} member{memberCount === 1 ? '' : 's'}
-        </p>
+      </div>
 
-        {!group.settings?.joinViaLink ? (
-          <p className="text-white/50 text-sm mt-8">This group is not accepting link invites right now.</p>
-        ) : (
-          <Button fullWidth className="mt-8 max-w-sm" onClick={handleJoin} disabled={joining}>
-            {joining ? 'Joining…' : 'Join group chat'}
-          </Button>
-        )}
-
-        <Button variant="plain" className="mt-4" onClick={() => navigate('/chats')}>
+      <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-[max(1.5rem,var(--ios-safe-bottom))] pt-4 bg-gradient-to-t from-black via-black/95 to-transparent">
+        <Button fullWidth onClick={handleJoin} disabled={joining}>
+          {joining ? 'Joining…' : 'Join chat'}
+        </Button>
+        <Button variant="plain" fullWidth className="mt-2" onClick={() => navigate('/chats')}>
           Cancel
         </Button>
       </div>
+
+      {galleryOpen && (
+        <PhotoGallery photos={[getGroupPhotoUrl(group)]} onClose={() => setGalleryOpen(false)} />
+      )}
     </PageShell>
   )
 }

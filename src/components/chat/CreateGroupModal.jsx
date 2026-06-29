@@ -133,7 +133,7 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
           >
             <div>
               <p className="font-medium text-white">Private</p>
-              <p className="text-xs text-white/50 mt-0.5">Only join via invite link or button</p>
+              <p className="text-xs text-white/50 mt-0.5">Invite link only — hidden from search</p>
             </div>
           </button>
           <button
@@ -143,7 +143,7 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
           >
             <div>
               <p className="font-medium text-white">Public</p>
-              <p className="text-xs text-white/50 mt-0.5">Discoverable in group search</p>
+              <p className="text-xs text-white/50 mt-0.5">Find in search or join via invite link</p>
             </div>
           </button>
         </div>

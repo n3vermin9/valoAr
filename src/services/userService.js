@@ -9,6 +9,7 @@ import {
   getDocs,
   query,
   where,
+  documentId,
   onSnapshot,
   arrayUnion,
   arrayRemove,
@@ -435,22 +436,76 @@ export async function getDiscoverProfiles(currentUser) {
 
 export async function searchUsersByUsername(queryText, currentUser = null) {
   const normalized = normalizeUsername(queryText)
-  if (!normalized) return []
+  if (!normalized || normalized.length < 2) return []
 
-  const usersSnap = await getDocs(collection(db, 'users'))
-  const results = usersSnap.docs
-    .map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }))
-    .filter((profile) => profile.username?.toLowerCase().includes(normalized))
-    .sort((a, b) => {
-      const aStarts = a.username?.toLowerCase().startsWith(normalized) ? 0 : 1
-      const bStarts = b.username?.toLowerCase().startsWith(normalized) ? 0 : 1
-      if (aStarts !== bStarts) return aStarts - bStarts
-      return (a.username || '').localeCompare(b.username || '')
+  const results = new Map()
+
+  const addUser = async (userId) => {
+    if (!userId || results.has(userId)) return
+    const profile = await fetchUser(userId)
+    if (profile) {
+      results.set(userId, sanitizeProfileSocials(profile, currentUser))
+    }
+  }
+
+  const usernameDocs = await listUsernameDocsForSearch(normalized)
+
+  await Promise.all(
+    usernameDocs.map(async (usernameDoc) => {
+      const data = usernameDoc.data()
+      if (!data?.userId || data.deleted) return
+      await addUser(data.userId)
     })
+  )
 
-  return results
-    .slice(0, 50)
-    .map((profile) => sanitizeProfileSocials(profile, currentUser))
+  return Array.from(results.values())
+    .sort((a, b) => {
+      const aUser = a.username?.toLowerCase() || ''
+      const bUser = b.username?.toLowerCase() || ''
+      const rank = (name) => {
+        if (name === normalized) return 0
+        if (name.startsWith(normalized)) return 1
+        return 2
+      }
+      const diff = rank(aUser) - rank(bUser)
+      if (diff !== 0) return diff
+      return aUser.localeCompare(bUser)
+    })
+    .slice(0, 20)
+}
+
+async function listUsernameDocsForSearch(normalized) {
+  const docs = new Map()
+
+  try {
+    const exactSnap = await getDoc(doc(db, 'usernames', normalized))
+    if (exactSnap.exists()) docs.set(exactSnap.id, exactSnap)
+  } catch {
+    // ignore
+  }
+
+  try {
+    const prefixSnap = await getDocs(
+      query(
+        collection(db, 'usernames'),
+        where(documentId(), '>=', normalized),
+        where(documentId(), '<=', normalized + '\uf8ff'),
+        limit(25)
+      )
+    )
+    prefixSnap.docs.forEach((d) => docs.set(d.id, d))
+  } catch {
+    try {
+      const allSnap = await getDocs(collection(db, 'usernames'))
+      allSnap.docs.forEach((d) => {
+        if (d.id.includes(normalized)) docs.set(d.id, d)
+      })
+    } catch {
+      // ignore
+    }
+  }
+
+  return Array.from(docs.values())
 }
 
 function genderMatchesPreference(userGender, interestedIn) {

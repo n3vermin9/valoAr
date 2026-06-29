@@ -43,7 +43,6 @@ export default function Discover() {
   const [searchUsername, setSearchUsername] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [groupSearchResults, setGroupSearchResults] = useState([])
-  const [searchSection, setSearchSection] = useState('users')
   const [searchLoading, setSearchLoading] = useState(false)
   const [likedYouIds, setLikedYouIds] = useState(new Set())
   const [messageTarget, setMessageTarget] = useState(null)
@@ -189,7 +188,9 @@ export default function Discover() {
 
   const handleSelectGroup = (groupId) => {
     setShowSearchPage(false)
-    navigate(`/groups/${groupId}`)
+    navigate(`/chats/${groupId}`, {
+      state: { groupPreview: true, previewReturnTo: '/discover' },
+    })
   }
 
   const handleViewProfile = (profile) => {
@@ -233,35 +234,23 @@ export default function Discover() {
     let cancelled = false
     setSearchLoading(true)
     const timer = setTimeout(async () => {
-      try {
-        if (searchSection === 'users') {
-          const results = await searchUsersByUsername(normalized, profile)
-          if (!cancelled) {
-            setSearchResults(results)
-            setGroupSearchResults([])
-          }
-        } else {
-          const groups = await searchPublicGroups(normalized)
-          if (!cancelled) {
-            setGroupSearchResults(groups)
-            setSearchResults([])
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setSearchResults([])
-          setGroupSearchResults([])
-        }
-      } finally {
-        if (!cancelled) setSearchLoading(false)
-      }
-    }, 250)
+      const [userResult, groupResult] = await Promise.allSettled([
+        searchUsersByUsername(normalized, profile),
+        searchPublicGroups(normalized, { userId: user?.uid }),
+      ])
+
+      if (cancelled) return
+
+      setSearchResults(userResult.status === 'fulfilled' ? userResult.value : [])
+      setGroupSearchResults(groupResult.status === 'fulfilled' ? groupResult.value : [])
+      setSearchLoading(false)
+    }, 120)
 
     return () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [searchUsername, searchSection, profile])
+  }, [searchUsername, profile, user?.uid])
 
   const discoverSearchButton = (
     <button
@@ -285,8 +274,6 @@ export default function Discover() {
         onClose={() => setShowSearchPage(false)}
         searchUsername={searchUsername}
         setSearchUsername={setSearchUsername}
-        searchSection={searchSection}
-        onSearchSectionChange={setSearchSection}
         userResults={searchResults}
         groupResults={groupSearchResults}
         searchLoading={searchLoading}
@@ -476,8 +463,6 @@ function DiscoverSearchPage({
   onClose,
   searchUsername,
   setSearchUsername,
-  searchSection,
-  onSearchSectionChange,
   userResults,
   groupResults,
   searchLoading,
@@ -488,7 +473,7 @@ function DiscoverSearchPage({
   if (!isOpen) return null
 
   const hasQuery = searchUsername.trim().length > 0
-  const isUsers = searchSection === 'users'
+  const hasResults = userResults.length > 0 || groupResults.length > 0
 
   return (
     <div className="fixed inset-0 z-[70] bg-black">
@@ -501,95 +486,64 @@ function DiscoverSearchPage({
             value={searchUsername}
             onChange={(e) => setSearchUsername(e.target.value.toLowerCase())}
             onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-            placeholder={isUsers ? 'Search by username' : 'Search public groups'}
+            placeholder="Search users and groups"
             className="w-full py-2.5 bg-transparent outline-none text-sm"
           />
         </div>
       </div>
 
-      <SearchSectionTabs section={searchSection} onSectionChange={onSearchSectionChange} />
-
-      <div className="h-[calc(100%-108px)] overflow-y-auto pb-24">
+      <div className="h-[calc(100%-64px)] overflow-y-auto pb-24">
         {!hasQuery && (
-          <p className="px-4 pt-4 text-sm text-white/50">
-            {isUsers ? 'Type a username to find people' : 'Type a group name to find public groups'}
-          </p>
+          <p className="px-4 pt-4 text-sm text-white/50">Search by username or public group name</p>
         )}
 
         {hasQuery && searchLoading && (
           <p className="px-4 pt-4 text-sm text-white/50">Searching…</p>
         )}
 
-        {hasQuery && !searchLoading && isUsers && userResults.length === 0 && (
-          <p className="px-4 pt-4 text-sm text-white/50">No users found</p>
+        {hasQuery && !searchLoading && !hasResults && (
+          <p className="px-4 pt-4 text-sm text-white/50">No users or groups found</p>
         )}
 
-        {hasQuery && !searchLoading && !isUsers && groupResults.length === 0 && (
-          <p className="px-4 pt-4 text-sm text-white/50">No public groups found</p>
-        )}
-
-        {isUsers &&
-          userResults.map((profile) => (
-            <button
-              key={profile.id}
-              onClick={() => onSelectProfile(profile.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
-            >
-              <img
-                src={profile.photos?.[0] || sad}
-                alt=""
-                className="w-12 h-12 rounded-full object-cover"
-              />
-              <div className="text-left">
-                <p className="font-medium">{profile.username}</p>
-                <p className="text-sm text-white/50">{profile.age} years old</p>
-              </div>
-            </button>
-          ))}
-
-        {!isUsers &&
-          groupResults.map((group) => (
-            <button
-              key={group.id}
-              onClick={() => onSelectGroup(group.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
-            >
-              <GroupAvatar photoUrl={group.photoUrl} size={48} />
-              <div className="text-left min-w-0">
-                <p className="font-medium truncate">{getGroupDisplayName(group)}</p>
-                <p className="text-sm text-white/50">
-                  {group.username ? `@${group.username} · ` : ''}
-                  {group.participants?.length || 0} members · Public
-                </p>
-              </div>
-            </button>
-          ))}
-      </div>
-    </div>
-  )
-}
-
-function SearchSectionTabs({ section, onSectionChange }) {
-  return (
-    <>
-      <div className="mx-[var(--ios-page-x-lg)] border-t border-white/10" aria-hidden />
-      <div className="flex px-[var(--ios-page-x-lg)] pt-3 pb-2 z-10">
-        {[
-          { id: 'users', label: 'Users' },
-          { id: 'groups', label: 'Groups' },
-        ].map(({ id, label }) => (
+        {userResults.map((profile) => (
           <button
-            key={id}
-            type="button"
-            onClick={() => onSectionChange(id)}
-            className={`flex-1 py-1 text-center text-sm font-semibold transition-colors ${
-              section === id ? 'text-white' : 'text-white/45 hover:text-white/70'
-            }`}
+            key={profile.id}
+            onClick={() => onSelectProfile(profile.id)}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
           >
-            {label}
+            <img
+              src={profile.photos?.[0] || sad}
+              alt=""
+              className="w-12 h-12 rounded-full object-cover"
+            />
+            <div className="text-left">
+              <p className="font-medium">{profile.username}</p>
+              <p className="text-sm text-white/50">{profile.age} years old</p>
+            </div>
+          </button>
+        ))}
+
+        {groupResults.length > 0 && userResults.length > 0 && (
+          <div className="mx-4 my-2 border-t border-white/10" aria-hidden />
+        )}
+
+        {groupResults.map((group) => (
+          <button
+            key={group.id}
+            onClick={() => onSelectGroup(group.id)}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
+          >
+            <GroupAvatar photoUrl={group.photoUrl} size={48} />
+            <div className="text-left min-w-0">
+              <p className="font-medium truncate">{getGroupDisplayName(group)}</p>
+              <p className="text-sm text-white/50">
+                {group.username ? `@${group.username} · ` : ''}
+                {group.participants?.length || 0} members · Public
+              </p>
+            </div>
           </button>
         ))}
       </div>
-    </>
+    </div>
   )
 }

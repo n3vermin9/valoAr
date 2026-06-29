@@ -1,7 +1,16 @@
 export const DEFAULT_GROUP_SETTINGS = {
   visibility: 'private',
   joinViaLink: true,
-  joinViaButton: true,
+  joinViaButton: false,
+}
+
+/** Normalize join settings from visibility (private = link only, public = search + link). */
+export function normalizeGroupJoinSettings(settings = {}) {
+  const visibility = settings.visibility === 'public' ? 'public' : 'private'
+  if (visibility === 'public') {
+    return { ...settings, visibility: 'public', joinViaLink: true, joinViaButton: true }
+  }
+  return { ...settings, visibility: 'private', joinViaLink: true, joinViaButton: false }
 }
 
 export const DEFAULT_GROUP_PHOTO_URL =
@@ -97,6 +106,20 @@ export function getGroupUsername(chat) {
   return chat?.username?.trim() || null
 }
 
+export function getGroupUsernameUrl(username) {
+  const handle = username?.trim()
+  if (!handle) return null
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/join/${handle}`
+}
+
+export function getGroupJoinLink(chat) {
+  const username = getGroupUsername(chat)
+  if (username) return getGroupUsernameUrl(username)
+  if (chat?.inviteCode) return getGroupInviteUrl(chat.inviteCode)
+  return null
+}
+
 export function getGroupInviteUrl(inviteCode) {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   return `${origin}/join/${inviteCode}`
@@ -109,6 +132,16 @@ export function generateInviteCode() {
     code += chars[Math.floor(Math.random() * chars.length)]
   }
   return code
+}
+
+export function getGroupMemberProfileIds(chat, messageSenderIds = []) {
+  return [
+    ...new Set([
+      ...(chat?.participants || []),
+      ...(chat?.memberHistory || []),
+      ...messageSenderIds,
+    ]),
+  ]
 }
 
 export function formatGroupPreview(lastMessage, senderName) {

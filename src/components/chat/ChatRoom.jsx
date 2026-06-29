@@ -8,6 +8,7 @@ import {
   IconBellOff,
   IconBell,
   IconTrash,
+  IconLogout,
   IconSearch,
   IconChevronDown,
   IconX,
@@ -70,7 +71,10 @@ import {
   isGroupChat,
   getGroupDisplayName,
   isGroupAdmin,
+  isGroupMember,
+  getGroupMemberProfileIds,
 } from '../../utils/groupChat'
+import { leaveGroupChat, joinGroupViaButton, joinGroupByInviteCode } from '../../services/groupChatService'
 import { getMessageClusterMeta } from '../../utils/messageCluster'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
@@ -135,6 +139,9 @@ export default function ChatRoom() {
   const navigate = useNavigate()
   const location = useLocation()
   const isDraft = location.state?.draft === true
+  const groupPreviewRequested = location.state?.groupPreview === true
+  const previewJoinSlug = location.state?.joinSlug || null
+  const previewReturnTo = location.state?.previewReturnTo || '/discover'
   const { user, profile, refreshProfile } = useAuth()
   const [messages, setMessages] = useState([])
   const [otherUser, setOtherUser] = useState(null)
@@ -166,11 +173,11 @@ export default function ChatRoom() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [memberProfiles, setMemberProfiles] = useState({})
   const [showMuteModal, setShowMuteModal] = useState(false)
+  const [previewJoining, setPreviewJoining] = useState(false)
   const messagesEndRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
-  const knownMessageIdsRef = useRef(new Set())
-  const pendingMessageIdsRef = useRef(new Set())
+  const stickToBottomRef = useRef(true)
   const typingTimeoutRef = useRef(null)
   const menuButtonRef = useRef(null)
   const chatWasVisibleRef = useRef(false)
@@ -196,6 +203,10 @@ export default function ChatRoom() {
   const isMuted = isChatMuteActive(chatMeta, user.uid)
   const groupName = isGroup ? getGroupDisplayName(chatMeta) : null
   const groupMemberCount = isGroup ? chatMeta?.participants?.length || 0 : 0
+  const isGroupMemberUser = isGroup && isGroupMember(chatMeta, user?.uid)
+  const isPublicGroup = isGroup && chatMeta?.settings?.visibility === 'public'
+  const isGroupPreview =
+    groupPreviewRequested && isGroup && isPublicGroup && !isGroupMemberUser
 
   if (otherId !== trackedOtherId) {
     setTrackedOtherId(otherId)
@@ -222,7 +233,6 @@ export default function ChatRoom() {
 
   useEffect(() => {
     chatWasVisibleRef.current = false
-    knownMessageIdsRef.current = new Set()
   }, [matchId])
 
   useEffect(() => {
@@ -233,14 +243,17 @@ export default function ChatRoom() {
   }, [matchId, user?.uid])
 
   useEffect(() => {
-    if (!matchId || !user?.uid || isSavedMessages) return
+    if (!matchId || !user?.uid || isSavedMessages || isGroupPreview) return
     touchChatActivity(matchId, user.uid).catch(() => {})
-  }, [matchId, user?.uid, isSavedMessages, isDraft])
+  }, [matchId, user?.uid, isSavedMessages, isDraft, isGroupPreview])
 
   useEffect(() => {
-    if (!isGroup || !chatMeta?.participants?.length) return
-    fetchUsersMap(chatMeta.participants).then(setMemberProfiles)
-  }, [isGroup, chatMeta?.participants?.join(',')])
+    if (!isGroup || !chatMeta) return
+    const senderIds = messages.map((msg) => msg.senderId).filter(Boolean)
+    const ids = getGroupMemberProfileIds(chatMeta, senderIds)
+    if (!ids.length) return
+    fetchUsersMap(ids).then(setMemberProfiles)
+  }, [isGroup, chatMeta, messages])
 
   useEffect(() => {
     if (!otherId || isSavedMessages || isGroup) return
@@ -258,6 +271,20 @@ export default function ChatRoom() {
       const visible = chat && !hidden
       const isGroupChatDoc = isGroupChat(chat)
       const isMember = chat?.participants?.includes(user.uid)
+      const isPublic = chat?.settings?.visibility === 'public'
+
+      if (groupPreviewRequested && isGroupChatDoc && !isPublic && visible) {
+        navigate('/chats', { replace: true })
+        return
+      }
+
+      if (groupPreviewRequested && isGroupChatDoc && isPublic && !isMember && visible) {
+        chatWasVisibleRef.current = true
+        setChatMeta(chat)
+        setChatAvailable(true)
+        setLoading(false)
+        return
+      }
 
       if (visible && (!isGroupChatDoc || isMember)) {
         chatWasVisibleRef.current = true
@@ -284,12 +311,20 @@ export default function ChatRoom() {
     })
 
     return unsubMeta
-  }, [matchId, user?.uid, navigate, isDraft])
+  }, [matchId, user?.uid, navigate, isDraft, groupPreviewRequested])
+
+  useEffect(() => {
+    if (!isGroup || !chatMeta || !user?.uid || !groupPreviewRequested) return
+    if (isGroupMember(chatMeta, user.uid)) {
+      navigate(`/chats/${matchId}`, { replace: true, state: {} })
+    }
+  }, [isGroup, chatMeta, user?.uid, groupPreviewRequested, matchId, navigate])
 
   useEffect(() => {
     if (!matchId || !user?.uid || !chatAvailable) return
 
     const scheduleMarkRead = () => {
+      if (isGroupPreview) return
       clearTimeout(markReadTimerRef.current)
       markReadTimerRef.current = setTimeout(() => {
         markMessagesRead(matchId, user.uid).catch(() => {})
@@ -302,7 +337,7 @@ export default function ChatRoom() {
         return mergeServerMessages(msgs, pending)
       })
       setLoading(false)
-      if (msgs.some((m) => m.senderId !== user.uid && !m.read)) {
+      if (!isGroupPreview && msgs.some((m) => m.senderId !== user.uid && !m.read)) {
         scheduleMarkRead()
       }
     })
@@ -311,12 +346,14 @@ export default function ChatRoom() {
     return () => {
       unsub()
       clearTimeout(markReadTimerRef.current)
-      markMessagesRead(matchId, user.uid).catch(() => {})
+      if (!isGroupPreview) {
+        markMessagesRead(matchId, user.uid).catch(() => {})
+      }
     }
-  }, [matchId, user?.uid, chatAvailable])
+  }, [matchId, user?.uid, chatAvailable, isGroupPreview])
 
   useEffect(() => {
-    if (!matchId || !user?.uid || !chatAvailable) return
+    if (!matchId || !user?.uid || !chatAvailable || isGroupPreview) return
 
     return subscribeChat(matchId, (chat) => {
       if (getUnreadCount(chat, user.uid) > 0) {
@@ -326,7 +363,7 @@ export default function ChatRoom() {
         }, 80)
       }
     })
-  }, [matchId, user?.uid, chatAvailable])
+  }, [matchId, user?.uid, chatAvailable, isGroupPreview])
 
   useEffect(() => {
     if (!otherId || isSavedMessages || isGroup) return
@@ -334,10 +371,10 @@ export default function ChatRoom() {
   }, [otherId, isSavedMessages, isGroup])
 
   useEffect(() => {
-    if (!matchId || !user?.uid || isSavedMessages) return
+    if (!matchId || !user?.uid || isSavedMessages || isGroupPreview) return
     const participantIds = isGroup ? chatMeta?.participants : null
     return subscribeTyping(matchId, user.uid, setIsTyping, { participantIds })
-  }, [matchId, user?.uid, isSavedMessages, isGroup, chatMeta?.participants?.join(',')])
+  }, [matchId, user?.uid, isSavedMessages, isGroup, isGroupPreview, chatMeta?.participants?.join(',')])
 
   const updateMenuPosition = useCallback(() => {
     const el = menuButtonRef.current
@@ -364,16 +401,32 @@ export default function ChatRoom() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showMenu])
 
+  useEffect(() => {
+    stickToBottomRef.current = true
+  }, [matchId])
+
+  const scrollMessagesToBottom = useCallback((behavior = 'auto') => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    if (behavior === 'smooth') {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    } else {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [])
+
   const updateScrollToBottom = useCallback(() => {
     const el = messagesContainerRef.current
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    stickToBottomRef.current = distanceFromBottom <= 120
     setShowScrollToBottom(distanceFromBottom > 100)
   }, [])
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
+    stickToBottomRef.current = true
+    scrollMessagesToBottom('smooth')
+  }, [scrollMessagesToBottom])
 
   useEffect(() => {
     const el = messagesContainerRef.current
@@ -384,27 +437,17 @@ export default function ChatRoom() {
     return () => el.removeEventListener('scroll', updateScrollToBottom)
   }, [updateScrollToBottom, matchId, messages.length])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (deleteTarget) return
+    if (!stickToBottomRef.current) return
+    scrollMessagesToBottom('auto')
+  }, [messages, deleteTarget, scrollMessagesToBottom])
 
-    const prevIds = knownMessageIdsRef.current
-    const prevPendingIds = pendingMessageIdsRef.current
-    const nextPendingIds = new Set(messages.filter((msg) => msg.pending).map((msg) => msg.id))
-
-    const hasNewMessage = messages.some((msg) => {
-      if (prevIds.has(msg.id)) return false
-      if (msg.pending) return false
-      if (msg.senderId === user?.uid && prevPendingIds.size > 0) return false
-      return true
-    })
-
-    knownMessageIdsRef.current = new Set(messages.map((msg) => msg.id))
-    pendingMessageIdsRef.current = nextPendingIds
-
-    if (hasNewMessage) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [messages, deleteTarget, user?.uid])
+  useLayoutEffect(() => {
+    if (loading) return
+    stickToBottomRef.current = true
+    scrollMessagesToBottom('auto')
+  }, [matchId, loading, scrollMessagesToBottom])
 
   const handleTyping = useCallback(
     (typing) => {
@@ -423,6 +466,9 @@ export default function ChatRoom() {
 
     const replyData = replyPayload ? buildReplyPayload(replyPayload) : null
     const needsUpload = Boolean(imageUrl?.startsWith('data:') || audioBlob)
+    if (needsUpload) {
+      stickToBottomRef.current = true
+    }
     let optimisticId = null
 
     if (!needsUpload) {
@@ -441,10 +487,8 @@ export default function ChatRoom() {
         pending: true,
         read: isSavedMessages,
       }
+      stickToBottomRef.current = true
       setMessages((prev) => appendOptimisticMessage(prev, optimistic))
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
-      })
     }
 
     try {
@@ -470,6 +514,7 @@ export default function ChatRoom() {
           skipEnsureVisible: chatAvailable,
         }
       )
+      stickToBottomRef.current = true
       if (needsUpload) {
         setReplyTo(null)
         setTyping(matchId, user.uid, false)
@@ -494,6 +539,8 @@ export default function ChatRoom() {
         throw new Error('You must be signed in to send voice messages')
       }
 
+      stickToBottomRef.current = true
+
       if (isSavedMessagesChat(matchId, user.uid)) {
         await ensureSavedMessagesChat(user.uid)
       }
@@ -504,6 +551,7 @@ export default function ChatRoom() {
       }
 
       const replyPayload = replyTo ? buildReplyPayload(replyTo) : null
+      stickToBottomRef.current = true
       await sendMessage(
         matchId,
         user.uid,
@@ -520,9 +568,6 @@ export default function ChatRoom() {
       )
       setReplyTo(null)
       setTyping(matchId, user.uid, false)
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      })
     },
     [chatFrozen, user, matchId, replyTo, chatMeta, chatAvailable]
   )
@@ -766,16 +811,24 @@ export default function ChatRoom() {
     setShowMuteModal(true)
   }
 
+  const handleLeaveGroup = async () => {
+    try {
+      await leaveGroupChat(matchId, user.uid)
+      toast.success('Left group')
+      navigate('/chats')
+    } catch {
+      toast.error('Failed to leave group')
+    }
+  }
+
   const handleRemoveChat = async () => {
     try {
-      await removeChatForUser(matchId, user.uid)
       if (isSavedMessages) {
+        await removeChatForUser(matchId, user.uid)
         await ensureSavedMessagesChat(user.uid)
         toast.success('Saved messages cleared')
-      } else if (isGroup) {
-        toast.success('Left group')
-        navigate('/chats')
       } else {
+        await removeChatForUser(matchId, user.uid)
         toast.success('Chat removed')
         navigate('/chats')
       }
@@ -808,7 +861,9 @@ export default function ChatRoom() {
   const runConfirmAction = async () => {
     setConfirmLoading(true)
     try {
-      if (confirmAction === 'removeChat') {
+      if (confirmAction === 'leaveGroup') {
+        await handleLeaveGroup()
+      } else if (confirmAction === 'removeChat') {
         await handleRemoveChat()
       }
     } catch {
@@ -820,6 +875,18 @@ export default function ChatRoom() {
   }
 
   const openProfile = () => {
+    if (isGroupPreview) {
+      navigate(`/groups/${matchId}`, {
+        replace: true,
+        state: {
+          fromChatPreview: true,
+          groupPreview: true,
+          joinSlug: previewJoinSlug || undefined,
+          previewReturnTo,
+        },
+      })
+      return
+    }
     if (isGroup) {
       navigate(`/groups/${matchId}`, { state: { fromChat: true } })
       return
@@ -840,10 +907,32 @@ export default function ChatRoom() {
     })
   }
 
+  const openMemberProfile = useCallback(
+    (memberId) => {
+      if (!memberId) return
+      if (messagesContainerRef.current) {
+        setSavedScrollPosition(messagesContainerRef.current.scrollTop)
+      }
+      setDeleteTarget(null)
+      setProfileViewUserId(memberId)
+    },
+    []
+  )
+
   const handleMentionClick = useCallback(
     async (username) => {
       const normalized = normalizeUsername(username)
       if (!normalized) return
+
+      if (isGroup) {
+        const memberEntry = Object.entries(memberProfiles).find(
+          ([, memberProfile]) => normalizeUsername(memberProfile?.username) === normalized
+        )
+        if (memberEntry) {
+          openMemberProfile(memberEntry[0])
+          return
+        }
+      }
 
       const selfName = normalizeUsername(profile?.username)
       const otherName = normalizeUsername(otherUser?.username)
@@ -861,14 +950,28 @@ export default function ChatRoom() {
         return
       }
 
-      if (messagesContainerRef.current) {
-        setSavedScrollPosition(messagesContainerRef.current.scrollTop)
-      }
-      setDeleteTarget(null)
-      setProfileViewUserId(targetId)
+      openMemberProfile(targetId)
     },
-    [profile?.username, user, otherUser?.username, otherId]
+    [isGroup, memberProfiles, openMemberProfile, profile?.username, user.uid, otherUser?.username, otherId]
   )
+
+  const handlePreviewJoin = async () => {
+    if (!user?.uid || !matchId) return
+    setPreviewJoining(true)
+    try {
+      if (previewJoinSlug) {
+        await joinGroupByInviteCode(previewJoinSlug, user.uid)
+      } else {
+        await joinGroupViaButton(matchId, user.uid)
+      }
+      toast.success('Joined group')
+      navigate(`/chats/${matchId}`, { replace: true, state: {} })
+    } catch (err) {
+      toast.error(err.message || 'Failed to join group')
+    } finally {
+      setPreviewJoining(false)
+    }
+  }
 
   const statusText = chatStatus.text
   const statusColorHeader = statusColor
@@ -897,16 +1000,29 @@ export default function ChatRoom() {
               {isMuted ? 'Unmute' : 'Mute'}
             </MenuItem>
           )}
-          <MenuItem
-            icon={IconTrash}
-            onClick={() => {
-              setShowMenu(false)
-              setConfirmAction('removeChat')
-            }}
-            danger
-          >
-            {isSavedMessages ? 'Clear chat' : isGroup ? 'Leave group' : 'Remove Chat'}
-          </MenuItem>
+          {isGroup ? (
+            <MenuItem
+              icon={IconLogout}
+              onClick={() => {
+                setShowMenu(false)
+                setConfirmAction('leaveGroup')
+              }}
+              danger
+            >
+              Leave group
+            </MenuItem>
+          ) : (
+            <MenuItem
+              icon={IconTrash}
+              onClick={() => {
+                setShowMenu(false)
+                setConfirmAction('removeChat')
+              }}
+              danger
+            >
+              {isSavedMessages ? 'Clear chat' : 'Remove Chat'}
+            </MenuItem>
+          )}
         </motion.div>
       )}
     </AnimatePresence>,
@@ -955,18 +1071,21 @@ export default function ChatRoom() {
                   ? senderProfile?.username || 'User'
                   : undefined
               }
+              senderId={isGroup ? msg.senderId : undefined}
+              onSenderClick={isGroup ? openMemberProfile : undefined}
+              readOnly={isGroupPreview}
             highlighted={highlightedMessageId === msg.id}
             searchActive={showSearch && activeSearchMatch?.messageId === msg.id}
             searchQuery={showSearch ? searchQuery : ''}
             activeSearchMatch={
               showSearch && activeSearchMatch?.messageId === msg.id ? activeSearchMatch : null
             }
-              onReply={handleReplyToMessage}
-              onReplyQuoteClick={scrollToMessage}
-              onStoryReplyClick={handleStoryReplyClick}
-              onReactionClick={handleReactToMessage}
-              onContextMenu={handleSelectMessageAction}
-              onLongPress={handleSelectMessageAction}
+              onReply={isGroupPreview ? undefined : handleReplyToMessage}
+              onReplyQuoteClick={isGroupPreview ? undefined : scrollToMessage}
+              onStoryReplyClick={isGroupPreview ? undefined : handleStoryReplyClick}
+              onReactionClick={isGroupPreview ? undefined : handleReactToMessage}
+              onContextMenu={isGroupPreview ? undefined : handleSelectMessageAction}
+              onLongPress={isGroupPreview ? undefined : handleSelectMessageAction}
               onMentionClick={handleMentionClick}
             />
             )
@@ -1017,7 +1136,7 @@ export default function ChatRoom() {
               }`}
             >
               <ChevronBack
-                onClick={() => navigate('/chats')}
+                onClick={() => (isGroupPreview ? navigate(previewReturnTo) : navigate('/chats'))}
                 buttonClassName={storyGlassButtonClass}
                 className="w-5 h-5"
               />
@@ -1036,7 +1155,7 @@ export default function ChatRoom() {
                 opponentRemoved={opponentRemoved}
                 presence={presence}
                 isTyping={isTyping}
-                isMuted={isMuted}
+                isMuted={isGroupPreview ? false : isMuted}
                 statusText={statusText}
                 statusColor={statusColorHeader}
                 onOpenProfile={openProfile}
@@ -1062,6 +1181,8 @@ export default function ChatRoom() {
                 >
                   <IconX size={20} stroke={2} />
                 </button>
+              ) : isGroupPreview ? (
+                <span className="w-11 h-11 shrink-0" aria-hidden />
               ) : (
                 <button
                   ref={menuButtonRef}
@@ -1108,7 +1229,7 @@ export default function ChatRoom() {
               </div>
             )}
 
-            {!deleteTarget && !chatFrozen && (
+            {!deleteTarget && !chatFrozen && !isGroupPreview && (
               <>
                 {isTyping && !isSavedMessages && !isGroup && otherUser && !opponentRemoved && (
                   <div className="px-5 py-2 text-xs text-blue-300/90 italic">
@@ -1139,6 +1260,19 @@ export default function ChatRoom() {
                   onClearReply={() => setReplyTo(null)}
                 />
               </>
+            )}
+
+            {isGroupPreview && !deleteTarget && (
+              <div className="px-4 pb-[max(0.75rem,var(--ios-safe-bottom))] pt-3 bg-gradient-to-t from-black via-black/95 to-transparent">
+                <button
+                  type="button"
+                  onClick={handlePreviewJoin}
+                  disabled={previewJoining}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 rounded-full transition-colors font-medium"
+                >
+                  {previewJoining ? 'Joining…' : 'Join chat'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -1171,18 +1305,27 @@ export default function ChatRoom() {
       <ImageViewer src={imageViewer} onClose={() => setImageViewer(null)} />
 
       <ConfirmDialog
+        isOpen={confirmAction === 'leaveGroup'}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+        title="Leave group?"
+        message="You will leave this group. Chat history stays in the group for other members."
+        confirmLabel="Leave group"
+        danger
+        loading={confirmLoading}
+      />
+
+      <ConfirmDialog
         isOpen={confirmAction === 'removeChat'}
         onClose={() => setConfirmAction(null)}
         onConfirm={runConfirmAction}
-        title={isSavedMessages ? 'Clear saved messages?' : isGroup ? 'Leave group?' : 'Remove chat?'}
+        title={isSavedMessages ? 'Clear saved messages?' : 'Remove chat?'}
         message={
           isSavedMessages
             ? 'All saved messages will be deleted. The chat will stay in your list.'
-            : isGroup
-              ? 'You will leave this group and stop receiving messages.'
-              : 'This will delete all messages and hide the chat for both of you.'
+            : 'This will delete all messages and hide the chat for both of you.'
         }
-        confirmLabel={isSavedMessages ? 'Clear messages' : isGroup ? 'Leave group' : 'Remove Chat'}
+        confirmLabel={isSavedMessages ? 'Clear messages' : 'Remove Chat'}
         danger
         loading={confirmLoading}
       />

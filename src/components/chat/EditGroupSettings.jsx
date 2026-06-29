@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { IconCopy, IconLink, IconShield, IconLogout } from '@tabler/icons-react'
+import { IconCopy, IconLink, IconShield, IconLogout, IconTrash } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { subscribeChat } from '../../services/chatService'
 import { fetchUsersMap } from '../../services/userService'
@@ -12,11 +12,12 @@ import {
   addGroupAdmin,
   removeGroupAdmin,
   leaveGroupChat,
+  deleteGroupChat,
   regenerateInviteCode,
 } from '../../services/groupChatService'
 import {
   canAdmin,
-  getGroupInviteUrl,
+  getGroupJoinLink,
   isGroupAdmin,
   isGroupMember,
   isGroupOwner,
@@ -30,6 +31,7 @@ import Button from '../ui/Button'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import CachedAvatar from '../ui/CachedAvatar'
 import PhotoUrlSection from '../profile/PhotoUrlSection'
+import ConfirmDialog from '../ui/ConfirmDialog'
 import { sad } from '../../assets'
 
 const PERMISSION_LABELS = {
@@ -95,6 +97,7 @@ export default function EditGroupSettings() {
   const [photos, setPhotos] = useState([''])
   const [visiblePhotoSlots, setVisiblePhotoSlots] = useState(1)
   const [selectedAdminId, setSelectedAdminId] = useState(null)
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false)
 
   const isPublic = chat?.settings?.visibility === 'public'
   const normalizedUsername = normalizeUsername(username)
@@ -196,20 +199,12 @@ export default function EditGroupSettings() {
     }
   }
 
-  const handleSettingChange = async (key, value) => {
-    try {
-      await updateGroupSettings(chatId, user.uid, { [key]: value })
-      toast.success('Settings updated')
-    } catch (err) {
-      toast.error(err.message || 'Failed to update settings')
-    }
-  }
-
   const handleCopyLink = async () => {
-    if (!chat?.inviteCode) return
+    const link = getGroupJoinLink(chat)
+    if (!link) return
     try {
-      await navigator.clipboard.writeText(getGroupInviteUrl(chat.inviteCode))
-      toast.success('Invite link copied')
+      await navigator.clipboard.writeText(link)
+      toast.success('Group link copied')
     } catch {
       toast.error('Failed to copy link')
     }
@@ -221,6 +216,20 @@ export default function EditGroupSettings() {
       toast.success('New invite link generated')
     } catch (err) {
       toast.error(err.message || 'Failed to regenerate link')
+    }
+  }
+
+  const handleDeleteGroup = async () => {
+    setSaving(true)
+    try {
+      await deleteGroupChat(chatId, user.uid)
+      toast.success('Group deleted')
+      navigate('/chats')
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete group')
+    } finally {
+      setSaving(false)
+      setConfirmDeleteGroup(false)
     }
   }
 
@@ -360,29 +369,28 @@ export default function EditGroupSettings() {
         {canManageSettings && (
           <SettingsSection title="Join settings">
             <SettingSwitch
-              label="Allow join via link"
-              description="Anyone with the invite link can join"
-              checked={chat.settings?.joinViaLink !== false}
-              onChange={(value) => handleSettingChange('joinViaLink', value)}
-            />
-            <SettingSwitch
-              label="Allow join via button"
-              description="Show a join button on the group info page"
-              checked={chat.settings?.joinViaButton !== false}
-              onChange={(value) => handleSettingChange('joinViaButton', value)}
-            />
-            <SettingSwitch
               label="Public group"
-              description="Discoverable in search (private groups are hidden)"
+              description={
+                isPublic
+                  ? 'Discoverable in search — members can join from search or invite link'
+                  : 'Invite link only — hidden from search'
+              }
               checked={isPublic}
               onChange={(value) => handleVisibilityChange(value)}
             />
+            <div className="px-4 py-4 border-b border-white/10 last:border-b-0">
+              <p className="text-sm text-white/50">
+                {isPublic
+                  ? 'Anyone can find this group in Discover and join, or use the invite link below.'
+                  : 'Only people with the invite link can join this group.'}
+              </p>
+            </div>
             <div className="px-4 py-4">
               <div className="flex items-center gap-2 text-white/70 text-sm mb-2">
                 <IconLink size={16} />
                 Invite link
               </div>
-              <p className="text-xs text-white/45 break-all mb-3">{getGroupInviteUrl(chat.inviteCode)}</p>
+              <p className="text-xs text-white/45 break-all mb-3">{getGroupJoinLink(chat) || 'Set a group username to get a shareable link'}</p>
               <div className="flex gap-2">
                 <Button type="button" variant="bordered" className="flex-1" onClick={handleCopyLink}>
                   <IconCopy size={16} className="inline mr-1.5 -mt-0.5" />
@@ -478,13 +486,35 @@ export default function EditGroupSettings() {
             type="button"
             onClick={handleLeave}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 py-4 text-red-400 hover:bg-red-500/10 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-4 text-red-400 hover:bg-red-500/10 transition-colors border-b border-white/10"
           >
             <IconLogout size={18} />
             Leave group
           </button>
+          {isGroupOwner(chat, user?.uid) && (
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteGroup(true)}
+              disabled={saving}
+              className="w-full flex items-center justify-center gap-2 py-4 text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <IconTrash size={18} />
+              Delete group
+            </button>
+          )}
         </SettingsSection>
       </form>
+
+      <ConfirmDialog
+        isOpen={confirmDeleteGroup}
+        onClose={() => setConfirmDeleteGroup(false)}
+        onConfirm={handleDeleteGroup}
+        title="Delete group?"
+        message="This permanently deletes the group and all messages for everyone. This cannot be undone."
+        confirmLabel="Delete group"
+        danger
+        loading={saving}
+      />
     </div>
   )
 }
