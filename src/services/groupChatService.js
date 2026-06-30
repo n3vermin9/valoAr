@@ -615,6 +615,25 @@ export async function removeGroupAdmin(chatId, actorId, targetUserId) {
   })
 }
 
+export async function transferGroupOwnership(chatId, actorId, newOwnerId) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+
+  const data = snap.data()
+  if (!isGroupOwner(data, actorId)) throw new Error('Only the group owner can transfer ownership')
+  if (!data.participants?.includes(newOwnerId)) throw new Error('User is not a member')
+  if (newOwnerId === actorId) throw new Error('Cannot transfer ownership to yourself')
+  if (!data.admins?.includes(newOwnerId)) throw new Error('Only an admin can become owner')
+
+  await updateDoc(chatRef, {
+    createdBy: newOwnerId,
+    admins: arrayUnion(newOwnerId),
+    [`adminSettings.${newOwnerId}`]: deleteField(),
+    [`adminTags.${newOwnerId}`]: deleteField(),
+  })
+}
+
 export async function addGroupMember(chatId, actorId, memberId) {
   const chatRef = doc(db, 'chats', chatId)
   const snap = await getDoc(chatRef)

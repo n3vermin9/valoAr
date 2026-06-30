@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
 import { IconCheck, IconChecks, IconArrowBackUp, IconCopy, IconTrash } from '@tabler/icons-react'
 import { formatMessageTime } from '../../utils/helpers'
-import { navGlassMenuClass, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass } from '../../utils/designSystem'
+import { navGlassMenuClass, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, chatBubblePadClass, chatMessageTextClass } from '../../utils/designSystem'
 import VoiceMessagePlayer from './VoiceMessagePlayer'
 import ReplyQuote from './ReplyQuote'
 import StoryReplyQuote from './StoryReplyQuote'
@@ -129,8 +129,8 @@ export default function MessageActionOverlay({
             <div className="flex items-center justify-between gap-2 w-full mb-1.5 min-w-0">
               <UsernameLabel
                 username={senderName}
-                className="text-[11px] font-semibold text-blue-300/90 min-w-0"
-                badgeSize={11}
+                className="text-xs font-semibold text-blue-300/90 min-w-0"
+                badgeSize={12}
                 truncate={false}
                 as="span"
               />
@@ -152,10 +152,10 @@ export default function MessageActionOverlay({
             {(displayText || message.replyTo || message.audioUrl || message.imageUrl) && (
               <div
                 ref={scrollRef}
-                className={`px-4 py-2 message-bubble overflow-y-auto w-fit max-w-full ${MAX_MESSAGE_HEIGHT} ${
+                className={`${chatBubblePadClass} message-bubble overflow-y-auto w-fit max-w-full ${MAX_MESSAGE_HEIGHT} ${
                   isOwn
-                    ? 'bg-blue-500 rounded-[1.125rem] rounded-br-[0.25rem]'
-                    : 'bg-white/10 rounded-[1.125rem] rounded-bl-[0.25rem]'
+                    ? 'bg-blue-500 rounded-[var(--chat-bubble-radius)] rounded-br-[0.3rem]'
+                    : 'bg-white/10 rounded-[var(--chat-bubble-radius)] rounded-bl-[0.3rem]'
                 }`}
               >
                 {message.replyTo && (
@@ -166,7 +166,7 @@ export default function MessageActionOverlay({
                     text={displayText}
                     isOwn={isOwn}
                     onMentionClick={onMentionClick}
-                    className="text-sm break-words"
+                    className={chatMessageTextClass}
                   />
                 )}
                 {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
@@ -190,16 +190,16 @@ export default function MessageActionOverlay({
           {(sentTime || isOwn) && (
             <div className="flex items-center justify-between gap-3 mt-1 px-1 min-h-[16px]">
               {sentTime ? (
-                <span className="text-[11px] text-white/40 tabular-nums">{sentTime}</span>
+                <span className="text-xs text-white/40 tabular-nums">{sentTime}</span>
               ) : (
                 <span />
               )}
               {isOwn && (
                 <span className="inline-flex shrink-0">
                   {message.read ? (
-                    <IconChecks size={14} className="text-blue-400" stroke={2} />
+                    <IconChecks size={15} className="text-blue-400" stroke={2} />
                   ) : (
-                    <IconCheck size={14} className="text-white/40" stroke={2} />
+                    <IconCheck size={15} className="text-white/40" stroke={2} />
                   )}
                 </span>
               )}

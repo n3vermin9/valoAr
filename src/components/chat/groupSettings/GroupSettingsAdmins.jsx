@@ -68,9 +68,6 @@ export default function GroupSettingsAdmins() {
             )
           })}
         </SettingsSection>
-        <p className={`${typoSubheadClass} px-[var(--ios-page-x-lg)] mt-4 leading-relaxed`}>
-          Tap a member to manage admin access and permissions. Right-click or long-press for quick actions.
-        </p>
       </div>
     </GroupSettingsShell>
   )

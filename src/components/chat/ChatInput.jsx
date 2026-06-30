@@ -8,6 +8,7 @@ import {
   chatFloatingButtonClass,
   chatFloatingInputBarClass,
   chatFloatingPanelClass,
+  chatComposerInputClass,
 } from '../../utils/designSystem'
 import ChatSearchControls from './ChatSearchControls'
 import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
@@ -311,20 +312,20 @@ export default function ChatInput({
     <div className="relative bg-transparent">
       {replyTo && (
         <div className="px-4 pb-2">
-          <div className={`${chatFloatingPanelClass} flex items-center gap-2 rounded-2xl px-3 py-2`}>
-            <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-2.5">
-              <p className="text-xs font-semibold text-blue-300 truncate">
+          <div className={`${chatFloatingPanelClass} flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5`}>
+            <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-3">
+              <p className="text-[13px] font-semibold text-blue-300 truncate">
                 Replying to {replyAuthorName}
               </p>
-              <p className="text-xs text-white/55 truncate">{getMessagePreviewText(replyTo)}</p>
+              <p className="text-[13px] text-white/55 truncate">{getMessagePreviewText(replyTo)}</p>
             </div>
             <button
               type="button"
               onClick={onClearReply}
-              className="shrink-0 self-center p-1 text-white/50 hover:text-white rounded-full transition-colors"
+              className="shrink-0 self-center p-1.5 text-white/50 hover:text-white rounded-full transition-colors"
               aria-label="Cancel reply"
             >
-              <IconX size={16} />
+              <IconX size={18} />
             </button>
           </div>
         </div>
@@ -357,7 +358,7 @@ export default function ChatInput({
         </div>
       )}
 
-      <div className="overflow-hidden px-4 py-3 shrink-0 min-h-[68px]">
+      <div className="overflow-hidden px-4 py-3 shrink-0 min-h-[76px]">
         {searchActive ? (
           <ChatSearchControls
             matchIndex={searchMatchIndex}
@@ -367,9 +368,9 @@ export default function ChatInput({
             onOpenResults={onOpenSearchResults}
           />
         ) : (
-        <div className="flex items-center gap-2 h-11">
+        <div className="flex items-center gap-2.5 h-12">
           <motion.div
-            className="w-11 shrink-0"
+            className="w-12 shrink-0"
             initial={false}
             animate={{
               x: 0,
@@ -383,7 +384,7 @@ export default function ChatInput({
               className={`${actionButtonClass} text-white/70 hover:text-white`}
               disabled={recording || sendingVoice}
             >
-              <IconPhoto size={22} />
+              <IconPhoto size={24} />
             </button>
           </motion.div>
           <input
@@ -409,15 +410,15 @@ export default function ChatInput({
               transition={composerTransition}
             >
               <div
-                className={`${chatFloatingInputBarClass} flex w-full items-end gap-1.5 rounded-[30px] pl-2 pr-3 py-2 min-h-11`}
+                className={`${chatFloatingInputBarClass} flex w-full items-end gap-2 rounded-[32px] pl-2.5 pr-3.5 py-2 min-h-12`}
               >
                 <button
                   type="button"
                   onClick={() => setShowEmoji(!showEmoji)}
-                  className="h-8 w-8 shrink-0 flex items-center justify-center text-white/60 hover:text-white rounded-full transition-colors"
+                  className="h-9 w-9 shrink-0 flex items-center justify-center text-white/60 hover:text-white rounded-full transition-colors"
                   disabled={recording || sendingVoice}
                 >
-                  <IconMoodSmile size={20} />
+                  <IconMoodSmile size={22} />
                 </button>
                 <textarea
                   ref={textareaRef}
@@ -437,14 +438,14 @@ export default function ChatInput({
                         ? `Recording ${formatRecordingTime(recordingSeconds)}… tap mic to send`
                         : 'Type a message...'
                   }
-                  className="flex-1 min-w-0 py-1.5 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto leading-5 max-h-32"
+                  className={chatComposerInputClass}
                 />
               </div>
             </motion.div>
           </div>
 
           <motion.div
-            className="w-11 shrink-0"
+            className="w-12 shrink-0"
             initial={false}
             animate={{
               x: 0,
@@ -458,7 +459,7 @@ export default function ChatInput({
                 onClick={handleSend}
                 className={`${actionButtonClass} text-blue-400 hover:text-blue-300`}
               >
-                <IconSend size={20} />
+                <IconSend size={22} />
               </button>
             ) : (
               <button
@@ -472,7 +473,7 @@ export default function ChatInput({
                 } disabled:opacity-50`}
                 aria-label={recording ? 'Stop and send voice message' : 'Record voice message'}
               >
-                <IconMicrophone size={20} />
+                <IconMicrophone size={22} />
               </button>
             )}
           </motion.div>

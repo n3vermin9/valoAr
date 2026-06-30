@@ -1,28 +1,36 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { IconShield, IconShieldOff, IconCrown } from '@tabler/icons-react'
 import {
   setGroupMemberRole,
   updateAdminPermissions,
   setAdminTag,
+  transferGroupOwnership,
 } from '../../../services/groupChatService'
 import {
   DEFAULT_ADMIN_PERMISSIONS,
   getGroupMemberRole,
+  hasFullAdminPermissions,
   isGroupOwner,
 } from '../../../utils/groupChat'
 import CachedAvatar from '../../ui/CachedAvatar'
 import UsernameLabel from '../../ui/UsernameLabel'
 import GroupRoleBadge from '../GroupRoleBadge'
-import ConfirmDialog from '../../ui/ConfirmDialog'
 import LoadingSpinner from '../../ui/LoadingSpinner'
 import TextField from '../../ui/TextField'
+import Button from '../../ui/Button'
 import { sad } from '../../../assets'
 import { useGroupSettingsChat } from './useGroupSettingsChat'
 import GroupSettingsShell from './GroupSettingsShell'
 import { PERMISSION_LABELS } from './constants'
-import { SettingSwitch, SettingsSection } from '../../ui/SettingsUI'
-import { typoSubheadClass } from '../../../utils/designSystem'
+import { SettingSwitch, SettingsNavRow, SettingsSection } from '../../ui/SettingsUI'
+import { dangerLinkActionClass, linkActionClass, typoSubheadClass } from '../../../utils/designSystem'
+
+const PENDING_ACTIONS = {
+  promote: { label: 'Make admin', danger: false },
+  demote: { label: 'Remove', danger: true },
+  transfer: { label: 'Transfer', danger: true },
+}
 
 export default function GroupSettingsMemberAdmin() {
   const { chatId, memberId } = useParams()
@@ -48,14 +56,16 @@ export default function GroupSettingsMemberAdmin() {
         }
       : null
 
+  const allPermissionsGranted = isOwner && hasFullAdminPermissions(permissions)
+  const pendingMeta = pendingAction ? PENDING_ACTIONS[pendingAction] : null
+
   const confirmPromote = async () => {
     setApplying(true)
     try {
       await setGroupMemberRole(chatId, user.uid, memberId, 'admin')
-      toast.success('Member is now an admin')
       setPendingAction(null)
-    } catch (err) {
-      toast.error(err.message || 'Failed to promote member')
+    } catch {
+      setPendingAction(null)
     } finally {
       setApplying(false)
     }
@@ -65,14 +75,40 @@ export default function GroupSettingsMemberAdmin() {
     setApplying(true)
     try {
       await setGroupMemberRole(chatId, user.uid, memberId, 'member')
-      toast.success('Admin access removed')
       setPendingAction(null)
       navigate(adminsPath, { replace: true, state: location.state })
-    } catch (err) {
-      toast.error(err.message || 'Failed to remove admin')
+    } catch {
+      setPendingAction(null)
     } finally {
       setApplying(false)
     }
+  }
+
+  const confirmTransfer = async () => {
+    setApplying(true)
+    try {
+      await transferGroupOwnership(chatId, user.uid, memberId)
+      setPendingAction(null)
+      navigate(adminsPath, { replace: true, state: location.state })
+    } catch {
+      setPendingAction(null)
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const runPendingAction = () => {
+    if (pendingAction === 'promote') confirmPromote()
+    else if (pendingAction === 'demote') confirmDemote()
+    else if (pendingAction === 'transfer') confirmTransfer()
+  }
+
+  const handleHeaderBack = () => {
+    if (pendingAction) {
+      setPendingAction(null)
+      return
+    }
+    navigate(adminsPath, { replace: true, state: location.state })
   }
 
   const handlePermissionChange = async (key, value) => {
@@ -82,20 +118,20 @@ export default function GroupSettingsMemberAdmin() {
         ...permissions,
         [key]: value,
       })
-      toast.success('Permissions updated')
-    } catch (err) {
-      toast.error(err.message || 'Failed to update permissions')
+    } catch {
+      // UI reflects live data from subscription; avoid noisy toasts for toggles.
     }
   }
 
   const handleSaveTag = async () => {
-    if (!isOwner || !isAdmin) return
+    if (!isOwner || !isAdmin || savingTag) return
+    const trimmed = tagDraft.trim()
+    if (trimmed === (chat?.adminTags?.[memberId] || '')) return
     setSavingTag(true)
     try {
       await setAdminTag(chatId, user.uid, memberId, tagDraft)
-      toast.success('Admin tag updated')
-    } catch (err) {
-      toast.error(err.message || 'Failed to update tag')
+    } catch {
+      // Tag field keeps draft; subscription will restore on failure.
     } finally {
       setSavingTag(false)
     }
@@ -107,6 +143,17 @@ export default function GroupSettingsMemberAdmin() {
     setTagDraft(storedTag)
   }, [storedTag])
 
+  const headerTrailing = pendingMeta ? (
+    <button
+      type="button"
+      onClick={runPendingAction}
+      disabled={applying}
+      className={pendingMeta.danger ? dangerLinkActionClass : linkActionClass}
+    >
+      {applying ? '…' : pendingMeta.label}
+    </button>
+  ) : null
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -117,14 +164,14 @@ export default function GroupSettingsMemberAdmin() {
 
   if (!chat || !isMember || !canManageAdmins || !member) {
     return (
-      <GroupSettingsShell title="Admin access" backTo={adminsPath}>
+      <GroupSettingsShell title="Admin access" onBack={handleHeaderBack} trailing={headerTrailing}>
         <p className={`${typoSubheadClass} text-center mt-12 px-6`}>Member not found</p>
       </GroupSettingsShell>
     )
   }
 
   return (
-    <GroupSettingsShell title="Admin access" backTo={adminsPath}>
+    <GroupSettingsShell title="Admin access" onBack={handleHeaderBack} trailing={headerTrailing}>
       <div className="space-y-5 pb-24">
         <div className="px-[var(--ios-page-x-lg)] pt-2">
           <div className="flex items-center gap-4">
@@ -147,44 +194,34 @@ export default function GroupSettingsMemberAdmin() {
         {editable ? (
           <>
             {!isAdmin ? (
-              <SettingsSection>
-                <button
-                  type="button"
-                  disabled={applying}
-                  onClick={() => setPendingAction('promote')}
-                  className="w-full px-4 py-4 text-left text-[17px] font-semibold text-[var(--ios-blue)] border-b border-white/10 last:border-b-0 disabled:opacity-50"
-                >
-                  Make admin
-                </button>
-              </SettingsSection>
+              pendingAction === 'promote' ? null : (
+              <div className="px-[var(--ios-page-x-lg)]">
+                <Button fullWidth onClick={() => setPendingAction('promote')} disabled={applying}>
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <IconShield size={18} stroke={1.75} />
+                    Make admin
+                  </span>
+                </Button>
+              </div>
+              )
             ) : (
               <>
                 {isOwner && (
                   <SettingsSection title="Display tag">
-                    <div className="px-4 py-4 space-y-3">
+                    <div className="px-4 py-4">
                       <TextField
                         value={tagDraft}
                         onChange={(e) => setTagDraft(e.target.value)}
-                        placeholder="e.g. Moderator, Co-founder"
+                        onBlur={handleSaveTag}
+                        placeholder="Moderator, Co-founder…"
                         maxLength={32}
                       />
-                      <button
-                        type="button"
-                        onClick={handleSaveTag}
-                        disabled={savingTag}
-                        className="text-[15px] font-medium text-[var(--ios-blue)] disabled:opacity-50"
-                      >
-                        {savingTag ? 'Saving…' : 'Save tag'}
-                      </button>
-                      <p className={`${typoSubheadClass} leading-snug`}>
-                        Shown instead of &quot;Admin&quot; on messages and member lists. Leave empty for the default.
-                      </p>
                     </div>
                   </SettingsSection>
                 )}
 
                 {isOwner && permissions && (
-                  <SettingsSection title="What they can do">
+                  <SettingsSection title="Permissions">
                     {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
                       <SettingSwitch
                         key={key}
@@ -196,15 +233,28 @@ export default function GroupSettingsMemberAdmin() {
                   </SettingsSection>
                 )}
 
+                {allPermissionsGranted && (
+                  <SettingsSection>
+                    <SettingsNavRow
+                      icon={IconCrown}
+                      iconTone="amber"
+                      label="Transfer ownership"
+                      onClick={() => setPendingAction('transfer')}
+                      trailing={null}
+                    />
+                  </SettingsSection>
+                )}
+
                 <SettingsSection title="Danger zone">
-                  <button
-                    type="button"
-                    disabled={applying}
+                  <SettingsNavRow
+                    icon={IconShieldOff}
+                    iconTone="red"
+                    danger
+                    label="Remove as admin"
                     onClick={() => setPendingAction('demote')}
-                    className="w-full px-4 py-4 text-left text-[17px] font-semibold text-red-400 border-b border-white/10 last:border-b-0 disabled:opacity-50"
-                  >
-                    Remove admin access
-                  </button>
+                    disabled={applying}
+                    trailing={null}
+                  />
                 </SettingsSection>
               </>
             )}
@@ -217,27 +267,6 @@ export default function GroupSettingsMemberAdmin() {
           </p>
         )}
       </div>
-
-      <ConfirmDialog
-        isOpen={pendingAction === 'promote'}
-        onClose={() => !applying && setPendingAction(null)}
-        onConfirm={confirmPromote}
-        title="Make admin?"
-        message={`${member?.username || 'This member'} will get admin access with default permissions you can customize.`}
-        confirmLabel="Make admin"
-        loading={applying}
-      />
-
-      <ConfirmDialog
-        isOpen={pendingAction === 'demote'}
-        onClose={() => !applying && setPendingAction(null)}
-        onConfirm={confirmDemote}
-        title="Remove admin access?"
-        message={`${member?.username || 'This member'} will become a regular member.`}
-        confirmLabel="Remove admin"
-        danger
-        loading={applying}
-      />
     </GroupSettingsShell>
   )
 }

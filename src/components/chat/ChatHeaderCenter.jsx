@@ -10,6 +10,40 @@ import VerifiedBadge from '../ui/VerifiedBadge'
 
 const shellTransition = { type: 'spring', stiffness: 260, damping: 30, mass: 1.05 }
 
+const headerPillClass = `${storyGlassBlur} liquid-glass-pill flex items-center h-12 min-h-12 min-w-0 rounded-full pl-2.5 pr-4 w-fit max-w-[min(76vw,300px)] hover:brightness-110 active:scale-[0.98]`
+
+function HeaderSubtitle({ isTyping, typingText, statusText, statusColor }) {
+  return (
+    <div className="relative min-h-[15px]">
+      <AnimatePresence mode="wait" initial={false}>
+        {isTyping ? (
+          <motion.p
+            key="typing"
+            initial={{ opacity: 0, y: 3 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -3 }}
+            transition={{ duration: 0.15 }}
+            className="text-[12px] leading-tight truncate text-blue-300 italic"
+          >
+            {typingText}
+          </motion.p>
+        ) : (
+          <motion.p
+            key="status"
+            initial={{ opacity: 0, y: 3 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -3 }}
+            transition={{ duration: 0.15 }}
+            className={`text-[12px] leading-tight truncate ${statusColor}`}
+          >
+            {statusText}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 export default function ChatHeaderCenter({
   showSearch,
   isSavedMessages,
@@ -23,6 +57,7 @@ export default function ChatHeaderCenter({
   isTyping,
   isMuted,
   statusText,
+  typingText,
   statusColor,
   onOpenProfile,
   searchQuery,
@@ -35,11 +70,7 @@ export default function ChatHeaderCenter({
     <motion.div
       initial={false}
       transition={shellTransition}
-      className={
-        showSearch
-          ? 'w-full min-w-0'
-          : `${storyGlassBlur} liquid-glass-pill flex items-center h-11 min-h-11 min-w-0 rounded-full pl-2 pr-4 w-fit max-w-[min(72vw,280px)] hover:brightness-110 active:scale-[0.98]`
-      }
+      className={showSearch ? 'w-full min-w-0' : headerPillClass}
     >
       <AnimatePresence mode="wait" initial={false}>
         {showSearch ? (
@@ -49,7 +80,7 @@ export default function ChatHeaderCenter({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className={`${storyGlassBlur} liquid-glass-pill flex items-center h-11 min-h-11 w-full rounded-full pl-2 pr-4`}
+            className={`${storyGlassBlur} liquid-glass-pill flex items-center h-12 min-h-12 w-full rounded-full pl-2.5 pr-4`}
           >
             <ChatSearchBar
               inline
@@ -68,14 +99,14 @@ export default function ChatHeaderCenter({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center gap-6 min-w-0 h-full cursor-default"
+            className="flex items-center gap-4 min-w-0 h-full w-full cursor-default"
           >
-            <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
               <img src={logo} alt="Logo" className="w-6 h-6 object-cover" />
             </div>
-            <div className="min-w-0 text-left">
-              <p className="font-semibold text-sm truncate text-white">Saved Messages</p>
-              <p className="text-[11px] text-white/65 leading-tight">Only you can see this</p>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="font-semibold text-[15px] truncate text-white">Saved Messages</p>
+              <p className="text-[12px] text-white/65 leading-tight">Only you can see this</p>
             </div>
           </motion.div>
         ) : isGroupChat ? (
@@ -87,18 +118,23 @@ export default function ChatHeaderCenter({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onOpenProfile}
-            className="flex items-center gap-6 min-w-0 h-full text-left cursor-pointer"
+            className="flex items-center gap-4 min-w-0 h-full w-full text-left cursor-pointer"
             aria-label={`Open ${groupName} settings`}
           >
-            <GroupAvatar photoUrl={groupPhotoUrl} size={32} className="ring-1 ring-white/20" />
-            <div className="min-w-0 text-left">
+            <GroupAvatar photoUrl={groupPhotoUrl} size={36} className="ring-1 ring-white/20 shrink-0" />
+            <div className="min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1">
-                <p className="font-semibold text-sm truncate text-white">{groupName}</p>
+                <p className="font-semibold text-[15px] truncate text-white">{groupName}</p>
                 {isMuted && (
-                  <IconBellOff size={13} className="text-white/50 shrink-0" aria-label="Muted" />
+                  <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
                 )}
               </div>
-              <p className={`text-[11px] leading-tight truncate ${statusColor}`}>{statusText}</p>
+              <HeaderSubtitle
+                isTyping={isTyping}
+                typingText={typingText}
+                statusText={statusText}
+                statusColor={statusColor}
+              />
             </div>
           </motion.button>
         ) : (
@@ -110,16 +146,16 @@ export default function ChatHeaderCenter({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onOpenProfile}
-            className="flex items-center gap-6 min-w-0 h-full text-left cursor-pointer"
+            className="flex items-center gap-4 min-w-0 h-full w-full text-left cursor-pointer"
             aria-label={`View ${otherDisplayName}'s profile`}
           >
             <div className="relative shrink-0">
               <CachedAvatar
                 src={opponentRemoved ? deletedAccountAvatarSrc : otherUser?.photos?.[0]}
                 fallback={sad}
-                size={32}
+                size={36}
                 alt=""
-                className={`w-8 h-8 rounded-full object-cover ring-1 ring-white/20 ${
+                className={`w-9 h-9 rounded-full object-cover ring-1 ring-white/20 ${
                   opponentRemoved ? deletedAccountAvatarClass : ''
                 }`}
               />
@@ -127,15 +163,20 @@ export default function ChatHeaderCenter({
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-black rounded-full" />
               )}
             </div>
-            <div className="min-w-0 text-left">
+            <div className="min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1">
-                <p className="font-semibold text-sm truncate text-white">{otherDisplayName}</p>
+                <p className="font-semibold text-[15px] truncate text-white">{otherDisplayName}</p>
                 <VerifiedBadge username={otherUser?.username} size={14} />
                 {isMuted && (
-                  <IconBellOff size={13} className="text-white/50 shrink-0" aria-label="Muted" />
+                  <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
                 )}
               </div>
-              <p className={`text-[11px] leading-tight truncate ${statusColor}`}>{statusText}</p>
+              <HeaderSubtitle
+                isTyping={isTyping}
+                typingText={typingText}
+                statusText={statusText}
+                statusColor={statusColor}
+              />
             </div>
           </motion.button>
         )}

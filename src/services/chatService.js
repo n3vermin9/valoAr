@@ -18,7 +18,7 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore'
-import { ref, set, onValue, off } from 'firebase/database'
+import { ref, set, remove, onValue, off } from 'firebase/database'
 import { db, rtdb } from '../firebase/config'
 import { getMatchId, getSavedMessagesChatId, formatMessagePreview } from '../utils/helpers'
 import { isGroupChat, getDirectOtherId, getOtherParticipantIds, canAdmin, isGroupMemberMuted } from '../utils/groupChat'
@@ -658,7 +658,12 @@ export async function setMessageReaction(matchId, messageId, userId, emoji) {
 }
 
 export function setTyping(matchId, userId, isTyping) {
-  set(ref(rtdb, `typing/${matchId}/${userId}`), isTyping)
+  const typingRef = ref(rtdb, `typing/${matchId}/${userId}`)
+  if (isTyping) {
+    set(typingRef, true)
+  } else {
+    remove(typingRef)
+  }
 }
 
 export function subscribeTyping(matchId, userId, callback, { participantIds = null } = {}) {
@@ -667,7 +672,7 @@ export function subscribeTyping(matchId, userId, callback, { participantIds = nu
     : matchId.split('_').filter((id) => id !== userId)
 
   if (!others.length) {
-    callback(false)
+    callback(false, [])
     return () => {}
   }
 
@@ -675,7 +680,8 @@ export function subscribeTyping(matchId, userId, callback, { participantIds = nu
   const cleanups = []
 
   const emit = () => {
-    callback(Object.values(typingState).some(Boolean))
+    const typingIds = others.filter((id) => typingState[id])
+    callback(typingIds.length > 0, typingIds)
   }
 
   others.forEach((otherId) => {

@@ -18,15 +18,21 @@ import { isChatFullyMuted } from './utils/chatMute'
 import { subscribeLikesReceived } from './services/userService'
 import { subscribeInbox } from './services/inboxService'
 import { subscribeStoryComposerOpen } from './utils/storyOverlay'
+import { subscribeProfileEditorOpen } from './utils/profileOverlay'
 
 function AppLayout() {
   const { user } = useAuth()
   const location = useLocation()
   const [badges, setBadges] = useState({ unreadChats: 0, newLikes: 0, inboxUnread: 0 })
   const [storyComposerOpen, setStoryComposerOpenState] = useState(false)
+  const [profileEditorOpen, setProfileEditorOpenState] = useState(false)
 
   useEffect(() => {
     return subscribeStoryComposerOpen(setStoryComposerOpenState)
+  }, [])
+
+  useEffect(() => {
+    return subscribeProfileEditorOpen(setProfileEditorOpenState)
   }, [])
 
   useEffect(() => {
@@ -58,7 +64,8 @@ function AppLayout() {
   const hideNav =
     (location.pathname.startsWith('/chats/') && location.pathname !== '/chats') ||
     location.pathname.startsWith('/groups/') ||
-    storyComposerOpen
+    storyComposerOpen ||
+    profileEditorOpen
 
   return (
     <div className="h-full">

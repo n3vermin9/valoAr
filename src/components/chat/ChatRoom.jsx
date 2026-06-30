@@ -45,7 +45,7 @@ import {
   dropdownMenuClass,
   dropdownMenuItemWithIconClass,
   dropdownMenuItemWithIconDangerClass,
-  storyGlassButtonClass,
+  chatFloatingButtonClass,
 } from '../../utils/designSystem'
 import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
@@ -53,6 +53,7 @@ import MessageBubble from './MessageBubble'
 import DeleteMessageOverlay from './DeleteMessageOverlay'
 import ImageViewer from './ImageViewer'
 import ChatInput from './ChatInput'
+import ChatBackground from './ChatBackground'
 import ChatHeaderCenter from './ChatHeaderCenter'
 import {
   findChatSearchMatches,
@@ -70,6 +71,8 @@ import LoadingSpinner from '../ui/LoadingSpinner'
 import {
   isGroupChat,
   getGroupDisplayName,
+  getDirectOtherId,
+  getOtherParticipantIds,
   isGroupAdmin,
   isGroupMember,
   isGroupMemberMuted,
@@ -155,6 +158,7 @@ export default function ChatRoom() {
   const [chatAvailable, setChatAvailable] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isTyping, setIsTyping] = useState(false)
+  const [typingUserIds, setTypingUserIds] = useState([])
   const [presence, setPresence] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [removedMessageIds, setRemovedMessageIds] = useState(() => new Set())
@@ -376,10 +380,19 @@ export default function ChatRoom() {
   }, [otherId, isSavedMessages, isGroup])
 
   useEffect(() => {
-    if (!matchId || !user?.uid || isSavedMessages || isGroupPreview) return
-    const participantIds = isGroup ? chatMeta?.participants : null
-    return subscribeTyping(matchId, user.uid, setIsTyping, { participantIds })
-  }, [matchId, user?.uid, isSavedMessages, isGroup, isGroupPreview, chatMeta?.participants?.join(',')])
+    if (!matchId || !user?.uid || isSavedMessages || isGroupPreview || !chatMeta) return
+
+    const participantIds = isGroup
+      ? getOtherParticipantIds(chatMeta.participants || [], user.uid)
+      : [getDirectOtherId(chatMeta, user.uid)].filter(Boolean)
+
+    if (!participantIds.length) return
+
+    return subscribeTyping(matchId, user.uid, (typing, ids = []) => {
+      setIsTyping(typing)
+      setTypingUserIds(ids)
+    }, { participantIds })
+  }, [matchId, user?.uid, isSavedMessages, isGroup, isGroupPreview, chatMeta, chatMeta?.participants?.join(',')])
 
   const updateMenuPosition = useCallback(() => {
     const el = menuButtonRef.current
@@ -798,18 +811,25 @@ export default function ChatRoom() {
     ? { text: 'Account deleted', variant: 'offline' }
     : isGroup
       ? {
-          text: isTyping
-            ? 'Someone is typing…'
-            : `${groupMemberCount} member${groupMemberCount === 1 ? '' : 's'}`,
-          variant: isTyping ? 'typing' : 'offline',
+          text: `${groupMemberCount} member${groupMemberCount === 1 ? '' : 's'}`,
+          variant: 'offline',
         }
-      : getChatStatusLabel({ isTyping, presence })
+      : getChatStatusLabel({ isTyping: false, presence })
+  const typingHeaderText = (() => {
+    if (!isTyping) return ''
+    if (isGroup) {
+      if (typingUserIds.length === 1) {
+        const username = memberProfiles[typingUserIds[0]]?.username
+        return username ? `${username} is typing…` : 'Someone is typing…'
+      }
+      return typingUserIds.length > 1 ? 'Several people are typing…' : 'Someone is typing…'
+    }
+    return 'typing…'
+  })()
   const statusColor =
-    chatStatus.variant === 'typing'
-      ? 'text-blue-300'
-      : chatStatus.variant === 'online'
-        ? 'text-green-400'
-        : 'text-white/50'
+    chatStatus.variant === 'online'
+      ? 'text-green-400'
+      : 'text-white/50'
 
   const handleMute = () => {
     setShowMenu(false)
@@ -819,7 +839,6 @@ export default function ChatRoom() {
   const handleLeaveGroup = async () => {
     try {
       await leaveGroupChat(matchId, user.uid)
-      toast.success('Left group')
       navigate('/chats')
     } catch {
       toast.error('Failed to leave group')
@@ -1046,9 +1065,10 @@ export default function ChatRoom() {
     <div className="h-full flex flex-col">
       {headerMenu}
       <div className="relative flex-1 min-h-0">
+        <ChatBackground profile={profile} className="absolute inset-0" />
         <div
           ref={messagesContainerRef}
-          className={`absolute inset-0 overflow-y-auto px-4 pt-[var(--chat-room-header-height)] pb-[var(--chat-room-composer-min-height)] ${
+          className={`absolute inset-0 overflow-y-auto px-[var(--ios-page-x-lg)] pt-[var(--chat-room-header-height)] pb-[var(--chat-room-composer-min-height)] ${
             deleteTarget ? '!pb-52 pointer-events-none' : ''
           }`}
         >
@@ -1125,26 +1145,26 @@ export default function ChatRoom() {
               exit={{ opacity: 0, scale: 0.85, y: 8 }}
               transition={{ duration: 0.18 }}
               onClick={scrollToBottom}
-              className={`absolute right-4 z-10 ${storyGlassButtonClass}`}
+              className={`absolute right-4 z-10 ${chatFloatingButtonClass} text-white/80`}
               style={{ bottom: 'calc(var(--chat-room-composer-min-height) + 0.5rem)' }}
               aria-label="Scroll to bottom"
             >
-              <IconChevronDown size={20} />
+              <IconChevronDown size={22} />
             </motion.button>
           )}
         </AnimatePresence>
 
         <GlassNavBar liquid className="absolute top-0 inset-x-0 z-20 !bg-transparent pointer-events-none">
-          <div className="pointer-events-auto flex items-center w-full gap-2 min-h-11">
+          <div className="pointer-events-auto flex items-center w-full gap-2.5 min-h-12">
             <div
               className={`shrink-0 overflow-hidden transition-[width] duration-300 ${
-                showSearch ? 'w-0 pointer-events-none' : 'w-11'
+                showSearch ? 'w-0 pointer-events-none' : 'w-12'
               }`}
             >
               <ChevronBack
                 onClick={() => (isGroupPreview ? navigate(previewReturnTo) : navigate('/chats'))}
-                buttonClassName={storyGlassButtonClass}
-                className="w-5 h-5"
+                buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+                className="w-6 h-6"
               />
             </div>
 
@@ -1154,7 +1174,6 @@ export default function ChatRoom() {
                 isSavedMessages={isSavedMessages}
                 isGroupChat={isGroup}
                 groupName={groupName}
-                groupMemberCount={groupMemberCount}
                 groupPhotoUrl={chatMeta?.photoUrl}
                 otherDisplayName={otherDisplayName}
                 otherUser={otherUser}
@@ -1163,6 +1182,7 @@ export default function ChatRoom() {
                 isTyping={isTyping}
                 isMuted={isGroupPreview ? false : isMuted}
                 statusText={statusText}
+                typingText={typingHeaderText}
                 statusColor={statusColorHeader}
                 onOpenProfile={openProfile}
                 searchQuery={searchQuery}
@@ -1177,27 +1197,27 @@ export default function ChatRoom() {
               />
             </div>
 
-            <div className="shrink-0 w-11 flex justify-end">
+            <div className="shrink-0 w-12 flex justify-end">
               {showSearch ? (
                 <button
                   type="button"
                   onClick={closeSearch}
-                  className={`${storyGlassButtonClass} !p-0 !w-11 !h-11 shrink-0`}
+                  className={`${chatFloatingButtonClass} text-white/80 shrink-0`}
                   aria-label="Close search"
                 >
-                  <IconX size={20} stroke={2} />
+                  <IconX size={22} stroke={2} />
                 </button>
               ) : isGroupPreview ? (
-                <span className="w-11 h-11 shrink-0" aria-hidden />
+                <span className="w-12 h-12 shrink-0" aria-hidden />
               ) : (
                 <button
                   ref={menuButtonRef}
                   type="button"
                   onClick={() => setShowMenu((open) => !open)}
-                  className={storyGlassButtonClass}
+                  className={`${chatFloatingButtonClass} text-white/80`}
                   aria-label="Chat options"
                 >
-                  <IconDotsVertical size={20} />
+                  <IconDotsVertical size={22} />
                 </button>
               )}
             </div>
@@ -1248,9 +1268,6 @@ export default function ChatRoom() {
                     <UsernameLabel username={otherUser.username} className="text-xs italic" badgeSize={10} />
                     <span>is typing…</span>
                   </div>
-                )}
-                {isTyping && isGroup && (
-                  <div className="px-5 py-2 text-xs text-blue-300/90 italic">Someone is typing…</div>
                 )}
                 <ChatInput
                   key={matchId}

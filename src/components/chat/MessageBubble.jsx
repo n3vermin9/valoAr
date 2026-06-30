@@ -10,6 +10,7 @@ import CachedAvatar from '../ui/CachedAvatar'
 import UsernameLabel from '../ui/UsernameLabel'
 import GroupRoleBadge from './GroupRoleBadge'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
+import { chatBubblePadClass, chatMessageTextClass } from '../../utils/designSystem'
 import { sad } from '../../assets'
 
 const SWIPE_REPLY_THRESHOLD = 56
@@ -19,21 +20,32 @@ function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 shrink-0 self-end select-none leading-none ${
+      className={`inline-flex items-center gap-0.5 shrink-0 select-none leading-none ${
         tone === 'own' ? 'text-white/65' : 'text-white/45'
       }`}
     >
-      {sentTime && <span className="text-[10px] tabular-nums">{sentTime}</span>}
+      {sentTime && <span className="text-[11px] tabular-nums whitespace-nowrap">{sentTime}</span>}
       {isOwn && (
         <span className="inline-flex shrink-0">
           {read ? (
-            <IconChecks size={13} className="text-blue-200" stroke={2} />
+            <IconChecks size={15} className="text-blue-200" stroke={2} />
           ) : (
-            <IconCheck size={13} className="text-white/50" stroke={2} />
+            <IconCheck size={15} className="text-white/50" stroke={2} />
           )}
         </span>
       )}
     </span>
+  )
+}
+
+function TextWithCornerMeta({ children, meta }) {
+  if (!meta) return children
+
+  return (
+    <div className="relative inline-block max-w-full min-w-0 align-bottom pr-[2.75rem]">
+      {children}
+      <div className="absolute bottom-0 right-0">{meta}</div>
+    </div>
   )
 }
 
@@ -139,8 +151,8 @@ export default function MessageBubble({
   const hasReactions = message.reactions && Object.keys(message.reactions).length > 0
   const { storyReply, text: displayText } = getStoryReplyDisplay(message)
   const bubbleRadius = isOwn
-    ? 'rounded-[1.125rem] rounded-br-[0.25rem]'
-    : 'rounded-[1.125rem] rounded-bl-[0.25rem]'
+    ? 'rounded-[var(--chat-bubble-radius)] rounded-br-[0.3rem]'
+    : 'rounded-[var(--chat-bubble-radius)] rounded-bl-[0.3rem]'
 
   const bubbleSurfaceClass = `${
     isOwn
@@ -167,8 +179,8 @@ export default function MessageBubble({
         >
           <UsernameLabel
             username={senderName}
-            className="text-[11px] font-semibold text-blue-300/90 min-w-0"
-            badgeSize={11}
+            className="text-xs font-semibold text-blue-300/90 min-w-0"
+            badgeSize={12}
             as="span"
           />
           {groupChat && senderId ? (
@@ -191,20 +203,33 @@ export default function MessageBubble({
         />
       )}
       {displayText && (
-        <div className="flex flex-wrap items-end gap-x-2 gap-y-0">
-          <MessageText
-            text={displayText}
-            isOwn={isOwn}
-            onMentionClick={onMentionClick}
-            searchQuery={searchQuery}
-            activeSearchMatch={activeSearchMatch}
-            className="text-sm break-words min-w-0"
-          />
-          {meta}
-        </div>
+        isOwn ? (
+          <div className="flex flex-wrap items-end gap-x-2 gap-y-0">
+            <MessageText
+              text={displayText}
+              isOwn={isOwn}
+              onMentionClick={onMentionClick}
+              searchQuery={searchQuery}
+              activeSearchMatch={activeSearchMatch}
+              className={chatMessageTextClass}
+            />
+            {meta}
+          </div>
+        ) : (
+          <TextWithCornerMeta meta={meta}>
+            <MessageText
+              text={displayText}
+              isOwn={isOwn}
+              onMentionClick={onMentionClick}
+              searchQuery={searchQuery}
+              activeSearchMatch={activeSearchMatch}
+              className={chatMessageTextClass}
+            />
+          </TextWithCornerMeta>
+        )
       )}
       {message.audioUrl && (
-        <div className="flex flex-wrap items-end gap-x-2 gap-y-0">
+        <div className={`flex ${isOwn ? 'flex-wrap items-end gap-x-2 gap-y-0' : 'flex-col items-end gap-1'}`}>
           <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />
           {!displayText && meta}
         </div>
@@ -251,7 +276,7 @@ export default function MessageBubble({
             onTouchMove={readOnly ? undefined : handleTouchMove}
             onTouchEnd={readOnly ? undefined : handleTouchEnd}
             onTouchCancel={readOnly ? undefined : handleTouchCancel}
-            className={`px-3 py-1.5 transition-colors duration-200 message-bubble w-fit max-w-full ${bubbleRadius} ${bubbleSurfaceClass}`}
+            className={`${chatBubblePadClass} transition-colors duration-200 message-bubble w-fit max-w-full ${bubbleRadius} ${bubbleSurfaceClass}`}
             data-allow-contextmenu={readOnly ? undefined : true}
           >
             {renderBubbleContent()}
@@ -271,13 +296,13 @@ export default function MessageBubble({
     </div>
   )
 
-  const rowClass = `flex ${isOwn ? 'justify-end' : 'justify-start'} ${tightBottom ? 'mb-0.5' : 'mb-2'}`
+  const rowClass = `flex ${isOwn ? 'justify-end' : 'justify-start'} ${tightBottom ? 'mb-1' : 'mb-2.5'}`
 
   if (!isOwn && isGroupChat) {
     return (
       <div className={rowClass} data-message-id={message.id}>
-        <div className="flex items-end gap-2 max-w-[85%] min-w-0">
-          <div className="w-8 shrink-0 flex justify-center">
+        <div className="flex items-end gap-2.5 max-w-[88%] min-w-0">
+          <div className="w-9 shrink-0 flex justify-center">
             {showAvatar ? (
               <button
                 type="button"
@@ -288,22 +313,22 @@ export default function MessageBubble({
                 <CachedAvatar
                   src={senderAvatar}
                   fallback={sad}
-                  size={32}
+                  size={36}
                   alt=""
-                  className="w-8 h-8 rounded-full object-cover"
+                  className="w-9 h-9 rounded-full object-cover"
                 />
               </button>
             ) : (
-              <span className="w-8 h-8" aria-hidden />
+              <span className="w-9 h-9" aria-hidden />
             )}
           </div>
           <div className="relative min-w-0 flex-1">
             {Math.abs(swipeOffset) > 12 && (
               <div
-                className="absolute top-1/2 -translate-y-1/2 right-full mr-2 flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/70 pointer-events-none"
+                className="absolute top-1/2 -translate-y-1/2 right-full mr-2 flex items-center justify-center w-9 h-9 rounded-full bg-white/10 text-white/70 pointer-events-none"
                 style={{ opacity: Math.min(Math.abs(swipeOffset) / SWIPE_REPLY_THRESHOLD, 1) }}
               >
-                <IconArrowBackUp size={16} />
+                <IconArrowBackUp size={18} />
               </div>
             )}
             {bubbleBlock}
@@ -315,15 +340,15 @@ export default function MessageBubble({
 
   return (
     <div className={rowClass} data-message-id={message.id}>
-      <div className="relative max-w-[75%]">
+      <div className="relative max-w-[78%]">
         {Math.abs(swipeOffset) > 12 && (
           <div
-            className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/70 pointer-events-none ${
+            className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-white/10 text-white/70 pointer-events-none ${
               isOwn ? 'left-full ml-2' : 'right-full mr-2'
             }`}
             style={{ opacity: Math.min(Math.abs(swipeOffset) / SWIPE_REPLY_THRESHOLD, 1) }}
           >
-            <IconArrowBackUp size={16} />
+            <IconArrowBackUp size={18} />
           </div>
         )}
         {bubbleBlock}

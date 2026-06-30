@@ -52,8 +52,19 @@
   --ios-nav-float-bottom: 16px;
   --ios-nav-clearance: 96px;
   --ios-safe-top: env(safe-area-inset-top, 0px);
-  --chat-room-header-height: calc(var(--ios-safe-top) + 62px);
-  --chat-room-composer-min-height: calc(80px + var(--ios-safe-bottom));
+  --chat-room-header-height: calc(var(--ios-safe-top) + 70px);
+  --chat-room-composer-min-height: calc(92px + var(--ios-safe-bottom));
+
+  /* Chat UI — mobile-friendly sizing */
+  --chat-message-text: 16px;
+  --chat-message-line: 1.35;
+  --chat-bubble-px: 14px;
+  --chat-bubble-py: 9px;
+  --chat-bubble-radius: 1.25rem;
+  --chat-avatar-size: 36px;
+  --chat-composer-btn: 48px;
+  --chat-composer-text: 16px;
+  --chat-meta-text: 11px;
   --ios-safe-bottom: env(safe-area-inset-bottom, 0px);
   --ios-safe-left: env(safe-area-inset-left, 0px);
   --ios-safe-right: env(safe-area-inset-right, 0px);

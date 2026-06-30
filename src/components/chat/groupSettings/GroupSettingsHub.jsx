@@ -69,6 +69,7 @@ export default function GroupSettingsHub() {
     useGroupSettingsChat(chatId)
   const [saving, setSaving] = useState(false)
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(false)
+  const [confirmLeaveGroup, setConfirmLeaveGroup] = useState(false)
 
   const base = `/groups/${chatId}/settings`
   const withState = (path) => navigate(path, { state: location.state })
@@ -83,12 +84,12 @@ export default function GroupSettingsHub() {
     setSaving(true)
     try {
       await leaveGroupChat(chatId, user.uid)
-      toast.success('Left group')
       navigate('/chats')
     } catch (err) {
       toast.error(err.message || 'Failed to leave group')
     } finally {
       setSaving(false)
+      setConfirmLeaveGroup(false)
     }
   }
 
@@ -140,7 +141,6 @@ export default function GroupSettingsHub() {
                 icon={IconLink}
                 iconTone="green"
                 label="Join & invite"
-                description="Public visibility and invite link"
                 onClick={() => withState(`${base}/join`)}
               />
             )}
@@ -149,7 +149,7 @@ export default function GroupSettingsHub() {
                 icon={IconShield}
                 iconTone="violet"
                 label="Admins"
-                description={`${adminCount} with elevated access`}
+                value={String(adminCount)}
                 onClick={() => withState(`${base}/admins`)}
               />
             )}
@@ -162,8 +162,7 @@ export default function GroupSettingsHub() {
             iconTone="red"
             danger
             label="Leave group"
-            description="You can rejoin if you have an invite link"
-            onClick={handleLeave}
+            onClick={() => setConfirmLeaveGroup(true)}
             disabled={saving}
             trailing={null}
           />
@@ -173,7 +172,6 @@ export default function GroupSettingsHub() {
               iconTone="red"
               danger
               label="Delete group"
-              description="Permanently deletes the group for everyone"
               onClick={() => setConfirmDeleteGroup(true)}
               disabled={saving}
               trailing={null}
@@ -181,6 +179,17 @@ export default function GroupSettingsHub() {
           )}
         </SettingsSection>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmLeaveGroup}
+        onClose={() => !saving && setConfirmLeaveGroup(false)}
+        onConfirm={handleLeave}
+        title="Leave group?"
+        message="You will leave this group. You can rejoin later if you have an invite link."
+        confirmLabel="Leave group"
+        danger
+        loading={saving}
+      />
 
       <ConfirmDialog
         isOpen={confirmDeleteGroup}

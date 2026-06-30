@@ -181,10 +181,8 @@ export default function GroupMemberRow({
         toast.success('Member banned')
       } else if (action === 'promote') {
         await setGroupMemberRole(chatId, currentUserId, memberId, 'admin')
-        toast.success('Member is now an admin')
       } else if (action === 'demote') {
         await setGroupMemberRole(chatId, currentUserId, memberId, 'member')
-        toast.success('Admin access removed')
       } else if (action === 'mute') {
         await muteGroupMember(chatId, currentUserId, memberId)
         toast.success('Member muted')
@@ -219,7 +217,7 @@ export default function GroupMemberRow({
         <div className="flex items-center gap-2 min-w-0">
           <UsernameLabel
             username={member?.username}
-            className={variant === 'settings' ? undefined : 'text-sm font-medium'}
+            className={variant === 'settings' ? undefined : 'text-[15px] font-medium'}
             badgeSize={12}
           />
           {isSelf && (

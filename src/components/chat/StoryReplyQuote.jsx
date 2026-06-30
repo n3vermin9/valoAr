@@ -36,9 +36,9 @@ export default function StoryReplyQuote({
 
   const content = (
     <>
-      <p className="text-[11px] font-semibold truncate mb-1 text-white/80">{label}</p>
+      <p className="text-xs font-semibold truncate mb-1 text-white/80">{label}</p>
       <p
-        className={`text-xs leading-snug line-clamp-3 whitespace-pre-wrap break-words ${
+        className={`text-[13px] leading-snug line-clamp-3 whitespace-pre-wrap break-words ${
           removed ? 'text-white/60 italic' : 'text-white/95'
         }`}
       >
@@ -47,7 +47,7 @@ export default function StoryReplyQuote({
     </>
   )
 
-  const boxClass = `relative overflow-hidden rounded-[var(--ios-radius-md)] px-2.5 py-2 border border-white/10 ${colorClass} ${
+  const boxClass = `relative overflow-hidden rounded-[var(--ios-radius-md)] px-3 py-2.5 border border-white/10 ${colorClass} ${
     canOpen ? 'hover:brightness-110 active:brightness-95 transition-[filter] cursor-pointer' : ''
   }`
 

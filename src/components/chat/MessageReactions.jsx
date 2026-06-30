@@ -22,10 +22,10 @@ export default function MessageReactions({
   if (entries.length === 0) return null
 
   return (
-    <div className={`flex flex-wrap gap-1 ${className}`}>
+    <div className={`flex flex-wrap gap-1.5 ${className}`}>
       {entries.map(([emoji, userIds]) => {
         const mine = userIds.includes(currentUserId)
-        const pillClass = `inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border transition-colors ${
+        const pillClass = `inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm border transition-colors ${
           mine
             ? 'bg-blue-500/25 border-blue-400/40'
             : isOwn
@@ -38,7 +38,7 @@ export default function MessageReactions({
             <span key={emoji} className={pillClass}>
               <span>{emoji}</span>
               {userIds.length > 1 && (
-                <span className="text-[10px] text-white/60 tabular-nums">{userIds.length}</span>
+                <span className="text-[11px] text-white/60 tabular-nums">{userIds.length}</span>
               )}
             </span>
           )
@@ -57,7 +57,7 @@ export default function MessageReactions({
           >
             <span>{emoji}</span>
             {userIds.length > 1 && (
-              <span className="text-[10px] text-white/60 tabular-nums">{userIds.length}</span>
+              <span className="text-[11px] text-white/60 tabular-nums">{userIds.length}</span>
             )}
           </button>
         )
@@ -70,7 +70,7 @@ export function ReactionPicker({ reactions, currentUserId, onReact, className = 
   const myReaction = reactions?.[currentUserId]
 
   return (
-    <div className={`flex items-center justify-center gap-0.5 px-2 py-2 ${className}`}>
+    <div className={`flex items-center justify-center gap-1 px-2 py-2.5 ${className}`}>
       {MESSAGE_REACTIONS.map((emoji) => (
         <button
           key={emoji}
@@ -79,7 +79,7 @@ export function ReactionPicker({ reactions, currentUserId, onReact, className = 
             e.stopPropagation()
             onReact(emoji)
           }}
-          className={`h-9 w-9 flex items-center justify-center rounded-full text-lg transition-colors ${
+          className={`h-10 w-10 flex items-center justify-center rounded-full text-xl transition-colors ${
             myReaction === emoji ? 'bg-blue-500/30 scale-110' : 'hover:bg-white/10'
           }`}
           aria-label={`React with ${emoji}`}

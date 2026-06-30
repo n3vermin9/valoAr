@@ -39,7 +39,12 @@ export const chatFloatingInputBarClass = `${chatFloatingGlassClass} liquid-glass
 
 export const chatFloatingPanelClass = `${chatFloatingGlassClass} liquid-glass-rounded backdrop-blur-md`
 
-export const chatFloatingButtonClass = `${chatFloatingGlassClass} liquid-glass-circle h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
+export const chatFloatingButtonClass = `${chatFloatingGlassClass} liquid-glass-circle h-12 w-12 shrink-0 flex items-center justify-center rounded-full transition-colors`
+
+export const chatMessageTextClass = 'text-[16px] leading-[1.35] break-words min-w-0'
+export const chatBubblePadClass = 'px-3.5 py-2'
+export const chatComposerInputClass =
+  'flex-1 min-w-0 py-2 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto text-[16px] leading-6 max-h-36'
 
 export const glassActionButtonClass = `${glassInputBarClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
@@ -90,6 +95,8 @@ export const subpageTitleClass = 'text-[17px] font-medium text-[var(--ios-label)
 export const fieldLabelClass = `${typoSubheadClass} mb-2 block`
 export const linkActionClass =
   'text-[15px] font-medium text-[var(--ios-blue)] hover:text-blue-400 transition-colors'
+export const dangerLinkActionClass =
+  'text-[15px] font-medium text-red-400 hover:text-red-300 transition-colors disabled:opacity-50'
 export const btnSecondarySmClass =
   'px-4 py-2 min-h-[36px] rounded-full text-[15px] font-medium bg-white/10 hover:bg-white/15 border border-white/10 transition-colors'
 

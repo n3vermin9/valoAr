@@ -14,15 +14,15 @@ export default function ReplyQuote({ reply, authorName, isOwn, onClick, classNam
     <>
       <UsernameLabel
         username={authorName}
-        className={`text-xs font-semibold truncate ${authorClass}`}
-        badgeSize={10}
+        className={`text-[13px] font-semibold truncate ${authorClass}`}
+        badgeSize={11}
         as="p"
       />
-      <p className={`text-xs truncate ${previewClass}`}>{preview}</p>
+      <p className={`text-[13px] truncate ${previewClass}`}>{preview}</p>
     </>
   )
 
-  const baseClass = `block border-l-2 ${borderClass} pl-2.5 py-0.5 mb-1.5 text-left w-full min-w-0 ${className}`
+  const baseClass = `block border-l-2 ${borderClass} pl-3 py-1 mb-2 text-left w-full min-w-0 ${className}`
 
   if (onClick) {
     return (

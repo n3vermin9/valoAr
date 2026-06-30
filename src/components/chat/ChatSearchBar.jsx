@@ -21,7 +21,7 @@ export default function ChatSearchBar({
 
   const field = (
     <>
-      <IconSearch size={18} className="text-white/50 shrink-0" />
+      <IconSearch size={20} className="text-white/50 shrink-0" />
       <input
         ref={inputRef}
         type="search"
@@ -36,7 +36,7 @@ export default function ChatSearchBar({
           if (e.key === 'Escape') onClose()
         }}
         placeholder="Search words in chat"
-        className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
+        className="flex-1 min-w-0 bg-transparent text-[15px] text-white placeholder:text-white/40 outline-none"
         aria-label="Search messages"
       />
     </>

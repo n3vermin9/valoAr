@@ -125,6 +125,11 @@ export function canAdmin(chat, userId, permission) {
   return getAdminPermissions(chat, userId)[permission] === true
 }
 
+export function hasFullAdminPermissions(permissions) {
+  if (!permissions) return false
+  return Object.keys(OWNER_ADMIN_PERMISSIONS).every((key) => permissions[key] === true)
+}
+
 export function isGroupMember(chat, userId) {
   return chat?.participants?.includes(userId) ?? false
 }

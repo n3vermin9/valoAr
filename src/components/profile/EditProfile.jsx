@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { IconInfoCircle } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -6,6 +6,7 @@ import { updateUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
 import { normalizeUsername, formatGenderLabel } from '../../utils/helpers'
 import { normalizeSocials } from '../../utils/socialLinks'
+import { setProfileEditorOpen } from '../../utils/profileOverlay'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
 import SocialLinksEditor from './SocialLinksEditor'
@@ -15,9 +16,12 @@ import { SettingsSection, RoleOptionButton } from '../ui/SettingsUI'
 import {
   btnFilledClass,
   fieldLabelClass,
-  textFieldClass,
   typoTitle3Class,
+  typoSubheadClass,
 } from '../../utils/designSystem'
+
+const compactInputClass =
+  'w-full px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
 
 export default function EditProfile({ onCancel }) {
   const { user, profile, refreshProfile } = useAuth()
@@ -33,6 +37,11 @@ export default function EditProfile({ onCancel }) {
   )
   const [showBothInfo, setShowBothInfo] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setProfileEditorOpen(true)
+    return () => setProfileEditorOpen(false)
+  }, [])
 
   const usernameChanged = username !== profile?.username
   const { status, error: usernameError } = useUsernameCheck(username, user?.uid, usernameChanged)
@@ -110,34 +119,34 @@ export default function EditProfile({ onCancel }) {
 
         <div className="space-y-5 pb-4">
           <SettingsSection title="Basics">
-            <div className="px-4 py-4 border-b border-white/10">
+            <div className="px-4 py-3 border-b border-white/10">
               <label className={fieldLabelClass}>Username</label>
-              <div className={`flex items-center rounded-full border ${usernameBorder} ${textFieldClass} !px-0`}>
-                <span className="pl-5 pr-1 text-[var(--ios-label-secondary)]">@</span>
+              <div className={`flex items-center rounded-full border ${usernameBorder} ${compactInputClass} !px-0`}>
+                <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px]">@</span>
                 <input
                   value={username}
                   onChange={(e) => setUsername(normalizeUsername(e.target.value))}
-                  className="flex-1 min-w-0 py-3 pr-5 bg-transparent outline-none text-[17px]"
+                  className="flex-1 min-w-0 py-2.5 pr-4 bg-transparent outline-none text-[15px]"
                   maxLength={20}
                 />
               </div>
               {usernameError && usernameChanged && (
-                <p className="text-red-400 text-[15px] mt-2">{usernameError}</p>
+                <p className="text-red-400 text-[13px] mt-1.5">{usernameError}</p>
               )}
               {!usernameError && usernameChanged && status === 'available' && (
-                <p className="text-green-400 text-[15px] mt-2">This username is available</p>
+                <p className="text-green-400 text-[13px] mt-1.5">Available</p>
               )}
               {usernameChanged && status === 'checking' && (
-                <p className="text-[var(--ios-label-secondary)] text-[15px] mt-2">Checking availability…</p>
+                <p className={`${typoSubheadClass} mt-1.5`}>Checking…</p>
               )}
             </div>
-            <div className="px-4 py-4 border-b border-white/10">
+            <div className="px-4 py-3 border-b border-white/10">
               <label className={fieldLabelClass}>Age</label>
               <AgeSlider value={age} onChange={setAge} />
             </div>
-            <div className="px-4 py-4">
+            <div className="px-4 py-3">
               <label className={fieldLabelClass}>Gender</label>
-              <div className="px-5 py-3 rounded-full bg-white/5 border border-white/10 text-[var(--ios-label-secondary)] text-[17px]">
+              <div className={`${compactInputClass} text-[var(--ios-label-secondary)]`}>
                 {formatGenderLabel(profile?.gender)} (locked)
               </div>
             </div>
@@ -167,20 +176,21 @@ export default function EditProfile({ onCancel }) {
           </SettingsSection>
 
           <SettingsSection title="About you">
-            <div className="px-4 py-4">
+            <div className="px-4 py-3">
               <label className={fieldLabelClass}>Bio</label>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Tell people about yourself…"
-                className="w-full min-h-[120px] px-5 py-3 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-none text-[17px] leading-relaxed"
+                rows={2}
+                className="w-full min-h-[56px] px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-y text-[15px] leading-snug"
                 maxLength={300}
               />
             </div>
           </SettingsSection>
 
           <SettingsSection title="Links">
-            <div className="px-4 py-4">
+            <div className="px-4 py-3">
               <SocialLinksEditor socials={socials} onChange={setSocials} />
             </div>
           </SettingsSection>

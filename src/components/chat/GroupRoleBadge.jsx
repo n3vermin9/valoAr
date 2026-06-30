@@ -7,7 +7,7 @@ export default function GroupRoleBadge({ chat, userId, role, label, className = 
 
   return (
     <span
-      className={`text-[11px] font-medium normal-case text-white/40 shrink-0 ${className}`}
+      className={`text-xs font-medium normal-case text-white/40 shrink-0 ${className}`}
     >
       {displayLabel}
     </span>

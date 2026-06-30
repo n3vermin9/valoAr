@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers } from '@tabler/icons-react'
+import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
@@ -21,7 +21,10 @@ import PhotoGallery from '../ui/PhotoGallery'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import CopyableUsername from '../ui/CopyableUsername'
 import ChevronBack from '../ui/ChevronBack'
+import { SubpageHeaderBar } from '../layout/SubpageShell'
+import ChatBackgroundSettings from './ChatBackgroundSettings'
 import SocialLinksDisplay from './SocialLinksDisplay'
+import ProfileMutualGroups from './ProfileMutualGroups'
 import ProfileStoryAvatar from '../stories/ProfileStoryAvatar'
 import StoryViewer from '../stories/StoryViewer'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
@@ -34,6 +37,7 @@ export default function ProfileView() {
   const [showMatches, setShowMatches] = useState(false)
   const [friendProfileId, setFriendProfileId] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showChatBackground, setShowChatBackground] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
@@ -208,24 +212,30 @@ export default function ProfileView() {
             <SettingsSection title="Privacy">
               <SettingSwitch
                 label="Open to messages"
-                description="Let people message you without sending a friend request first"
                 checked={allowDirectMessages}
                 disabled={savingSettings}
                 onChange={handleToggleDirectMessages}
               />
               <SettingSwitch
                 label="Show friend count"
-                description="Display how many friends you have on your public profile"
                 checked={showFriendCount}
                 disabled={savingSettings}
                 onChange={handleToggleShowFriendCount}
               />
               <SettingSwitch
                 label="24-hour time"
-                description="Show chat times in military format (14:30 instead of 2:30 PM)"
                 checked={useMilitaryTime}
                 disabled={savingSettings}
                 onChange={handleToggleUseMilitaryTime}
+              />
+            </SettingsSection>
+
+            <SettingsSection title="Appearance">
+              <SettingsNavRow
+                icon={IconPalette}
+                iconTone="violet"
+                label="Chat background"
+                onClick={() => setShowChatBackground(true)}
               />
             </SettingsSection>
 
@@ -246,7 +256,6 @@ export default function ProfileView() {
                 iconTone="red"
                 danger
                 label="Delete account"
-                description="Permanent — cannot be undone"
                 onClick={() => {
                   setShowSettings(false)
                   setShowDeleteConfirm(true)
@@ -256,6 +265,10 @@ export default function ProfileView() {
             </SettingsSection>
           </div>
         </div>
+      )}
+
+      {showChatBackground && (
+        <ChatBackgroundSettings onBack={() => setShowChatBackground(false)} />
       )}
 
       <Modal isOpen={showBlocked} onClose={() => setShowBlocked(false)} className="max-w-lg">
@@ -768,6 +781,18 @@ export function PublicProfileView({
         </div>
         <InfoRow label="Member Since" value={memberSince} small />
       </div>
+
+      {!isSelf && user?.uid && (
+        <ProfileMutualGroups
+          viewerId={user.uid}
+          profileUserId={userId}
+          onOpenGroup={(groupId) => {
+            onDismissHost?.()
+            onClose?.()
+            navigate(`/chats/${groupId}`)
+          }}
+        />
+      )}
 
       {galleryOpen && (
         <PhotoGallery photos={profile.photos} onClose={() => setGalleryOpen(false)} />

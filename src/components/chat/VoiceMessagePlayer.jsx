@@ -110,20 +110,20 @@ export default function VoiceMessagePlayer({ src, isOwn }) {
   const timeClass = isOwn ? 'text-white/70' : 'text-white/55'
 
   return (
-    <div className="flex items-center gap-2.5 min-w-[200px] max-w-[240px] select-none">
+    <div className="flex items-center gap-3 min-w-[220px] max-w-[260px] select-none">
       <button
         type="button"
         onClick={togglePlay}
-        className={`h-9 w-9 shrink-0 flex items-center justify-center rounded-full transition-colors ${playBtnClass}`}
+        className={`h-10 w-10 shrink-0 flex items-center justify-center rounded-full transition-colors ${playBtnClass}`}
         aria-label={playing ? 'Pause voice message' : 'Play voice message'}
       >
-        {playing ? <IconPlayerPause size={18} fill="currentColor" /> : <IconPlayerPlay size={18} fill="currentColor" />}
+        {playing ? <IconPlayerPause size={20} fill="currentColor" /> : <IconPlayerPlay size={20} fill="currentColor" />}
       </button>
 
       <button
         type="button"
         onClick={seek}
-        className="flex-1 flex items-end gap-[2px] h-7 min-w-0 cursor-pointer"
+        className="flex-1 flex items-end gap-[2px] h-8 min-w-0 cursor-pointer"
         aria-label="Seek voice message"
       >
         {WAVEFORM.map((height, i) => {
@@ -134,13 +134,13 @@ export default function VoiceMessagePlayer({ src, isOwn }) {
               className={`w-[3px] rounded-full transition-colors duration-150 ${filled ? barActive : barBase} ${
                 playing && filled ? 'opacity-100' : ''
               }`}
-              style={{ height: `${height + 6}px` }}
+              style={{ height: `${height + 8}px` }}
             />
           )
         })}
       </button>
 
-      <span className={`text-[11px] tabular-nums shrink-0 w-9 text-right ${timeClass}`}>
+      <span className={`text-xs tabular-nums shrink-0 w-10 text-right ${timeClass}`}>
         {formatDuration(playing || current > 0 ? current : duration)}
       </span>
 

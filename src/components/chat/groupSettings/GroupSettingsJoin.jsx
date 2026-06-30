@@ -77,22 +77,10 @@ export default function GroupSettingsJoin() {
       <div className="space-y-6 px-2 pb-24">
         <SettingsSection title="Discovery">
           <SettingSwitch
-            label="Public group"
-            description={
-              isPublic
-                ? 'Discoverable in search — members can join from search or invite link'
-                : 'Invite link only — hidden from search'
-            }
+            label="Show in Discover"
             checked={isPublic}
             onChange={handleVisibilityChange}
           />
-          <div className="px-4 py-4">
-            <p className="text-sm text-white/50">
-              {isPublic
-                ? 'Anyone can find this group in Discover and join, or use the invite link below.'
-                : 'Only people with the invite link can join this group.'}
-            </p>
-          </div>
         </SettingsSection>
 
         <SettingsSection title="Invite link">
