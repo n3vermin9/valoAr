@@ -46,6 +46,8 @@ import {
   dropdownMenuItemWithIconClass,
   dropdownMenuItemWithIconDangerClass,
   chatFloatingButtonClass,
+  chatRoomTopScrimClass,
+  chatRoomBottomScrimClass,
 } from '../../utils/designSystem'
 import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
@@ -1067,6 +1069,16 @@ export default function ChatRoom() {
       <div className="relative flex-1 min-h-0">
         <ChatBackground profile={profile} className="absolute inset-0" />
         <div
+          aria-hidden
+          className={chatRoomTopScrimClass}
+          style={{ height: 'calc(var(--chat-room-header-height) + 1rem)' }}
+        />
+        <div
+          aria-hidden
+          className={chatRoomBottomScrimClass}
+          style={{ height: 'calc(var(--chat-room-composer-min-height) + 1.5rem)' }}
+        />
+        <div
           ref={messagesContainerRef}
           className={`absolute inset-0 overflow-y-auto px-[var(--ios-page-x-lg)] pt-[var(--chat-room-header-height)] pb-[var(--chat-room-composer-min-height)] ${
             deleteTarget ? '!pb-52 pointer-events-none' : ''
@@ -1224,8 +1236,8 @@ export default function ChatRoom() {
           </div>
         </GlassNavBar>
 
-        <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none bg-transparent">
-          <div className="pointer-events-auto bg-transparent">
+        <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none">
+          <div className="pointer-events-auto">
             {!deleteTarget && iBlockedThem && (
               <div className="px-4 py-4">
                 <button

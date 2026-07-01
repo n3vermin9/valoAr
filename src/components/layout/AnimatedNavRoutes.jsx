@@ -28,19 +28,14 @@ function getRouteTransitionKey(pathname) {
   return index !== null ? NAV_TAB_PATHS[index] : pathname
 }
 
-function isChatRoomPath(pathname) {
-  return pathname.startsWith('/chats/') && pathname !== '/chats'
-}
-
 export default function AnimatedNavRoutes() {
   const location = useLocation()
-  const chatRoom = isChatRoomPath(location.pathname)
   const transitionKey = getRouteTransitionKey(location.pathname)
 
   return (
     <div className="relative h-full overflow-hidden bg-[var(--ios-bg)]">
       <AnimatePresence mode="sync" initial={false}>
-        <PageTransition key={transitionKey} variant={chatRoom ? 'push' : 'tab'}>
+        <PageTransition key={transitionKey}>
           <Routes location={location}>
             <Route path="/discover" element={<Discover />} />
             <Route path="/chats" element={<ChatList />} />

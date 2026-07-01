@@ -26,6 +26,7 @@ import ChevronBack from '../ui/ChevronBack'
 import { useNavigate } from 'react-router-dom'
 
 import PageShell from '../layout/PageShell'
+import { pageSwitchMotion, pageSwitchTransition, pageSwitchVariants } from '../../utils/designSystem'
 
 export default function Discover() {
   const navigate = useNavigate()
@@ -34,7 +35,6 @@ export default function Discover() {
   const [recentProfiles, setRecentProfiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState('new')
-  const [sectionDirection, setSectionDirection] = useState(0)
   const [newIndex, setNewIndex] = useState(0)
   const [recentIndex, setRecentIndex] = useState(0)
   const [showMessageModal, setShowMessageModal] = useState(false)
@@ -132,7 +132,6 @@ export default function Discover() {
 
   const handleSectionChange = (next) => {
     if (next === section) return
-    setSectionDirection(next === 'recent' ? 1 : -1)
     setSection(next)
     feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
   }
@@ -382,16 +381,15 @@ export default function Discover() {
         <StoriesHost profile={profile} friendIds={profile?.matches} />
         <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
         <div className="flex-1 min-h-0 relative overflow-hidden">
-          <AnimatePresence mode="popLayout" initial={false} custom={sectionDirection}>
+          <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={section}
-              custom={sectionDirection}
-              variants={discoverSectionSlideVariants}
+              variants={discoverSectionVariants}
               initial="enter"
               animate="center"
               exit="exit"
-              transition={discoverSectionSlideTransition}
-              className="absolute inset-0 flex flex-col min-h-0"
+              transition={discoverSectionTransition}
+              className="absolute inset-0 flex flex-col min-h-0 origin-center"
             >
               {renderSectionFeed(remainingProfiles)}
             </motion.div>
@@ -413,26 +411,9 @@ export default function Discover() {
   )
 }
 
-const discoverSectionSlideTransition = {
-  type: 'tween',
-  duration: 0.28,
-  ease: [0.32, 0.72, 0, 1],
-}
+const discoverSectionTransition = pageSwitchTransition
 
-const discoverSectionSlideVariants = {
-  enter: (direction) => ({
-    x: direction >= 0 ? '100%' : '-100%',
-    opacity: 0.65,
-  }),
-  center: {
-    x: 0,
-    opacity: 1,
-  },
-  exit: (direction) => ({
-    x: direction >= 0 ? '-100%' : '100%',
-    opacity: 0.65,
-  }),
-}
+const discoverSectionVariants = pageSwitchVariants
 
 function DiscoverSectionTabs({ section, onSectionChange }) {
   return (
@@ -471,29 +452,32 @@ function DiscoverSearchPage({
   onSelectProfile,
   onSelectGroup,
 }) {
-  if (!isOpen) return null
-
   const hasQuery = searchUsername.trim().length > 0
   const hasResults = userResults.length > 0 || groupResults.length > 0
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black">
-      <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-white/10">
-        <ChevronBack onClick={onClose} />
-        <div className="flex-1 flex items-center bg-white/10 rounded-full border border-white/10 px-4">
-          <IconSearch size={18} className="text-white/50 mr-2" />
-          <input
-            autoFocus
-            value={searchUsername}
-            onChange={(e) => setSearchUsername(e.target.value.toLowerCase())}
-            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-            placeholder="Search users and groups"
-            className="w-full py-2.5 bg-transparent outline-none text-sm"
-          />
-        </div>
-      </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          {...pageSwitchMotion}
+          className="fixed inset-0 z-[70] bg-black origin-center"
+        >
+          <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-white/10">
+            <ChevronBack onClick={onClose} />
+            <div className="flex-1 flex items-center bg-white/10 rounded-full border border-white/10 px-4">
+              <IconSearch size={18} className="text-white/50 mr-2" />
+              <input
+                autoFocus
+                value={searchUsername}
+                onChange={(e) => setSearchUsername(e.target.value.toLowerCase())}
+                onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+                placeholder="Search users and groups"
+                className="w-full py-2.5 bg-transparent outline-none text-sm"
+              />
+            </div>
+          </div>
 
-      <div className="h-[calc(100%-64px)] overflow-y-auto pb-24">
+          <div className="h-[calc(100%-64px)] overflow-y-auto pb-24">
         {!hasQuery && (
           <p className="px-4 pt-4 text-sm text-white/50">Search by username or public group name</p>
         )}
@@ -545,6 +529,8 @@ function DiscoverSearchPage({
           </button>
         ))}
       </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

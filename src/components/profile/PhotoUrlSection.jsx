@@ -92,12 +92,14 @@ export default function PhotoUrlSection({
   visiblePhotoSlots,
   setVisiblePhotoSlots,
   showSamplePhotos = false,
+  maxSlots = 3,
+  label = 'Profile Photo',
 }) {
   const filledInVisible = photos.slice(0, visiblePhotoSlots).filter((url) => url.trim()).length
 
   return (
     <div>
-      <label className="text-sm text-white/60 mb-3 block">Profile Photo</label>
+      <label className="text-sm text-white/60 mb-3 block">{label}</label>
 
       {showSamplePhotos && <SamplePhotoPicker photos={photos} updatePhoto={updatePhoto} />}
 
@@ -120,10 +122,10 @@ export default function PhotoUrlSection({
         )
       })}
 
-      {visiblePhotoSlots < 3 && (
+      {setVisiblePhotoSlots && visiblePhotoSlots < maxSlots && (
         <button
           type="button"
-          onClick={() => setVisiblePhotoSlots((n) => n + 1)}
+          onClick={() => setVisiblePhotoSlots((n) => Math.min(n + 1, maxSlots))}
           className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 mt-1"
         >
           <IconPlus size={16} />

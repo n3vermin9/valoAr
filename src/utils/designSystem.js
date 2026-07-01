@@ -93,6 +93,12 @@ export const subpageHeaderClass =
   'flex items-center gap-3 px-[var(--ios-page-x-lg)] pt-[max(1rem,var(--ios-safe-top))] pb-4 shrink-0'
 export const subpageTitleClass = 'text-[17px] font-medium text-[var(--ios-label)] flex-1 truncate'
 export const fieldLabelClass = `${typoSubheadClass} mb-2 block`
+
+export const compactInputClass =
+  'w-full px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
+
+export const compactTextareaClass =
+  'w-full min-h-[56px] px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-y text-[15px] leading-snug text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
 export const linkActionClass =
   'text-[15px] font-medium text-[var(--ios-blue)] hover:text-blue-400 transition-colors'
 export const dangerLinkActionClass =
@@ -147,6 +153,29 @@ export const contextMenuMotion = {
   exit: { opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.08 } },
   transition: { duration: 0.15 },
 }
+
+export const pageSwitchEase = [0.32, 0.72, 0, 1]
+export const pageSwitchTransition = { duration: 0.28, ease: pageSwitchEase }
+export const pageSwitchExitTransition = { duration: 0.2, ease: [0.4, 0, 0.2, 1] }
+
+export const pageSwitchMotion = {
+  initial: { scale: 1.05, opacity: 0.92 },
+  animate: { scale: 1, opacity: 1 },
+  exit: { scale: 1, opacity: 0, transition: pageSwitchExitTransition },
+  transition: pageSwitchTransition,
+}
+
+export const pageSwitchVariants = {
+  enter: { scale: 1.05, opacity: 0.92 },
+  center: { scale: 1, opacity: 1 },
+  exit: { scale: 1, opacity: 0 },
+}
+
+export const chatRoomTopScrimClass =
+  'absolute top-0 inset-x-0 z-[15] pointer-events-none bg-gradient-to-b from-black via-black/60 to-transparent'
+
+export const chatRoomBottomScrimClass =
+  'absolute bottom-0 inset-x-0 z-[15] pointer-events-none bg-gradient-to-t from-black via-black/60 to-transparent'
 
 /** Optional class for non-button tap targets */
 export const tapScaleClass = 'tap-scale'

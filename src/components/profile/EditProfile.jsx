@@ -16,12 +16,11 @@ import { SettingsSection, RoleOptionButton } from '../ui/SettingsUI'
 import {
   btnFilledClass,
   fieldLabelClass,
+  compactInputClass,
+  compactTextareaClass,
   typoTitle3Class,
   typoSubheadClass,
 } from '../../utils/designSystem'
-
-const compactInputClass =
-  'w-full px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
 
 export default function EditProfile({ onCancel }) {
   const { user, profile, refreshProfile } = useAuth()
@@ -183,7 +182,7 @@ export default function EditProfile({ onCancel }) {
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Tell people about yourself…"
                 rows={2}
-                className="w-full min-h-[56px] px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-y text-[15px] leading-snug"
+                className={compactTextareaClass}
                 maxLength={300}
               />
             </div>

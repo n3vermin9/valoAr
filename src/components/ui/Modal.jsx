@@ -1,12 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { modalGlassClass, modalScrimClass } from '../../utils/designSystem'
+import { modalGlassClass, modalScrimClass, pageSwitchMotion } from '../../utils/designSystem'
 
 const overlayTransition = { duration: 0.24, ease: [0.32, 0.72, 0, 1] }
-
-const panelTransition = { type: 'spring', stiffness: 380, damping: 34, mass: 0.82 }
-
-const fullscreenPanelTransition = { type: 'spring', stiffness: 340, damping: 34, mass: 0.9 }
 
 export default function Modal({
   isOpen,
@@ -44,17 +40,11 @@ export default function Modal({
       }`
 
   const panelMotion = fullscreen
-    ? {
-        initial: { x: '100%' },
-        animate: { x: 0 },
-        exit: { x: '100%' },
-        transition: fullscreenPanelTransition,
-      }
+    ? pageSwitchMotion
     : {
-        initial: { opacity: 0, scale: 0.94, y: 14 },
-        animate: { opacity: 1, scale: 1, y: 0 },
-        exit: { opacity: 0, scale: 0.97, y: 10 },
-        transition: panelTransition,
+        ...pageSwitchMotion,
+        initial: { scale: 1.05, opacity: 0 },
+        exit: { scale: 1.05, opacity: 0, transition: pageSwitchMotion.exit.transition },
       }
 
   const overlayMotion = fullscreen
@@ -73,7 +63,7 @@ export default function Modal({
             ref={ref}
             key="modal-panel"
             {...panelMotion}
-            className={panelClass}
+            className={`origin-center ${panelClass}`}
           >
             {children}
           </motion.div>
