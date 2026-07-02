@@ -245,7 +245,7 @@ export default function GroupSettingsMemberAdmin() {
                   </SettingsSection>
                 )}
 
-                <SettingsSection title="Danger zone">
+                <SettingsSection>
                   <SettingsNavRow
                     icon={IconShieldOff}
                     iconTone="red"

@@ -23,6 +23,7 @@ export default function ProfileStoryAvatar({
   onNavigateToProfile,
   suppressStoryViewer = false,
   onOpenStories,
+  hideWhenNoStories = false,
 }) {
   const { user, profile: myProfile } = useAuth()
   const [allStories, setAllStories] = useState([])
@@ -100,6 +101,10 @@ export default function ProfileStoryAvatar({
       return
     }
     onOpenGallery?.()
+  }
+
+  if (hideWhenNoStories && !isOwn && stories.length === 0) {
+    return null
   }
 
   if (!isOwn && stories.length === 0) {

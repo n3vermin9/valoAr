@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette } from '@tabler/icons-react'
+import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconEdit, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
@@ -10,7 +10,7 @@ import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { getMatchId } from '../../utils/helpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoCaptionClass, typoBodyClass, typoSubheadClass, insetCardOuterClass, btnBorderedClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoCaptionClass, typoBodyClass, typoSubheadClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass } from '../../utils/designSystem'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
@@ -18,6 +18,12 @@ import MatchHistory from './MatchHistory'
 import ProfileLookingFor from './ProfileLookingFor'
 import Modal from '../ui/Modal'
 import PhotoGallery from '../ui/PhotoGallery'
+import PhotoHeroView, {
+  PhotoHeroContentOverlap,
+  PhotoHeroFixedBack,
+  PhotoHeroFixedTopRight,
+  PhotoHeroPlaceholder,
+} from '../ui/PhotoHeroView'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import CopyableUsername from '../ui/CopyableUsername'
 import ChevronBack from '../ui/ChevronBack'
@@ -65,6 +71,7 @@ export default function ProfileView() {
   const memberSince = profile.createdAt?.toDate?.()
     ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently'
+  const profilePhotos = (profile.photos || []).filter(Boolean)
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -132,49 +139,71 @@ export default function ProfileView() {
   }
 
   return (
-    <div className="h-full overflow-y-auto pb-24">
-      <div className="flex items-center justify-end px-6 pt-6">
+    <div className="h-full min-h-0 overflow-y-auto pb-24 bg-black">
+      <PhotoHeroFixedTopRight>
         <button
           type="button"
-          onClick={() => setShowSettings(true)}
-          className="p-2 hover:bg-white/10 rounded-full transition-colors"
-          aria-label="Settings"
+          onClick={() => setEditing(true)}
+          className={`${chatFloatingButtonClass} text-white/80`}
+          aria-label="Edit profile"
         >
-          <IconSettings size={22} className="text-white/80" stroke={2} />
+          <IconEdit size={22} className="text-white/80" stroke={2} />
         </button>
+      </PhotoHeroFixedTopRight>
+
+      <div className="relative">
+        {profilePhotos.length > 0 ? (
+          <PhotoHeroView
+            photos={profilePhotos}
+            onPhotoTap={() => setGalleryOpen(true)}
+          />
+        ) : (
+          <PhotoHeroPlaceholder>
+            <div className="absolute inset-0 flex items-center justify-center px-6">
+              <ProfileStoryAvatar
+                userId={user.uid}
+                profile={profile}
+                isOwn
+                size={128}
+                onOpenGallery={() => setGalleryOpen(true)}
+              />
+            </div>
+          </PhotoHeroPlaceholder>
+        )}
+
+        {profilePhotos.length > 0 ? (
+          <div className="absolute bottom-5 right-[var(--ios-page-x-lg)] z-20 pointer-events-auto">
+            <ProfileStoryAvatar
+              userId={user.uid}
+              profile={profile}
+              isOwn
+              size={72}
+              hideWhenNoStories
+              onOpenGallery={() => setGalleryOpen(true)}
+            />
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex flex-col items-center px-6">
-        <ProfileStoryAvatar
-          userId={user.uid}
-          profile={profile}
-          isOwn
-          size={128}
-          onOpenGallery={() => setGalleryOpen(true)}
-        />
-        <button
-          type="button"
-          onClick={() => setGalleryOpen(true)}
-          className="mt-2 text-xs text-[var(--ios-label-secondary)] hover:text-white transition-colors"
-        >
-          View photos
-        </button>
-        <h2 className={`${typoTitle2Class} mt-4`}>
-          <CopyableUsername username={profile.username} className={typoTitle2Class} />
-        </h2>
-        <p className={typoSubheadClass}>{profile.age} years old</p>
-      </div>
-
-      <div className={`${insetCardOuterClass} mt-6 min-w-0`}>
-        <div className="p-4 min-w-0">
-          <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
-            {profile.bio || 'No bio yet'}
-          </p>
-          <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
-          <SocialLinksDisplay socials={profile.socials} />
+      <PhotoHeroContentOverlap>
+        <div className="flex flex-col items-center px-6 w-full">
+          <h2 className={typoTitle2Class}>
+            <CopyableUsername username={profile.username} className={typoTitle2Class} />
+          </h2>
+          <p className={typoSubheadClass}>{profile.age} years old</p>
         </div>
-        <InfoRow label="Member Since" value={memberSince} small />
-      </div>
+
+        <div className={`${insetCardOuterClass} mt-6 min-w-0 mx-[var(--ios-page-x-lg)]`}>
+          <div className="p-4 min-w-0">
+            <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
+              {profile.bio || 'No bio yet'}
+            </p>
+            <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
+            <SocialLinksDisplay socials={profile.socials} />
+          </div>
+          <InfoRow label="Member Since" value={memberSince} small />
+        </div>
+      </PhotoHeroContentOverlap>
 
       <div className="mt-4">
         <SettingsSection>
@@ -197,10 +226,12 @@ export default function ProfileView() {
 
       <div className="mx-[var(--ios-page-x-lg)] mt-6">
         <button
-          onClick={() => setEditing(true)}
-          className={`${btnBorderedClass} w-full`}
+          type="button"
+          onClick={() => setShowSettings(true)}
+          className={`${btnBorderedClass} w-full gap-2`}
         >
-          Edit profile
+          <IconSettings size={18} stroke={1.75} />
+          Settings
         </button>
       </div>
 
@@ -239,7 +270,7 @@ export default function ProfileView() {
               />
             </SettingsSection>
 
-            <SettingsSection title="Danger zone">
+            <SettingsSection>
               <SettingsNavRow
                 icon={IconLogout}
                 iconTone="red"
@@ -308,7 +339,7 @@ export default function ProfileView() {
       </Modal>
 
       {galleryOpen && (
-        <PhotoGallery photos={profile.photos} onClose={() => setGalleryOpen(false)} />
+        <PhotoGallery photos={profilePhotos} onClose={() => setGalleryOpen(false)} />
       )}
     </div>
   )
@@ -431,8 +462,11 @@ export function PublicProfileView({
 
   if (loading) {
     return (
-      <div className="h-full min-h-0 flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full min-h-0 flex flex-col">
+        {onClose ? <PhotoHeroFixedBack onBack={onClose} /> : null}
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
       </div>
     )
   }
@@ -440,10 +474,8 @@ export function PublicProfileView({
   if (!profile && !deletedProfile) {
     return (
       <div className="h-full min-h-0 overflow-y-auto pb-24">
-        <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
-          {onClose && <ChevronBack onClick={onClose} />}
-        </div>
-        <p className="px-6 mt-8 text-center text-white/60">User not found</p>
+        {onClose ? <PhotoHeroFixedBack onBack={onClose} /> : null}
+        <p className="px-6 mt-[calc(var(--ios-safe-top)+4rem)] text-center text-white/60">User not found</p>
       </div>
     )
   }
@@ -453,22 +485,26 @@ export function PublicProfileView({
   if (isDeleted) {
     return (
       <div className="h-full min-h-0 overflow-y-auto pb-24">
-        <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
-          {onClose && <ChevronBack onClick={onClose} />}
-        </div>
-        <div className="flex flex-col items-center px-6 mt-4">
-          <img
-            src={deletedAccountAvatarSrc}
-            alt=""
-            className={`w-28 h-28 rounded-full object-cover border-4 border-white/10 ${deletedAccountAvatarClass}`}
-          />
-          <div className="flex items-center gap-2 mt-3">
-            <h2 className={typoTitle2Class}>
-              <CopyableUsername username={deletedProfile.username} className={typoTitle2Class} />
-            </h2>
+        {onClose ? <PhotoHeroFixedBack onBack={onClose} /> : null}
+        <PhotoHeroPlaceholder>
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
+            <img
+              src={deletedAccountAvatarSrc}
+              alt=""
+              className={`w-28 h-28 rounded-full object-cover border-4 border-white/10 ${deletedAccountAvatarClass}`}
+            />
           </div>
-          <p className="text-sm text-white/50 mt-1">Account deleted</p>
-        </div>
+        </PhotoHeroPlaceholder>
+        <PhotoHeroContentOverlap>
+          <div className="flex flex-col items-center px-6">
+            <div className="flex items-center gap-2">
+              <h2 className={typoTitle2Class}>
+                <CopyableUsername username={deletedProfile.username} className={typoTitle2Class} />
+              </h2>
+            </div>
+            <p className="text-sm text-white/50 mt-1">Account deleted</p>
+          </div>
+        </PhotoHeroContentOverlap>
       </div>
     )
   }
@@ -491,6 +527,9 @@ export function PublicProfileView({
   const memberSince = profile.createdAt?.toDate?.()
     ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently'
+  const allPhotos = (profile.photos || []).filter(Boolean)
+  const viewablePhotos = isSelf || isMatched ? allPhotos : allPhotos.slice(0, 1)
+  const hasHeroPhoto = viewablePhotos.length > 0
 
   const handleSendFriendRequest = () => {
     if (requesting) return
@@ -636,35 +675,58 @@ export function PublicProfileView({
 
   return (
     <div className="h-full min-h-0 overflow-y-auto pb-24">
-      <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
-        {onClose ? <ChevronBack onClick={onClose} /> : <span className="w-10" aria-hidden />}
+      {onClose ? <PhotoHeroFixedBack onBack={onClose} /> : null}
+
+      <div className="relative">
+        {hasHeroPhoto ? (
+          <PhotoHeroView
+            photos={viewablePhotos}
+            onPhotoTap={() => setGalleryOpen(true)}
+          />
+        ) : (
+          <PhotoHeroPlaceholder>
+            <div className="absolute inset-0 flex items-center justify-center px-6">
+              <ProfileStoryAvatar
+                userId={userId}
+                profile={profile}
+                isOwn={isSelf}
+                isFriend={isMatched}
+                friendIds={me?.matches}
+                viewerUsername={me?.username}
+                viewerPhoto={me?.photos?.[0]}
+                size={128}
+                suppressStoryViewer={suppressStoryViewer}
+                onOpenGallery={() => setGalleryOpen(true)}
+                onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
+                onOpenStories={suppressStoryViewer ? undefined : setStorySession}
+              />
+            </div>
+          </PhotoHeroPlaceholder>
+        )}
+
+        {hasHeroPhoto && !suppressStoryViewer ? (
+          <div className="absolute bottom-5 right-[var(--ios-page-x-lg)] z-20 pointer-events-auto">
+            <ProfileStoryAvatar
+              userId={userId}
+              profile={profile}
+              isOwn={isSelf}
+              isFriend={isMatched}
+              friendIds={me?.matches}
+              viewerUsername={me?.username}
+              viewerPhoto={me?.photos?.[0]}
+              size={72}
+              hideWhenNoStories
+              onOpenGallery={() => setGalleryOpen(true)}
+              onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
+              onOpenStories={setStorySession}
+            />
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex flex-col items-center px-6 w-full">
-        <ProfileStoryAvatar
-          userId={userId}
-          profile={profile}
-          isOwn={isSelf}
-          isFriend={isMatched}
-          friendIds={me?.matches}
-          viewerUsername={me?.username}
-          viewerPhoto={me?.photos?.[0]}
-          size={128}
-          suppressStoryViewer={suppressStoryViewer}
-          onOpenGallery={() => setGalleryOpen(true)}
-          onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
-          onOpenStories={suppressStoryViewer ? undefined : setStorySession}
-        />
-        {(isSelf || isMatched) && (
-          <button
-            type="button"
-            onClick={() => setGalleryOpen(true)}
-            className="mt-2 text-xs text-[var(--ios-label-secondary)] hover:text-white transition-colors"
-          >
-            View photos
-          </button>
-        )}
-        <div className="flex items-center gap-2 mt-4">
+      <PhotoHeroContentOverlap>
+        <div className="flex flex-col items-center px-6 w-full">
+        <div className="flex items-center gap-2">
           <h2 className={typoTitle2Class}>
             <CopyableUsername username={profile.username} className={typoTitle2Class} />
           </h2>
@@ -766,7 +828,7 @@ export function PublicProfileView({
           )}
       </div>
 
-      <div className={`${insetCardOuterClass} mt-6 min-w-0`}>
+      <div className={`${insetCardOuterClass} mt-6 min-w-0 mx-[var(--ios-page-x-lg)]`}>
         <div className="p-4 min-w-0">
           <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
             {profile.bio || 'No bio yet'}
@@ -794,8 +856,10 @@ export function PublicProfileView({
         />
       )}
 
+      </PhotoHeroContentOverlap>
+
       {galleryOpen && (
-        <PhotoGallery photos={profile.photos} onClose={() => setGalleryOpen(false)} />
+        <PhotoGallery photos={viewablePhotos} onClose={() => setGalleryOpen(false)} />
       )}
 
       <Modal isOpen={confirmRemoveMatch} onClose={() => !removeMatchLoading && setConfirmRemoveMatch(false)} glass>

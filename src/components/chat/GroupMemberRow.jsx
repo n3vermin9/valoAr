@@ -200,8 +200,8 @@ export default function GroupMemberRow({
   }
 
   const rowClass =
-    variant === 'settings'
-      ? `${settingsRowClass} disabled:cursor-default`
+    variant === 'settings' || variant === 'info' || variant === 'readonly'
+      ? `${settingsRowClass} ${variant === 'info' || variant === 'readonly' ? 'cursor-default' : 'disabled:cursor-default'}`
       : 'flex items-center gap-3 py-1'
 
   const content = (
@@ -209,9 +209,9 @@ export default function GroupMemberRow({
       <CachedAvatar
         src={member?.photos?.[0]}
         fallback={sad}
-        size={variant === 'settings' ? 44 : 36}
+        size={variant === 'settings' || variant === 'info' || variant === 'readonly' ? 44 : 36}
         alt=""
-        className={`${variant === 'settings' ? 'w-11 h-11' : 'w-9 h-9'} rounded-full object-cover shrink-0`}
+        className={`${variant === 'settings' || variant === 'info' || variant === 'readonly' ? 'w-11 h-11' : 'w-9 h-9'} rounded-full object-cover shrink-0`}
       />
       <div className="min-w-0 flex-1 text-left">
         <div className="flex items-center gap-2 min-w-0">

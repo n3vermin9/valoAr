@@ -117,7 +117,7 @@ export function RoleOptionButton({ label, selected, onClick, disabled }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex-1 py-2.5 text-[15px] font-medium rounded-xl transition-colors disabled:opacity-40 ${
+      className={`relative z-10 flex-1 py-2.5 text-[15px] font-medium rounded-full transition-colors disabled:opacity-40 ${
         selected ? 'bg-blue-500 text-white' : 'text-white/70 hover:bg-white/[0.06]'
       }`}
     >

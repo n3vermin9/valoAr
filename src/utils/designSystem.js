@@ -94,8 +94,15 @@ export const subpageHeaderClass =
 export const subpageTitleClass = 'text-[17px] font-medium text-[var(--ios-label)] flex-1 truncate'
 export const fieldLabelClass = `${typoSubheadClass} mb-2 block`
 
-export const compactInputClass =
-  'w-full px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
+const compactInputBase =
+  'w-full min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 text-[15px] leading-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
+
+export const compactInputClass = `${compactInputBase} px-4 outline-none focus:border-[var(--ios-blue)]`
+
+export const compactInputAffixClass = `${compactInputBase} flex items-center outline-none focus-within:border-[var(--ios-blue)]`
+
+export const compactInputInnerClass =
+  'flex-1 min-w-0 h-[var(--ios-control-min)] pr-4 bg-transparent outline-none text-[15px] leading-none'
 
 export const compactTextareaClass =
   'w-full min-h-[56px] px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-y text-[15px] leading-snug text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
@@ -173,6 +180,13 @@ export const pageSwitchVariants = {
 
 export const chatRoomTopScrimClass =
   'absolute top-0 inset-x-0 z-[15] pointer-events-none bg-gradient-to-b from-black via-black/60 to-transparent'
+
+/** Square profile/group hero — crops non-square photos to center fill */
+export const photoHeroFrameClass = 'relative w-full aspect-square overflow-hidden bg-black'
+export const photoHeroFullscreenFrameClass =
+  'relative aspect-square w-[min(100vw,100vh)] max-w-full overflow-hidden bg-black'
+export const photoHeroImageClass =
+  'absolute inset-0 block h-full w-full object-cover object-center'
 
 export const chatRoomBottomScrimClass =
   'absolute bottom-0 inset-x-0 z-[15] pointer-events-none bg-gradient-to-t from-black via-black/60 to-transparent'

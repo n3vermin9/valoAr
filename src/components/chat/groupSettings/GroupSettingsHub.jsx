@@ -7,56 +7,74 @@ import { getGroupDisplayName, getGroupMemberRole } from '../../../utils/groupCha
 import GroupAvatar from '../GroupAvatar'
 import LoadingSpinner from '../../ui/LoadingSpinner'
 import ConfirmDialog from '../../ui/ConfirmDialog'
+import PhotoGallery from '../../ui/PhotoGallery'
 import { useGroupSettingsChat } from './useGroupSettingsChat'
 import GroupSettingsShell from './GroupSettingsShell'
 import { SettingsNavRow, SettingsSection } from '../../ui/SettingsUI'
 import {
   typoTitle2Class,
-  typoSubheadClass,
   typoBodyClass,
-  insetCardClass,
-  linkActionClass,
+  typoSubheadClass,
+  insetCardOuterClass,
+  btnBorderedClass,
 } from '../../../utils/designSystem'
 
-function GroupInfoPreview({ chat, canEdit, onEdit }) {
+function PreviewInfoRow({ label, value }) {
+  return (
+    <div className="flex justify-between px-4 pb-4 pt-3 border-t border-white/10 text-xs text-white/40">
+      <span>{label}</span>
+      <span className="text-white/50">{value}</span>
+    </div>
+  )
+}
+
+function GroupInfoPreview({ chat }) {
+  const [galleryOpen, setGalleryOpen] = useState(false)
   const description = chat.description?.trim() || 'No description yet'
-  const memberCount = chat.participants?.length || 0
+  const hasPhoto = Boolean(chat.photoUrl?.trim())
+  const memberSince = chat.createdAt?.toDate?.()
+    ? chat.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : 'Recently'
 
   return (
-    <section className="mx-4 mb-6">
-      <div className={insetCardClass}>
-        <div className="p-5">
-          <div className="flex items-start gap-4">
-            <GroupAvatar photoUrl={chat.photoUrl} size={80} className="border-2 border-white/10 shrink-0" />
-            <div className="flex-1 min-w-0 pt-1">
-              <h2 className={`${typoTitle2Class} break-words`}>{getGroupDisplayName(chat)}</h2>
-              {chat.username ? (
-                <p className={`${typoSubheadClass} mt-1 break-words`}>@{chat.username}</p>
-              ) : (
-                <p className={`${typoSubheadClass} mt-1 italic opacity-70`}>No username set</p>
-              )}
-              <p className={`${typoSubheadClass} mt-2 opacity-80`}>
-                {memberCount} member{memberCount === 1 ? '' : 's'}
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-white/10">
-            <p className={`${typoBodyClass} text-white/75 whitespace-pre-wrap break-words`}>
-              {description}
-            </p>
-          </div>
-        </div>
-        {canEdit ? (
+    <section>
+      <div className="flex flex-col items-center px-6 pt-4">
+        <button
+          type="button"
+          onClick={() => setGalleryOpen(true)}
+          disabled={!hasPhoto}
+          className="relative shrink-0 rounded-full border border-dashed border-white/35 p-[7px] disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+          aria-label={hasPhoto ? 'View group photo' : 'No group photo'}
+        >
+          <GroupAvatar photoUrl={chat.photoUrl} size={128} />
+        </button>
+        {hasPhoto ? (
           <button
             type="button"
-            onClick={onEdit}
-            className={`w-full flex items-center justify-center gap-2 py-3.5 border-t border-white/10 ${linkActionClass} hover:bg-white/[0.04] active:bg-white/[0.08]`}
+            onClick={() => setGalleryOpen(true)}
+            className={`${typoSubheadClass} mt-2 hover:text-white transition-colors`}
           >
-            <IconEdit size={18} stroke={1.75} />
-            Edit group info
+            View photos
           </button>
-        ) : null}
+        ) : (
+          <span className={`${typoSubheadClass} mt-2`}>No photos yet</span>
+        )}
+        <h2 className={`${typoTitle2Class} mt-4 text-center break-words`}>{getGroupDisplayName(chat)}</h2>
       </div>
+
+      <div className={`${insetCardOuterClass} mt-6 min-w-0`}>
+        <div className="p-4 min-w-0 space-y-3">
+          <p className={`${typoSubheadClass} break-words`}>
+            {chat.username ? `@${chat.username}` : 'No username set'}
+          </p>
+          <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>{description}</p>
+        </div>
+        <PreviewInfoRow label="Member Since" value={memberSince} />
+      </div>
+
+      {galleryOpen && hasPhoto ? (
+        <PhotoGallery photos={[chat.photoUrl]} onClose={() => setGalleryOpen(false)} />
+      ) : null}
     </section>
   )
 }
@@ -128,11 +146,20 @@ export default function GroupSettingsHub() {
   return (
     <GroupSettingsShell title="Group settings" backTo={`/groups/${chatId}`}>
       <div className="space-y-6 pb-24">
-        <GroupInfoPreview
-          chat={chat}
-          canEdit={canEditInfo}
-          onEdit={() => withState(`${base}/info`)}
-        />
+        <GroupInfoPreview chat={chat} />
+
+        {canEditInfo ? (
+          <div className="px-[var(--ios-page-x-lg)]">
+            <button
+              type="button"
+              onClick={() => withState(`${base}/info`)}
+              className={`${btnBorderedClass} w-full gap-2`}
+            >
+              <IconEdit size={18} stroke={1.75} />
+              Edit group info
+            </button>
+          </div>
+        ) : null}
 
         {hasSettingsRows ? (
           <SettingsSection>
@@ -156,7 +183,7 @@ export default function GroupSettingsHub() {
           </SettingsSection>
         ) : null}
 
-        <SettingsSection title="Danger zone">
+        <SettingsSection>
           <SettingsNavRow
             icon={IconLogout}
             iconTone="red"

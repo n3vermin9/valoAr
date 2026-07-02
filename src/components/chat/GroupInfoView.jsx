@@ -21,13 +21,24 @@ import {
   canAdmin,
 } from '../../utils/groupChat'
 import { isChatMuteActive } from '../../utils/chatMute'
-import { profileActionBtnClass, typoTitle2Class, typoBodyClass } from '../../utils/designSystem'
+import { SettingsSection } from '../ui/SettingsUI'
+import {
+  profileActionBtnClass,
+  typoTitle2Class,
+  typoBodyClass,
+  insetCardClass,
+  fieldLabelClass,
+} from '../../utils/designSystem'
 import GroupAvatar from './GroupAvatar'
 import MuteChatModal from './MuteChatModal'
 import GroupMemberRow from './GroupMemberRow'
 import LoadingSpinner from '../ui/LoadingSpinner'
-import ChevronBack from '../ui/ChevronBack'
 import PhotoGallery from '../ui/PhotoGallery'
+import PhotoHeroView, {
+  PhotoHeroContentOverlap,
+  PhotoHeroFixedBack,
+  PhotoHeroPlaceholder,
+} from '../ui/PhotoHeroView'
 
 export default function GroupInfoView() {
   const { chatId } = useParams()
@@ -43,6 +54,7 @@ export default function GroupInfoView() {
 
   const fromChat = location.state?.fromChat === true
   const fromChatPreview = location.state?.fromChatPreview === true
+  const returnTo = location.state?.returnTo || null
   const previewJoinSlug = location.state?.joinSlug || null
   const previewReturnTo = location.state?.previewReturnTo || '/discover'
 
@@ -74,9 +86,18 @@ export default function GroupInfoView() {
   }, [chat, loading, fromChat, fromChatPreview, chatId, navigate, user?.uid])
 
   const handleBack = () => {
+    if (returnTo) {
+      navigate(returnTo, fromChatPreview ? {
+        state: {
+          groupPreview: true,
+          joinSlug: previewJoinSlug || undefined,
+          previewReturnTo,
+        },
+      } : undefined)
+      return
+    }
     if (fromChatPreview) {
       navigate(`/chats/${chatId}`, {
-        replace: true,
         state: {
           groupPreview: true,
           joinSlug: previewJoinSlug || undefined,
@@ -89,7 +110,11 @@ export default function GroupInfoView() {
       navigate(`/chats/${chatId}`)
       return
     }
-    navigate(-1)
+    if (chat && isGroupMember(chat, user?.uid)) {
+      navigate(`/chats/${chatId}`)
+      return
+    }
+    navigate(previewReturnTo)
   }
 
   const handleCopyLink = async () => {
@@ -131,8 +156,11 @@ export default function GroupInfoView() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full flex flex-col">
+        <PhotoHeroFixedBack onBack={handleBack} />
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
       </div>
     )
   }
@@ -140,10 +168,8 @@ export default function GroupInfoView() {
   if (!chat) {
     return (
       <div className="h-full overflow-y-auto pb-24">
-        <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
-          <ChevronBack onClick={handleBack} />
-        </div>
-        <p className="px-6 mt-8 text-center text-white/60">Group not found</p>
+        <PhotoHeroFixedBack onBack={handleBack} />
+        <p className="px-6 mt-[calc(var(--ios-safe-top)+4rem)] text-center text-white/60">Group not found</p>
       </div>
     )
   }
@@ -160,24 +186,35 @@ export default function GroupInfoView() {
   const showMembers = isMember || isPublic
   const canManageMembers =
     isMember && (canAdmin(chat, user?.uid, 'removeMembers') || canAdmin(chat, user?.uid, 'manageAdmins'))
+  const joinLink = isMember ? getGroupJoinLink(chat) : null
+  const description = chat.description?.trim() || 'No description yet'
+  const showAboutCard = Boolean((joinLink && isMember) || showFullPreview)
+  const groupPhoto = getGroupPhotoUrl(chat)
+  const groupPhotos = groupPhoto ? [groupPhoto] : []
 
   return (
     <>
     <div className={`h-full overflow-y-auto ${showJoin ? 'pb-28' : 'pb-24'}`}>
-      <div className="flex items-center px-6 pt-[max(1.5rem,var(--ios-safe-top))]">
-        <ChevronBack onClick={handleBack} />
+      <PhotoHeroFixedBack onBack={handleBack} />
+
+      <div className="relative">
+        {groupPhotos.length > 0 ? (
+          <PhotoHeroView
+            photos={groupPhotos}
+            onPhotoTap={() => setGalleryOpen(true)}
+          />
+        ) : (
+          <PhotoHeroPlaceholder>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <GroupAvatar photoUrl={chat.photoUrl} size={128} className="border-4 border-white/10" />
+            </div>
+          </PhotoHeroPlaceholder>
+        )}
       </div>
 
-      <div className="flex flex-col items-center px-6">
-        <button
-          type="button"
-          onClick={() => setGalleryOpen(true)}
-          className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
-          aria-label="View group photo"
-        >
-          <GroupAvatar photoUrl={chat.photoUrl} size={128} className="border-4 border-white/10" />
-        </button>
-        <h2 className={`${typoTitle2Class} mt-4 text-center`}>{getGroupDisplayName(chat)}</h2>
+      <PhotoHeroContentOverlap>
+        <div className="flex flex-col items-center px-6">
+        <h2 className={`${typoTitle2Class} text-center`}>{getGroupDisplayName(chat)}</h2>
         {!showPrivatePreview && (
           <div className="flex items-center gap-2 mt-1">
             <p className="text-white/60">
@@ -225,50 +262,54 @@ export default function GroupInfoView() {
         )}
       </div>
 
-      {isMember && getGroupJoinLink(chat) && (
-        <button
-          type="button"
-          onClick={handleCopyLink}
-          className="mx-6 mt-6 w-[calc(100%-3rem)] flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors text-left min-w-0"
-        >
-          <IconLink size={18} className="text-blue-400 shrink-0" />
-          <span className="text-sm text-blue-300/90 truncate">{getGroupJoinLink(chat)}</span>
-        </button>
-      )}
-
-      {showFullPreview && (
-        <div className="mx-6 mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 min-w-0 overflow-hidden">
-          <div className="min-w-0">
-            <p className={`${typoBodyClass} text-white/90 whitespace-pre-wrap break-words`}>
-              {chat.description?.trim() || 'No description yet'}
-            </p>
+      {showAboutCard && (
+        <div className="mx-[var(--ios-page-x-lg)] mt-6">
+          <div className={`${insetCardClass} p-4 min-w-0`}>
+            {joinLink && (
+              <div>
+                <p className={fieldLabelClass}>Link</p>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="w-full flex items-center gap-2 py-1 transition-opacity text-left min-w-0 hover:opacity-80"
+                >
+                  <IconLink size={18} className="text-blue-400 shrink-0" />
+                  <span className="text-[15px] text-blue-300/90 truncate">{joinLink}</span>
+                </button>
+              </div>
+            )}
+            {showFullPreview && (
+              <div className={joinLink ? 'mt-4 pt-4 border-t border-white/10' : ''}>
+                <p className={fieldLabelClass}>Bio</p>
+                <p className={`${typoBodyClass} text-white/90 whitespace-pre-wrap break-words`}>
+                  {description}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {showMembers && (
-        <div className="mx-[var(--ios-page-x)] mt-4">
-          <div className="w-full px-4 py-4 bg-white/5 rounded-2xl border border-white/10">
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-medium">Members</span>
-              <span className="text-sm text-white/40">{memberCount}</span>
-            </div>
-            <div className="space-y-2">
-              {(chat.participants || []).map((memberId) => (
-                <GroupMemberRow
-                  key={memberId}
-                  chat={chat}
-                  chatId={chatId}
-                  memberId={memberId}
-                  member={members[memberId]}
-                  currentUserId={user?.uid}
-                  variant={canManageMembers ? 'info' : 'readonly'}
-                />
-              ))}
-            </div>
-          </div>
+        <div className="mt-6">
+          <SettingsSection title={`Members · ${memberCount}`}>
+            {(chat.participants || []).map((memberId) => (
+              <GroupMemberRow
+                key={memberId}
+                chat={chat}
+                chatId={chatId}
+                memberId={memberId}
+                member={members[memberId]}
+                currentUserId={user?.uid}
+                variant={canManageMembers ? 'info' : 'readonly'}
+                className="border-b border-white/10 last:border-b-0"
+              />
+            ))}
+          </SettingsSection>
         </div>
       )}
+
+      </PhotoHeroContentOverlap>
 
       {showJoin && (
         <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-[max(1.5rem,var(--ios-safe-bottom))] pt-4 bg-gradient-to-t from-black via-black/95 to-transparent">
@@ -293,8 +334,8 @@ export default function GroupInfoView() {
         title="Group notifications"
       />
 
-      {galleryOpen && (
-        <PhotoGallery photos={[getGroupPhotoUrl(chat)]} onClose={() => setGalleryOpen(false)} />
+      {galleryOpen && groupPhotos.length > 0 && (
+        <PhotoGallery photos={groupPhotos} onClose={() => setGalleryOpen(false)} />
       )}
     </>
   )

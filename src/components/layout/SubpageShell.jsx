@@ -20,7 +20,7 @@ export default function SubpageShell({
       return
     }
     if (backTo) {
-      navigate(backTo, { replace: true, state: location.state })
+      navigate(backTo, { state: location.state })
       return
     }
     navigate(-1)

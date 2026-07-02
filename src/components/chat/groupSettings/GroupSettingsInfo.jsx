@@ -1,21 +1,33 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { updateGroupInfo } from '../../../services/groupChatService'
 import { normalizeUsername } from '../../../utils/helpers'
 import { useGroupUsernameCheck } from '../../../hooks/useGroupUsernameCheck'
 import LoadingSpinner from '../../ui/LoadingSpinner'
+import EditSaveBar from '../../ui/EditSaveBar'
 import PhotoUrlSection from '../../profile/PhotoUrlSection'
-import { SubpageHeaderBar } from '../../layout/SubpageShell'
+import PhotoGallery from '../../ui/PhotoGallery'
+import ChevronBack from '../../ui/ChevronBack'
 import { useGroupSettingsChat } from './useGroupSettingsChat'
 import { SettingsSection } from '../../ui/SettingsUI'
 import {
-  btnFilledClass,
   compactInputClass,
-  compactTextareaClass,
+  compactInputAffixClass,
+  compactInputInnerClass,
   fieldLabelClass,
+  chatFloatingButtonClass,
   typoSubheadClass,
 } from '../../../utils/designSystem'
+
+function EditFieldSection({ children }) {
+  return (
+    <SettingsSection>
+      <div className="px-4 py-4">{children}</div>
+    </SettingsSection>
+  )
+}
 
 function GroupInfoEditor({ chat, chatId, user, locationState }) {
   const navigate = useNavigate()
@@ -24,6 +36,9 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
   const [username, setUsername] = useState(chat.username || '')
   const [description, setDescription] = useState(chat.description || '')
   const [photos, setPhotos] = useState([chat.photoUrl || ''])
+  const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
+  const heroSectionRef = useRef(null)
 
   const isPublic = chat.settings?.visibility === 'public'
   const normalizedUsername = normalizeUsername(username)
@@ -33,6 +48,12 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
     chatId,
     isPublic || usernameChanged
   )
+
+  const hasChanges =
+    name !== (chat.name || '') ||
+    normalizedUsername !== normalizeUsername(chat.username || '') ||
+    description !== (chat.description || '') ||
+    (photos[0] || '') !== (chat.photoUrl || '')
 
   const usernameBorder =
     !usernameChanged
@@ -51,12 +72,18 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
     })
   }
 
+  const openGallery = (index = 0) => {
+    setGalleryInitialIndex(index)
+    setGalleryOpen(true)
+  }
+
   const handleBack = () => {
     navigate(`/groups/${chatId}/settings`, { replace: true, state: locationState })
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
+    if (!hasChanges) return
     if (isPublic && (!normalizedUsername || usernameStatus !== 'available')) {
       toast.error('Set a valid group username for public groups')
       return
@@ -85,26 +112,47 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
 
   return (
     <div className="h-full bg-black flex flex-col">
-      <SubpageHeaderBar title="Edit group" onBack={handleBack} />
-
       <form
         id="group-info-form"
         onSubmit={handleSave}
-        className="flex-1 overflow-y-auto pb-[calc(5.5rem+var(--ios-safe-bottom))]"
+        className={`flex-1 overflow-y-auto ${
+          hasChanges ? 'pb-[calc(5.5rem+var(--ios-safe-bottom))]' : 'pb-[max(1rem,var(--ios-safe-bottom))]'
+        }`}
       >
-        <div className="px-[var(--ios-page-x-lg)] py-5">
+        <div className="relative">
+          <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
+            <ChevronBack
+              onClick={handleBack}
+              buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+              className="w-6 h-6"
+            />
+          </div>
           <PhotoUrlSection
+            variant="hero"
             photos={photos}
             updatePhoto={updatePhoto}
             visiblePhotoSlots={1}
             maxSlots={1}
-            label="Group photo"
+            heroRef={heroSectionRef}
+            onOpenGallery={openGallery}
           />
         </div>
 
-        <div className="space-y-5 pb-4">
-          <SettingsSection title="Basics">
-            <div className="px-4 py-3 border-b border-white/10">
+        <motion.div
+          layout
+          animate={{
+            marginTop: '-3.5rem',
+            paddingTop: '2rem',
+          }}
+          transition={{
+            layout: { type: 'spring', stiffness: 420, damping: 36 },
+            marginTop: { type: 'spring', stiffness: 420, damping: 36 },
+            paddingTop: { type: 'spring', stiffness: 420, damping: 36 },
+          }}
+          className="relative z-10 bg-gradient-to-b from-transparent via-black/95 to-black"
+        >
+          <div className="space-y-4 pb-4">
+            <EditFieldSection>
               <label className={fieldLabelClass}>Group name</label>
               <input
                 value={name}
@@ -113,19 +161,20 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
                 maxLength={64}
                 className={compactInputClass}
               />
-            </div>
-            <div className="px-4 py-3">
+            </EditFieldSection>
+
+            <EditFieldSection>
               <label className={fieldLabelClass}>
                 Group username {isPublic ? '(required)' : '(required for public)'}
               </label>
-              <div className={`flex items-center rounded-full border ${usernameBorder} ${compactInputClass} !px-0`}>
-                <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px]">@</span>
+              <div className={`${compactInputAffixClass} border ${usernameBorder}`}>
+                <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px] leading-none">@</span>
                 <input
                   value={username}
                   onChange={(e) => setUsername(normalizeUsername(e.target.value))}
                   placeholder="groupname"
                   maxLength={20}
-                  className="flex-1 min-w-0 py-2.5 pr-4 bg-transparent outline-none text-[15px]"
+                  className={compactInputInnerClass}
                 />
               </div>
               {isPublic && usernameError && usernameChanged && (
@@ -137,35 +186,35 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
               {usernameChanged && usernameStatus === 'checking' && (
                 <p className={`${typoSubheadClass} mt-1.5`}>Checking…</p>
               )}
-            </div>
-          </SettingsSection>
 
-          <SettingsSection title="About">
-            <div className="px-4 py-3">
-              <label className={fieldLabelClass}>Description</label>
-              <textarea
+              <label className={`${fieldLabelClass} mt-4`}>Bio</label>
+              <input
+                type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="What's this group about?"
-                rows={2}
-                maxLength={280}
-                className={compactTextareaClass}
+                className={compactInputClass}
+                maxLength={120}
               />
-            </div>
-          </SettingsSection>
-        </div>
+            </EditFieldSection>
+          </div>
+        </motion.div>
       </form>
 
-      <div className="shrink-0 px-[var(--ios-page-x-lg)] pt-3 pb-[max(1rem,var(--ios-safe-bottom))] border-t border-white/10 bg-black/95 backdrop-blur-md">
-        <button
-          type="submit"
-          form="group-info-form"
-          disabled={!canSubmit}
-          className={`${btnFilledClass} w-full`}
-        >
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-      </div>
+      <EditSaveBar
+        visible={hasChanges}
+        formId="group-info-form"
+        loading={saving}
+        disabled={!canSubmit}
+      />
+
+      {galleryOpen && photos.some((url) => url.trim()) ? (
+        <PhotoGallery
+          photos={photos.filter(Boolean)}
+          initialIndex={galleryInitialIndex}
+          onClose={() => setGalleryOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -191,7 +240,13 @@ export default function GroupSettingsInfo() {
   if (!chat || !isMember || !canEditInfo) {
     return (
       <div className="h-full bg-black flex flex-col">
-        <SubpageHeaderBar title="Edit group" onBack={handleBack} />
+        <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
+          <ChevronBack
+            onClick={handleBack}
+            buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+            className="w-6 h-6"
+          />
+        </div>
         <p className="text-center text-white/60 mt-12 px-6">You cannot edit group info</p>
       </div>
     )

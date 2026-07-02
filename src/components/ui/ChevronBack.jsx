@@ -1,6 +1,7 @@
 export default function ChevronBack({ className = 'w-6 h-6', onClick, buttonClassName }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={
         buttonClassName ||
