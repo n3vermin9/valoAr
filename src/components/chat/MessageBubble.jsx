@@ -38,6 +38,19 @@ function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
   )
 }
 
+function TextWithCornerMeta({ children, meta }) {
+  if (!meta) return children
+
+  return (
+    <div className="relative w-full min-w-0">
+      <div className="pb-3.5 pr-11">{children}</div>
+      <div className="absolute right-0 bottom-0 flex h-3.5 translate-y-0.5 items-end justify-end leading-none select-none pointer-events-none">
+        {meta}
+      </div>
+    </div>
+  )
+}
+
 export default function MessageBubble({
   message,
   isOwn,
@@ -196,7 +209,7 @@ export default function MessageBubble({
         />
       )}
       {displayText && (
-        <div className="flex flex-wrap items-end gap-x-1 gap-y-0 max-w-full min-w-0">
+        <TextWithCornerMeta meta={meta}>
           <MessageText
             text={displayText}
             isOwn={isOwn}
@@ -206,8 +219,7 @@ export default function MessageBubble({
             activeSearchMatch={activeSearchMatch}
             className={chatMessageTextClass}
           />
-          {meta}
-        </div>
+        </TextWithCornerMeta>
       )}
       {message.audioUrl && (
         <div className={`flex ${isOwn ? 'flex-wrap items-end gap-x-2 gap-y-0' : 'flex-col items-end gap-1'}`}>

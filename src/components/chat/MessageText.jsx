@@ -166,7 +166,7 @@ export default function MessageText({
   const parts = useMemo(() => withMentionOffsets(splitMessageMentions(text)), [text])
 
   return (
-    <p
+    <span
       className={`whitespace-pre-wrap break-words ${className}`}
       data-allow-copy
       data-allow-contextmenu={onContextMenu ? true : undefined}
@@ -201,6 +201,6 @@ export default function MessageText({
           </span>
         )
       )}
-    </p>
+    </span>
   )
 }
