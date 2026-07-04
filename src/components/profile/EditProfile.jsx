@@ -5,10 +5,11 @@ import { useAuth } from '../../contexts/AuthContext'
 import { updateUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
 import { normalizeUsername, formatGenderLabel } from '../../utils/helpers'
+import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
 import { normalizeSocials, SOCIAL_PLATFORMS } from '../../utils/socialLinks'
 import { setProfileEditorOpen } from '../../utils/profileOverlay'
 import AgeSlider from './AgeSlider'
-import PhotoUrlSection, { getVisiblePhotoSlotCount, promotePhotoToPrimary } from './PhotoUrlSection'
+import PhotoUrlSection, { getVisiblePhotoSlotCount, promotePhotoToPrimary, compactPhotos } from './PhotoUrlSection'
 import SocialLinksEditor from './SocialLinksEditor'
 import EditSaveBar from '../ui/EditSaveBar'
 import PhotoGallery from '../ui/PhotoGallery'
@@ -106,7 +107,7 @@ export default function EditProfile({ onCancel }) {
     socialsChanged
 
   const canSubmit =
-    photos[0].trim() !== '' &&
+    currentPhotos.length > 0 &&
     interestedIn !== '' &&
     age >= 18 &&
     age <= 40 &&
@@ -126,7 +127,10 @@ export default function EditProfile({ onCancel }) {
     let next = [...photos]
     next[index] = value
 
-    if (index > 0 && value.trim() && wasEmpty) {
+    if (!value.trim()) {
+      next = compactPhotos(next)
+      setVisiblePhotoSlots(getVisiblePhotoSlotCount(next))
+    } else if (index > 0 && value.trim() && wasEmpty) {
       next = promotePhotoToPrimary(next, index)
       setVisiblePhotoSlots(getVisiblePhotoSlotCount(next))
     }
@@ -216,6 +220,7 @@ export default function EditProfile({ onCancel }) {
                   autoFocus
                   value={photos[activePhotoSlot] || ''}
                   onChange={(e) => updatePhoto(activePhotoSlot, e.target.value)}
+                  onFocus={handleInputFocusCursor}
                   placeholder={`Photo ${activePhotoSlot + 1} URL`}
                   className={compactInputClass}
                 />
@@ -240,7 +245,8 @@ export default function EditProfile({ onCancel }) {
               <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px] leading-none">@</span>
               <input
                 value={username}
-                onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+                onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
+                onFocus={handleInputFocusCursor}
                 className={compactInputInnerClass}
                 maxLength={20}
               />
@@ -260,6 +266,7 @@ export default function EditProfile({ onCancel }) {
               type="text"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
+              onFocus={handleInputFocusCursor}
               placeholder="Tell people about yourself…"
               className={compactInputClass}
               maxLength={120}

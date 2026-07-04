@@ -38,17 +38,6 @@ function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
   )
 }
 
-function TextWithCornerMeta({ children, meta }) {
-  if (!meta) return children
-
-  return (
-    <div className="relative inline-block max-w-full min-w-0 align-bottom pr-[2.75rem]">
-      {children}
-      <div className="absolute bottom-0 right-0">{meta}</div>
-    </div>
-  )
-}
-
 export default function MessageBubble({
   message,
   isOwn,
@@ -77,6 +66,9 @@ export default function MessageBubble({
   searchQuery = '',
   activeSearchMatch = null,
   readOnly = false,
+  actionHidden = false,
+  overlayClone = false,
+  actionOverlay = false,
 }) {
   const bubbleRef = useRef(null)
   const touchStartRef = useRef({ x: 0, y: 0 })
@@ -89,6 +81,7 @@ export default function MessageBubble({
   const handleContextMenu = (e) => {
     if (readOnly) return
     e.preventDefault()
+    e.stopPropagation()
     onContextMenu?.(message, getRect())
   }
 
@@ -203,30 +196,18 @@ export default function MessageBubble({
         />
       )}
       {displayText && (
-        isOwn ? (
-          <div className="flex flex-wrap items-end gap-x-2 gap-y-0">
-            <MessageText
-              text={displayText}
-              isOwn={isOwn}
-              onMentionClick={onMentionClick}
-              searchQuery={searchQuery}
-              activeSearchMatch={activeSearchMatch}
-              className={chatMessageTextClass}
-            />
-            {meta}
-          </div>
-        ) : (
-          <TextWithCornerMeta meta={meta}>
-            <MessageText
-              text={displayText}
-              isOwn={isOwn}
-              onMentionClick={onMentionClick}
-              searchQuery={searchQuery}
-              activeSearchMatch={activeSearchMatch}
-              className={chatMessageTextClass}
-            />
-          </TextWithCornerMeta>
-        )
+        <div className="flex flex-wrap items-end gap-x-1 gap-y-0 max-w-full min-w-0">
+          <MessageText
+            text={displayText}
+            isOwn={isOwn}
+            onMentionClick={onMentionClick}
+            onContextMenu={readOnly ? undefined : handleContextMenu}
+            searchQuery={searchQuery}
+            activeSearchMatch={activeSearchMatch}
+            className={chatMessageTextClass}
+          />
+          {meta}
+        </div>
       )}
       {message.audioUrl && (
         <div className={`flex ${isOwn ? 'flex-wrap items-end gap-x-2 gap-y-0' : 'flex-col items-end gap-1'}`}>
@@ -276,7 +257,7 @@ export default function MessageBubble({
             onTouchMove={readOnly ? undefined : handleTouchMove}
             onTouchEnd={readOnly ? undefined : handleTouchEnd}
             onTouchCancel={readOnly ? undefined : handleTouchCancel}
-            className={`${chatBubblePadClass} transition-colors duration-200 message-bubble w-fit max-w-full ${bubbleRadius} ${bubbleSurfaceClass}`}
+            className={`${chatBubblePadClass} transition-colors duration-200 message-bubble w-fit max-w-full ${actionOverlay ? 'message-bubble-action' : ''} ${bubbleRadius} ${bubbleSurfaceClass}`}
             data-allow-contextmenu={readOnly ? undefined : true}
           >
             {renderBubbleContent()}
@@ -298,9 +279,17 @@ export default function MessageBubble({
 
   const rowClass = `flex ${isOwn ? 'justify-end' : 'justify-start'} ${tightBottom ? 'mb-1' : 'mb-2.5'}`
 
+  if (overlayClone) {
+    return (
+      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} w-full`}>
+        {bubbleBlock}
+      </div>
+    )
+  }
+
   if (!isOwn && isGroupChat) {
     return (
-      <div className={rowClass} data-message-id={message.id}>
+      <div className={`${rowClass} ${actionHidden ? 'invisible' : ''}`} data-message-id={message.id}>
         <div className="flex items-end gap-2.5 max-w-[88%] min-w-0">
           <div className="w-9 shrink-0 flex justify-center">
             {showAvatar ? (
@@ -339,7 +328,7 @@ export default function MessageBubble({
   }
 
   return (
-    <div className={rowClass} data-message-id={message.id}>
+    <div className={`${rowClass} ${actionHidden ? 'invisible' : ''}`} data-message-id={message.id}>
       <div className="relative max-w-[78%]">
         {Math.abs(swipeOffset) > 12 && (
           <div

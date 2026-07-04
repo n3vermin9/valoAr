@@ -143,11 +143,11 @@ export default function ProfileView() {
       <PhotoHeroFixedTopRight>
         <button
           type="button"
-          onClick={() => setEditing(true)}
+          onClick={() => setShowSettings(true)}
           className={`${chatFloatingButtonClass} text-white/80`}
-          aria-label="Edit profile"
+          aria-label="Settings"
         >
-          <IconEdit size={22} className="text-white/80" stroke={2} />
+          <IconSettings size={22} className="text-white/80" stroke={2} />
         </button>
       </PhotoHeroFixedTopRight>
 
@@ -193,6 +193,17 @@ export default function ProfileView() {
           <p className={typoSubheadClass}>{profile.age} years old</p>
         </div>
 
+        <div className="mx-[var(--ios-page-x-lg)] mt-6">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className={`${btnBorderedClass} w-full gap-2`}
+          >
+            <IconEdit size={18} stroke={1.75} />
+            Edit profile
+          </button>
+        </div>
+
         <div className={`${insetCardOuterClass} mt-6 min-w-0 mx-[var(--ios-page-x-lg)]`}>
           <div className="p-4 min-w-0">
             <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
@@ -222,17 +233,6 @@ export default function ProfileView() {
             onClick={() => setShowBlocked(true)}
           />
         </SettingsSection>
-      </div>
-
-      <div className="mx-[var(--ios-page-x-lg)] mt-6">
-        <button
-          type="button"
-          onClick={() => setShowSettings(true)}
-          className={`${btnBorderedClass} w-full gap-2`}
-        >
-          <IconSettings size={18} stroke={1.75} />
-          Settings
-        </button>
       </div>
 
       {showSettings && (

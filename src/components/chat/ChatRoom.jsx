@@ -632,6 +632,15 @@ export default function ChatRoom() {
   }
 
   const visibleMessages = messages.filter((msg) => !removedMessageIds.has(msg.id))
+  const actionTargetIndex = deleteTarget
+    ? visibleMessages.findIndex((msg) => msg.id === deleteTarget.message.id)
+    : -1
+  const actionTargetCluster =
+    actionTargetIndex >= 0
+      ? getMessageClusterMeta(visibleMessages, actionTargetIndex, user.uid, isGroup)
+      : null
+  const actionTargetSenderProfile =
+    deleteTarget && isGroup ? memberProfiles[deleteTarget.message.senderId] : null
 
   const searchMatches = useMemo(
     () => (showSearch && searchQuery.trim() ? findChatSearchMatches(visibleMessages, searchQuery) : []),
@@ -710,31 +719,7 @@ export default function ChatRoom() {
 
   const handleSelectMessageAction = (message, rect) => {
     if (!rect) return
-
     setDeleteTarget({ message, rect })
-
-    const row = messagesContainerRef.current?.querySelector(`[data-message-id="${message.id}"]`)
-    if (!row) return
-
-    const container = messagesContainerRef.current
-    const rowRect = row.getBoundingClientRect()
-    const containerRect = container.getBoundingClientRect()
-    const spaceBelow = containerRect.bottom - rowRect.bottom
-
-    if (spaceBelow < 220) {
-      row.scrollIntoView({ block: 'center', behavior: 'smooth' })
-
-      const updateRect = () => {
-        const bubble = row.querySelector('.message-bubble')
-        const nextRect = bubble?.getBoundingClientRect() || row.getBoundingClientRect()
-        setDeleteTarget((prev) =>
-          prev?.message.id === message.id ? { message, rect: nextRect } : prev
-        )
-      }
-
-      container.addEventListener('scrollend', updateRect, { once: true })
-      setTimeout(updateRect, 450)
-    }
   }
 
   const handleReplyToMessage = (message) => {
@@ -903,10 +888,9 @@ export default function ChatRoom() {
   const openProfile = () => {
     if (isGroupPreview) {
       navigate(`/groups/${matchId}`, {
-        replace: true,
         state: {
           fromChatPreview: true,
-          groupPreview: true,
+          returnTo: `/chats/${matchId}`,
           joinSlug: previewJoinSlug || undefined,
           previewReturnTo,
         },
@@ -914,7 +898,7 @@ export default function ChatRoom() {
       return
     }
     if (isGroup) {
-      navigate(`/groups/${matchId}`, { state: { fromChat: true } })
+      navigate(`/groups/${matchId}`, { state: { fromChat: true, returnTo: `/chats/${matchId}` } })
       return
     }
     if (!otherId) return
@@ -1017,7 +1001,7 @@ export default function ChatRoom() {
             Search
           </MenuItem>
           {isGroup && isGroupAdmin(chatMeta, user?.uid) && (
-            <MenuItem icon={IconSettings} onClick={() => { setShowMenu(false); navigate(`/groups/${matchId}/settings`, { state: { fromChat: true } }) }}>
+            <MenuItem icon={IconSettings} onClick={() => { setShowMenu(false); navigate(`/groups/${matchId}/settings`, { state: { fromChat: true, returnTo: `/chats/${matchId}` } }) }}>
               Group settings
             </MenuItem>
           )}
@@ -1112,6 +1096,7 @@ export default function ChatRoom() {
               senderId={isGroup ? msg.senderId : undefined}
               onSenderClick={isGroup ? openMemberProfile : undefined}
               readOnly={isGroupPreview}
+              actionHidden={deleteTarget?.message.id === msg.id}
             highlighted={highlightedMessageId === msg.id}
             searchActive={showSearch && activeSearchMatch?.messageId === msg.id}
             searchQuery={showSearch ? searchQuery : ''}
@@ -1339,10 +1324,16 @@ export default function ChatRoom() {
             }
             isGroupChat={isGroup}
             senderName={
-              isGroup && deleteTarget.message.senderId !== user.uid
-                ? memberProfiles[deleteTarget.message.senderId]?.username || 'User'
+              isGroup &&
+              deleteTarget.message.senderId !== user.uid &&
+              actionTargetCluster?.showSenderNameInBubble
+                ? actionTargetSenderProfile?.username || 'User'
                 : undefined
             }
+            senderAvatar={actionTargetSenderProfile?.photos?.[0]}
+            showSenderNameInBubble={actionTargetCluster?.showSenderNameInBubble ?? false}
+            showAvatar={actionTargetCluster?.showAvatar ?? false}
+            tightBottom={actionTargetCluster?.tightBottom ?? false}
             groupChat={isGroup ? chatMeta : undefined}
             senderId={isGroup ? deleteTarget.message.senderId : undefined}
             onDelete={handleDeleteMessage}

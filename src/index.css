@@ -42,6 +42,13 @@ video {
   isolation: isolate;
 }
 
+.message-bubble-action {
+  max-height: min(50vh, calc(100vh - 12rem));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /* Clip backdrop-filter to rounded bounds — prevents gray square corners on glass controls */
 .liquid-glass {
   isolation: isolate;

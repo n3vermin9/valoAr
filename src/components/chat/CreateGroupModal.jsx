@@ -6,6 +6,7 @@ import Button from '../ui/Button'
 import { createGroupChat } from '../../services/groupChatService'
 import { listRowClass, typoTitle3Class, typoSubheadClass } from '../../utils/designSystem'
 import { normalizeUsername } from '../../utils/helpers'
+import { createSanitizedChangeHandler, focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
 import { useGroupUsernameCheck } from '../../hooks/useGroupUsernameCheck'
 
 export default function CreateGroupModal({ isOpen, onClose, userId, onCreated }) {
@@ -39,7 +40,7 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
   const handleSelectPublic = () => {
     if (!normalizedUsername) {
       toast.error('Choose a group username before making the group public')
-      usernameRef.current?.focus()
+      usernameRef.current && focusInputRefAtEnd(usernameRef)
       return
     }
     if (usernameStatus !== 'available') {
@@ -110,7 +111,8 @@ export default function CreateGroupModal({ isOpen, onClose, userId, onCreated })
             <input
               ref={usernameRef}
               value={username}
-              onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+              onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
+              onFocus={handleInputFocusCursor}
               placeholder="groupname"
               maxLength={20}
               className="flex-1 px-1 py-3 bg-transparent outline-none"

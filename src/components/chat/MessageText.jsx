@@ -157,6 +157,7 @@ export default function MessageText({
   text,
   isOwn = false,
   onMentionClick,
+  onContextMenu,
   searchQuery = '',
   activeSearchMatch = null,
   className = '',
@@ -165,7 +166,12 @@ export default function MessageText({
   const parts = useMemo(() => withMentionOffsets(splitMessageMentions(text)), [text])
 
   return (
-    <p className={className} data-allow-copy>
+    <p
+      className={`whitespace-pre-wrap break-words ${className}`}
+      data-allow-copy
+      data-allow-contextmenu={onContextMenu ? true : undefined}
+      onContextMenu={onContextMenu}
+    >
       {parts.map((part, index) =>
         part.type === 'mention' ? (
           <button

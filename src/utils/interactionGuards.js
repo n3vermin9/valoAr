@@ -20,7 +20,6 @@ export function setupInteractionGuards() {
   )
 
   document.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('[data-allow-contextmenu]')) return
     e.preventDefault()
   })
 

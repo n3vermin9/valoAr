@@ -1,20 +1,18 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
-import { IconCheck, IconChecks, IconArrowBackUp, IconCopy, IconTrash } from '@tabler/icons-react'
-import { formatMessageTime } from '../../utils/helpers'
-import { navGlassMenuClass, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, chatBubblePadClass, chatMessageTextClass } from '../../utils/designSystem'
-import VoiceMessagePlayer from './VoiceMessagePlayer'
-import ReplyQuote from './ReplyQuote'
-import StoryReplyQuote from './StoryReplyQuote'
-import MessageReactions, { ReactionPicker } from './MessageReactions'
-import MessageText from './MessageText'
-import UsernameLabel from '../ui/UsernameLabel'
-import GroupRoleBadge from './GroupRoleBadge'
+import { IconArrowBackUp, IconCopy, IconTrash } from '@tabler/icons-react'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
+import {
+  navGlassMenuClass,
+  dropdownMenuClass,
+  dropdownMenuItemWithIconClass,
+  dropdownMenuItemWithIconDangerClass,
+} from '../../utils/designSystem'
+import MessageBubble from './MessageBubble'
+import { ReactionPicker } from './MessageReactions'
 
-const MAX_MESSAGE_HEIGHT = 'max-h-[min(50vh,calc(100vh-12rem))]'
 const VIEWPORT_PADDING = 16
-const BOTTOM_RESERVE = 200
+const MENU_GAP = 12
 
 function clampHorizontal(left, width) {
   const maxLeft = window.innerWidth - VIEWPORT_PADDING - width
@@ -40,58 +38,91 @@ export default function MessageActionOverlay({
   senderRole,
   groupChat,
   senderId,
+  senderAvatar,
+  showSenderNameInBubble = false,
+  showAvatar = false,
+  tightBottom = false,
 }) {
   const [deleting, setDeleting] = useState(false)
-  const [adjustedTop, setAdjustedTop] = useState(originRect.top)
-  const scrollRef = useRef(null)
-  const panelRef = useRef(null)
+  const [bubbleTop, setBubbleTop] = useState(originRect.top)
+  const [menuTop, setMenuTop] = useState(originRect.bottom + MENU_GAP)
+  const bubbleWrapRef = useRef(null)
+  const menuRef = useRef(null)
 
-  const bubbleWidth = originRect.width
-  const showSenderHeader = isGroupChat && !isOwn && Boolean(senderName)
-  const panelWidth = showSenderHeader
-    ? Math.max(bubbleWidth, Math.min(320, window.innerWidth - VIEWPORT_PADDING * 2))
-    : bubbleWidth
+  const panelWidth = Math.max(originRect.width, 240)
+  const { text: displayText } = getStoryReplyDisplay(message)
+  const canCopy = Boolean(displayText || message.imageUrl)
 
-  const containerStyle = isOwn
+  const bubbleStyle = isOwn
     ? {
-        top: adjustedTop,
+        top: bubbleTop,
+        right: Math.max(VIEWPORT_PADDING, window.innerWidth - originRect.right),
+        width: originRect.width,
+      }
+    : {
+        top: bubbleTop,
+        left: clampHorizontal(originRect.left, originRect.width),
+        width: originRect.width,
+      }
+
+  const menuStyle = isOwn
+    ? {
+        top: menuTop,
         right: Math.max(VIEWPORT_PADDING, window.innerWidth - originRect.right),
         width: panelWidth,
       }
     : {
-        top: adjustedTop,
+        top: menuTop,
         left: clampHorizontal(originRect.left, panelWidth),
         width: panelWidth,
       }
 
-  const sentTime = formatMessageTime(message.createdAt, militaryTime)
-  const { storyReply, text: displayText } = getStoryReplyDisplay(message)
-  const canCopy = Boolean(displayText || message.imageUrl)
-  const hasReactions = message.reactions && Object.keys(message.reactions).length > 0
-
   useLayoutEffect(() => {
-    const panel = panelRef.current
-    if (!panel) return
+    const wrap = bubbleWrapRef.current
+    const menu = menuRef.current
+    if (!menu) return
 
-    const fitPanel = () => {
-      const height = panel.offsetHeight
-      const maxBottom = window.innerHeight - BOTTOM_RESERVE
-      const nextTop = Math.max(VIEWPORT_PADDING, Math.min(originRect.top, maxBottom - height))
-      setAdjustedTop(nextTop)
+    const fitLayout = () => {
+      const menuHeight = menu.offsetHeight
+      const maxMenuTop = window.innerHeight - VIEWPORT_PADDING - menuHeight
+
+      let nextBubbleTop = originRect.top
+      let wrapHeight = wrap?.offsetHeight ?? originRect.height
+
+      if (wrap) {
+        const scrollEl = wrap.querySelector('.message-bubble-action')
+        if (scrollEl) {
+          scrollEl.scrollTop = scrollEl.scrollHeight
+        }
+        wrapHeight = wrap.offsetHeight
+        const maxBubbleBottom = maxMenuTop - MENU_GAP
+        if (nextBubbleTop + wrapHeight > maxBubbleBottom) {
+          nextBubbleTop = Math.max(VIEWPORT_PADDING, maxBubbleBottom - wrapHeight)
+        }
+      }
+
+      setBubbleTop(nextBubbleTop)
+
+      const bubbleBottom = nextBubbleTop + wrapHeight
+      const preferredMenuTop = bubbleBottom + MENU_GAP
+      setMenuTop(Math.max(VIEWPORT_PADDING, Math.min(preferredMenuTop, maxMenuTop)))
     }
 
-    fitPanel()
-    window.addEventListener('resize', fitPanel)
-    return () => window.removeEventListener('resize', fitPanel)
-  }, [originRect.top, originRect.width, deleting, hasReactions, canCopy, isOwn, message.id])
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight
-    })
-  }, [message.id, message.text, message.imageUrl, message.audioUrl, message.replyTo, message.reactions])
+    fitLayout()
+    window.addEventListener('resize', fitLayout)
+    return () => window.removeEventListener('resize', fitLayout)
+  }, [
+    originRect.top,
+    originRect.height,
+    originRect.bottom,
+    originRect.left,
+    originRect.right,
+    originRect.width,
+    deleting,
+    canCopy,
+    canDelete,
+    message.id,
+  ])
 
   const handleReact = (emoji) => {
     onReact(message, emoji)
@@ -111,154 +142,78 @@ export default function MessageActionOverlay({
         aria-hidden
       />
 
-      <div className="absolute inset-0 pointer-events-none">
-        <motion.div
-          ref={panelRef}
-          initial={{ opacity: 1, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.99, transition: { duration: 0.04 } }}
-          transition={{ duration: 0.12, ease: [0.32, 0.72, 0, 1] }}
-          style={containerStyle}
-          className={`fixed z-10 flex flex-col max-h-[calc(100vh-2rem)] pointer-events-auto ${
-            isOwn ? 'items-end' : 'items-start'
-          }`}
+      <div
+        ref={bubbleWrapRef}
+        className="fixed z-[51] pointer-events-auto"
+        style={bubbleStyle}
+      >
+        <MessageBubble
+          message={message}
+          isOwn={isOwn}
+          currentUserId={currentUserId}
+          readOnly
+          overlayClone
+          actionOverlay
+          militaryTime={militaryTime}
+          replyAuthorName={replyAuthorName}
+          senderName={senderName}
+          senderId={senderId}
+          senderRole={senderRole}
+          groupChat={groupChat}
+          senderAvatar={senderAvatar}
+          isGroupChat={isGroupChat}
+          showAvatar={showAvatar}
+          showSenderNameInBubble={showSenderNameInBubble}
+          tightBottom={tightBottom}
+          onMentionClick={onMentionClick}
+        />
+      </div>
+
+      {!deleting && (
+        <div
+          ref={menuRef}
+          className={`fixed z-[52] pointer-events-auto ${isOwn ? 'flex flex-col items-end' : 'flex flex-col items-start'}`}
+          style={menuStyle}
           onClick={(e) => e.stopPropagation()}
         >
-        <div className="w-full min-w-0">
-          {showSenderHeader && (
-            <div className="flex items-center justify-between gap-2 w-full mb-1.5 min-w-0">
-              <UsernameLabel
-                username={senderName}
-                className="text-xs font-semibold text-blue-300/90 min-w-0"
-                badgeSize={12}
-                truncate={false}
-                as="span"
-              />
-              {groupChat && senderId ? (
-                <GroupRoleBadge chat={groupChat} userId={senderId} />
-              ) : senderRole && senderRole !== 'member' ? (
-                <GroupRoleBadge role={senderRole} />
-              ) : null}
-            </div>
-          )}
-          <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
-            {storyReply && (
-              <StoryReplyQuote
-                storyReply={storyReply}
-                isOwn={isOwn}
-                stacked={Boolean(displayText)}
-              />
-            )}
-            {(displayText || message.replyTo || message.audioUrl || message.imageUrl) && (
-              <div
-                ref={scrollRef}
-                className={`${chatBubblePadClass} message-bubble overflow-y-auto w-fit max-w-full ${MAX_MESSAGE_HEIGHT} ${
-                  isOwn
-                    ? 'bg-blue-500 rounded-[var(--chat-bubble-radius)] rounded-br-[0.3rem]'
-                    : 'bg-white/10 rounded-[var(--chat-bubble-radius)] rounded-bl-[0.3rem]'
-                }`}
-              >
-                {message.replyTo && (
-                  <ReplyQuote reply={message.replyTo} authorName={replyAuthorName} isOwn={isOwn} />
-                )}
-                {displayText && (
-                  <MessageText
-                    text={displayText}
-                    isOwn={isOwn}
-                    onMentionClick={onMentionClick}
-                    className={chatMessageTextClass}
-                  />
-                )}
-                {message.audioUrl && <VoiceMessagePlayer src={message.audioUrl} isOwn={isOwn} />}
-                {message.imageUrl && (
-                  <img src={message.imageUrl} alt="" className="rounded-xl max-w-full mb-1" />
-                )}
-              </div>
-            )}
+          <div className={`liquid-glass-pill rounded-full w-full min-w-[240px] ${navGlassMenuClass}`}>
+            <ReactionPicker
+              reactions={message.reactions}
+              currentUserId={currentUserId}
+              onReact={handleReact}
+            />
           </div>
 
-          {hasReactions && (
-            <MessageReactions
-              reactions={message.reactions}
-              isOwn={isOwn}
-              currentUserId={currentUserId}
-              onEmojiClick={handleReact}
-              className="mt-1.5"
-            />
-          )}
-
-          {(sentTime || isOwn) && (
-            <div className="flex items-center justify-between gap-3 mt-1 px-1 min-h-[16px]">
-              {sentTime ? (
-                <span className="text-xs text-white/40 tabular-nums">{sentTime}</span>
-              ) : (
-                <span />
-              )}
-              {isOwn && (
-                <span className="inline-flex shrink-0">
-                  {message.read ? (
-                    <IconChecks size={15} className="text-blue-400" stroke={2} />
-                  ) : (
-                    <IconCheck size={15} className="text-white/40" stroke={2} />
-                  )}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {!deleting && (
-          <>
-            <motion.div
-              initial={{ opacity: 1, y: 0 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className={`mt-3 shrink-0 liquid-glass-pill rounded-full w-full min-w-[240px] ${navGlassMenuClass}`}
+          <div className={`mt-2 w-full min-w-[140px] ${dropdownMenuClass} ${navGlassMenuClass}`}>
+            <ActionItem
+              icon={IconArrowBackUp}
+              onClick={() => {
+                onReply(message)
+              }}
             >
-              <ReactionPicker
-                reactions={message.reactions}
-                currentUserId={currentUserId}
-                onReact={handleReact}
-              />
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 1, y: 0 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className={`mt-2 shrink-0 w-full min-w-[140px] ${dropdownMenuClass} ${navGlassMenuClass}`}
-            >
+              Reply
+            </ActionItem>
+            {canCopy && (
+              <ActionItem icon={IconCopy} onClick={() => onCopy(message)}>
+                Copy
+              </ActionItem>
+            )}
+            {canDelete && canCopy && <div className="my-1.5 mx-3 border-t border-white/10" />}
+            {canDelete && (
               <ActionItem
-                icon={IconArrowBackUp}
+                icon={IconTrash}
+                danger
                 onClick={() => {
-                  onReply(message)
+                  setDeleting(true)
+                  onDelete(message)
                 }}
               >
-                Reply
+                Delete
               </ActionItem>
-              {canCopy && (
-                <ActionItem icon={IconCopy} onClick={() => onCopy(message)}>
-                  Copy
-                </ActionItem>
-              )}
-              {canDelete && canCopy && <div className="my-1.5 mx-3 border-t border-white/10" />}
-              {canDelete && (
-                <ActionItem
-                  icon={IconTrash}
-                  danger
-                  onClick={() => {
-                    setDeleting(true)
-                    onDelete(message)
-                  }}
-                >
-                  Delete
-                </ActionItem>
-              )}
-            </motion.div>
-          </>
-        )}
-        </motion.div>
-      </div>
+            )}
+          </div>
+        </div>
+      )}
     </motion.div>
   )
 }

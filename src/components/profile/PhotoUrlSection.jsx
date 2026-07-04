@@ -30,6 +30,11 @@ export function promotePhotoToPrimary(photos, index) {
   return [...[url], ...rest, '', '', ''].slice(0, photos.length)
 }
 
+export function compactPhotos(photos) {
+  const filled = photos.map((url) => url.trim()).filter(Boolean)
+  return [...filled, '', '', ''].slice(0, photos.length)
+}
+
 function SamplePhotoPicker({ photos, updatePhoto }) {
   return (
     <div className="mb-4 px-[var(--ios-page-x-lg)]">
@@ -187,10 +192,8 @@ function HeroPhotoSection({
       return
     }
 
-    const nextPhotos = photos.map((url, i) => (i === currentEntry.index ? '' : url))
     updatePhoto(currentEntry.index, '')
     onActiveSlotChange?.(null)
-    setVisiblePhotoSlots(getVisiblePhotoSlotCount(nextPhotos))
     setShowPhotoControls(false)
     setCurrentViewIndex((index) => Math.max(0, index - 1))
     setConfirmRemoveOpen(false)

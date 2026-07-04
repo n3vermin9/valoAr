@@ -42,6 +42,7 @@ import {
   storyProgressTrackClass,
   storyProgressFillClass,
   storyPausedBadgeClass,
+  navGlassMenuClass,
 } from '../../utils/designSystem'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Modal from '../ui/Modal'
@@ -108,6 +109,60 @@ function resolveStoryNav(queue, nav) {
     stories,
     story: stories[storyIndex],
   }
+}
+
+const STORY_FOOTER_ROW_H = 'h-11'
+
+function StoryReactionButton({
+  showReactionPicker,
+  onTogglePicker,
+  storyReactions,
+  viewerId,
+  onReact,
+  iconSize = 20,
+  className = '',
+}) {
+  return (
+    <div className={`relative shrink-0 ${STORY_FOOTER_ROW_H} ${className}`}>
+      <AnimatePresence>
+        {showReactionPicker && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full right-0 mb-2 z-10"
+          >
+            <div className={`liquid-glass-pill rounded-full ${navGlassMenuClass}`}>
+              <ReactionPicker
+                reactions={storyReactions}
+                currentUserId={viewerId}
+                onReact={onReact}
+                className="justify-center gap-0.5 px-1 py-1"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <motion.button
+        type="button"
+        onClick={onTogglePicker}
+        whileTap={{ scale: 0.88 }}
+        className={`${storyGlassButtonClass} h-full aspect-square !p-0 shrink-0 ${
+          storyReactions[viewerId] ? 'bg-white/20' : ''
+        }`}
+        aria-label="React to story"
+        aria-expanded={showReactionPicker}
+      >
+        <IconHeart
+          size={iconSize}
+          className={storyReactions[viewerId] ? 'text-red-400' : 'text-white/90'}
+          stroke={2.5}
+          fill={storyReactions[viewerId] ? 'currentColor' : 'none'}
+        />
+      </motion.button>
+    </div>
+  )
 }
 
 export default function StoryViewer({
@@ -712,28 +767,7 @@ export default function StoryViewer({
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <AnimatePresence>
-              {showReactionPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.15 }}
-                  className="mb-2"
-                >
-                  <ReactionPicker
-                    reactions={storyReactions}
-                    currentUserId={viewerId}
-                    onReact={(emoji) => {
-                      handleStoryReaction(emoji)
-                      setShowReactionPicker(false)
-                    }}
-                    className="justify-start px-1"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <div className="flex items-center gap-2">
+            <div className={`flex items-stretch gap-2 ${STORY_FOOTER_ROW_H}`}>
               <motion.div
                 layout
                 initial={false}
@@ -747,7 +781,7 @@ export default function StoryViewer({
                     : { type: 'spring', stiffness: 420, damping: 32 },
                   y: { type: 'spring', stiffness: 420, damping: 32 },
                 }}
-                className={`flex-1 flex items-center gap-2 rounded-full px-3 py-2 min-w-0 ${storyGlassInputClass}`}
+                className={`flex-1 flex items-center gap-2 rounded-full px-3 min-w-0 h-full ${storyGlassInputClass}`}
               >
                 <motion.input
                   type="text"
@@ -789,29 +823,22 @@ export default function StoryViewer({
                         : { scale: 1 }
                   }
                   transition={{ duration: 0.35 }}
-                  className={`${storyGlassButtonClass} !p-2 bg-[var(--ios-blue)] border-[var(--ios-blue)] disabled:opacity-40`}
+                  className={`${storyGlassButtonClass} !h-8 !w-8 !p-0 bg-[var(--ios-blue)] border-[var(--ios-blue)] disabled:opacity-40`}
                   aria-label="Send reply"
                 >
                   <IconSend size={18} />
                 </motion.button>
               </motion.div>
-              <motion.button
-                type="button"
-                onClick={() => setShowReactionPicker((v) => !v)}
-                whileTap={{ scale: 0.88 }}
-                className={`${storyGlassButtonClass} !p-2.5 shrink-0 ${
-                  storyReactions[viewerId] ? 'bg-white/20' : ''
-                }`}
-                aria-label="React to story"
-                aria-expanded={showReactionPicker}
-              >
-                <IconHeart
-                  size={20}
-                  className={storyReactions[viewerId] ? 'text-red-400' : 'text-white/90'}
-                  stroke={2.5}
-                  fill={storyReactions[viewerId] ? 'currentColor' : 'none'}
-                />
-              </motion.button>
+              <StoryReactionButton
+                showReactionPicker={showReactionPicker}
+                onTogglePicker={() => setShowReactionPicker((v) => !v)}
+                storyReactions={storyReactions}
+                viewerId={viewerId}
+                onReact={(emoji) => {
+                  handleStoryReaction(emoji)
+                  setShowReactionPicker(false)
+                }}
+              />
             </div>
           </div>
         )}
@@ -840,45 +867,18 @@ export default function StoryViewer({
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <AnimatePresence>
-              {showReactionPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.15 }}
-                  className="mb-2"
-                >
-                  <ReactionPicker
-                    reactions={storyReactions}
-                    currentUserId={viewerId}
-                    onReact={(emoji) => {
-                      handleStoryReaction(emoji)
-                      setShowReactionPicker(false)
-                    }}
-                    className="justify-center"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
             <div className="flex justify-center">
-              <motion.button
-                type="button"
-                onClick={() => setShowReactionPicker((v) => !v)}
-                whileTap={{ scale: 0.88 }}
-                className={`${storyGlassButtonClass} !p-2.5 ${
-                  storyReactions[viewerId] ? 'bg-white/20' : ''
-                }`}
-                aria-label="React to story"
-                aria-expanded={showReactionPicker}
-              >
-                <IconHeart
-                  size={22}
-                  className={storyReactions[viewerId] ? 'text-red-400' : 'text-white/90'}
-                  stroke={2.5}
-                  fill={storyReactions[viewerId] ? 'currentColor' : 'none'}
-                />
-              </motion.button>
+              <StoryReactionButton
+                showReactionPicker={showReactionPicker}
+                onTogglePicker={() => setShowReactionPicker((v) => !v)}
+                storyReactions={storyReactions}
+                viewerId={viewerId}
+                iconSize={22}
+                onReact={(emoji) => {
+                  handleStoryReaction(emoji)
+                  setShowReactionPicker(false)
+                }}
+              />
             </div>
           </div>
         )}

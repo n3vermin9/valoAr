@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { IconSearch } from '@tabler/icons-react'
 import { glassInputBarClass } from '../../utils/designSystem'
+import { focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
 
 export default function ChatSearchBar({
   inline = false,
@@ -15,7 +16,7 @@ export default function ChatSearchBar({
 
   useEffect(() => {
     if (!active) return
-    const timer = setTimeout(() => inputRef.current?.focus(), inline ? 120 : 0)
+    const timer = setTimeout(() => focusInputRefAtEnd(inputRef), inline ? 120 : 0)
     return () => clearTimeout(timer)
   }, [inline, active])
 
@@ -27,6 +28,7 @@ export default function ChatSearchBar({
         type="search"
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
+        onFocus={handleInputFocusCursor}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { updateGroupInfo } from '../../../services/groupChatService'
 import { normalizeUsername } from '../../../utils/helpers'
+import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../../utils/inputHelpers'
 import { useGroupUsernameCheck } from '../../../hooks/useGroupUsernameCheck'
 import LoadingSpinner from '../../ui/LoadingSpinner'
 import EditSaveBar from '../../ui/EditSaveBar'
@@ -157,6 +158,7 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onFocus={handleInputFocusCursor}
                 placeholder="Group name"
                 maxLength={64}
                 className={compactInputClass}
@@ -171,7 +173,8 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
                 <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px] leading-none">@</span>
                 <input
                   value={username}
-                  onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+                  onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
+                  onFocus={handleInputFocusCursor}
                   placeholder="groupname"
                   maxLength={20}
                   className={compactInputInnerClass}
@@ -192,6 +195,7 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onFocus={handleInputFocusCursor}
                 placeholder="What's this group about?"
                 className={compactInputClass}
                 maxLength={120}

@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { createUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
 import { normalizeUsername } from '../../utils/helpers'
+import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
 import Modal from '../ui/Modal'
@@ -104,7 +105,8 @@ export default function ProfileSetup() {
             <span className="pl-4 pr-1 text-white/60">@</span>
             <input
               value={username}
-              onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+              onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
+              onFocus={handleInputFocusCursor}
               placeholder="username"
               className="flex-1 px-1 py-3 bg-transparent outline-none"
               maxLength={20}
@@ -176,8 +178,9 @@ export default function ProfileSetup() {
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
+            onFocus={handleInputFocusCursor}
             placeholder="Tell people about yourself..."
-            className="w-full px-5 py-3 bg-white/10 rounded-2xl border border-white/10 outline-none focus:border-blue-500 resize-none h-24"
+            className="w-full px-5 py-3 bg-white/10 rounded-2xl border border-white/10 outline-none focus:border-blue-500 resize-none h-24 whitespace-pre-wrap"
             maxLength={300}
           />
         </div>

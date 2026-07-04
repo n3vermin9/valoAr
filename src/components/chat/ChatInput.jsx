@@ -12,6 +12,7 @@ import {
 } from '../../utils/designSystem'
 import ChatSearchControls from './ChatSearchControls'
 import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
+import { focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
 
 const actionButtonClass = chatFloatingButtonClass
 
@@ -21,11 +22,7 @@ const STOP_TIMEOUT_MS = 4000
 const composerTransition = { type: 'spring', stiffness: 260, damping: 30, mass: 1.05 }
 
 function focusTextarea(ref) {
-  requestAnimationFrame(() => {
-    const el = ref.current
-    if (!el || el.disabled) return
-    el.focus()
-  })
+  focusInputRefAtEnd(ref)
 }
 
 function stopRecorder(recorder, chunks) {
@@ -296,6 +293,7 @@ export default function ChatInput({
   }
 
   const handleKeyDown = (e) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (showSend) handleSend()
@@ -430,6 +428,7 @@ export default function ChatInput({
                     onTyping?.(true)
                   }}
                   onBlur={() => onTyping?.(false)}
+                  onFocus={handleInputFocusCursor}
                   onKeyDown={handleKeyDown}
                   placeholder={
                     sendingVoice

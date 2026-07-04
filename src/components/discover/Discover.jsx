@@ -23,6 +23,7 @@ import { sad } from '../../assets'
 import { PublicProfileView } from '../profile/ProfileView'
 import StoriesHost from '../stories/StoriesHost'
 import ChevronBack from '../ui/ChevronBack'
+import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
 import { useNavigate } from 'react-router-dom'
 
 import PageShell from '../layout/PageShell'
@@ -469,7 +470,8 @@ function DiscoverSearchPage({
               <input
                 autoFocus
                 value={searchUsername}
-                onChange={(e) => setSearchUsername(e.target.value.toLowerCase())}
+                onChange={createSanitizedChangeHandler(setSearchUsername, (value) => value.toLowerCase())}
+                onFocus={handleInputFocusCursor}
                 onKeyDown={(e) => e.key === 'Enter' && onSearch()}
                 placeholder="Search users and groups"
                 className="w-full py-2.5 bg-transparent outline-none text-sm"

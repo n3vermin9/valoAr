@@ -44,7 +44,7 @@ export const chatFloatingButtonClass = `${chatFloatingGlassClass} liquid-glass-c
 export const chatMessageTextClass = 'text-[16px] leading-[1.35] break-words min-w-0'
 export const chatBubblePadClass = 'px-3.5 py-2'
 export const chatComposerInputClass =
-  'flex-1 min-w-0 py-2 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto text-[16px] leading-6 max-h-36'
+  'flex-1 min-w-0 py-2 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-6 max-h-36'
 
 export const glassActionButtonClass = `${glassInputBarClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
