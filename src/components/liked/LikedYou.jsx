@@ -15,6 +15,8 @@ import {
 } from '../../services/userService'
 import UsernameLabel from '../ui/UsernameLabel'
 import { subscribeInbox, markInboxRead, markAllInboxRead } from '../../services/inboxService'
+import { subscribeUserStories } from '../../services/storyService'
+import { getStoryColorClass } from '../../utils/storyHelpers'
 import { sad, star } from '../../assets'
 import { APP_NAME, formatLastSeen } from '../../utils/helpers'
 import EmptyState from '../ui/EmptyState'
@@ -23,6 +25,40 @@ import Modal from '../ui/Modal'
 import { PublicProfileView } from '../profile/ProfileView'
 import PageShell from '../layout/PageShell'
 import VerifiedBadge from '../ui/VerifiedBadge'
+import IosEmoji from '../ui/IosEmoji'
+import ChatStoryViewer from '../stories/ChatStoryViewer'
+import StoryUnavailableViewer from '../stories/StoryUnavailableViewer'
+
+function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
+  const cardClass = unavailable
+    ? 'bg-white/10'
+    : getStoryColorClass(story?.color)
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.(e)
+      }}
+      className="relative shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+      aria-label={unavailable ? 'Story unavailable' : 'View story'}
+    >
+      <div
+        className={`w-9 h-12 rounded-lg overflow-hidden flex items-center justify-center px-1 ${cardClass}`}
+      >
+        {!unavailable && story?.text ? (
+          <span className="text-[8px] leading-tight text-white/90 text-center line-clamp-3 break-words">
+            {story.text}
+          </span>
+        ) : null}
+      </div>
+      <span className="absolute -bottom-1 -right-1 rounded-full bg-black/60 p-0.5 pointer-events-none">
+        <IosEmoji emoji={emoji} size={16} />
+      </span>
+    </button>
+  )
+}
 
 export default function LikedYou() {
   const { user, profile, setProfile } = useAuth()
@@ -32,8 +68,10 @@ export default function LikedYou() {
   const [inboxItems, setInboxItems] = useState([])
   const [inboxProfiles, setInboxProfiles] = useState({})
   const [outgoingProfiles, setOutgoingProfiles] = useState({})
+  const [ownStories, setOwnStories] = useState({})
   const [loading, setLoading] = useState(true)
   const [viewProfile, setViewProfile] = useState(null)
+  const [storyViewerTarget, setStoryViewerTarget] = useState(null)
 
   const outgoingIds = useMemo(() => getOutgoingRequestIds(profile), [profile])
   const knownLikesRef = useRef(new Set())
@@ -113,6 +151,15 @@ export default function LikedYou() {
   useEffect(() => {
     if (!user?.uid) return
     return subscribeInbox(user.uid, setInboxItems)
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (!user?.uid) return
+    return subscribeUserStories(user.uid, (stories) => {
+      const byId = {}
+      for (const story of stories) byId[story.id] = story
+      setOwnStories(byId)
+    })
   }, [user?.uid])
 
   useEffect(() => {
@@ -335,11 +382,7 @@ export default function LikedYou() {
       <UsernameLabel username={name} className="font-medium inline-flex" badgeSize={12} as="span" />
     )
     if (item.type === 'story_reaction') {
-      return (
-        <>
-          {nameLabel} reacted {item.emoji} to your story
-        </>
-      )
+      return <>{nameLabel} reacted to your story</>
     }
     return (
       <>
@@ -348,11 +391,22 @@ export default function LikedYou() {
     )
   }
 
+  const handleStoryPreviewClick = (item) => {
+    if (!item.read) markInboxRead(user.uid, item.id)
+    const story = ownStories[item.storyId]
+    if (story) {
+      setStoryViewerTarget({ ownerId: user.uid, storyId: item.storyId })
+      return
+    }
+    setStoryViewerTarget({ unavailable: true })
+  }
+
   const renderInboxItem = (item) => {
     const actorId = item.actorId
     const p = inboxProfiles[actorId]
     const isDeleted = p?.deleted === true
     const photo = isDeleted ? sad : p?.photos?.[0] || sad
+    const story = item.type === 'story_reaction' ? ownStories[item.storyId] : null
 
     return (
       <button
@@ -363,7 +417,7 @@ export default function LikedYou() {
           if (actorId) setViewProfile(actorId)
         }}
         className={`w-full flex items-center gap-3 py-3 text-left transition-colors ${
-          item.read ? 'opacity-80' : 'bg-white/[0.03]'
+          item.read ? 'opacity-80' : 'bg-white/[0.055]'
         }`}
       >
         <img src={photo} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" />
@@ -372,9 +426,12 @@ export default function LikedYou() {
           <p className="text-xs text-white/45 mt-1">{formatLastSeen(item.timestamp)}</p>
         </div>
         {item.type === 'story_reaction' && (
-          <span className="text-xl shrink-0" aria-hidden>
-            {item.emoji}
-          </span>
+          <StoryReactionPreview
+            story={story}
+            emoji={item.emoji}
+            unavailable={!story}
+            onClick={() => handleStoryPreviewClick(item)}
+          />
         )}
         {!item.read && (
           <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" aria-label="Unread" />
@@ -439,6 +496,17 @@ export default function LikedYou() {
           <PublicProfileView userId={viewProfile} onClose={() => setViewProfile(null)} />
         )}
       </Modal>
+
+      {storyViewerTarget?.unavailable && (
+        <StoryUnavailableViewer onClose={() => setStoryViewerTarget(null)} />
+      )}
+      {storyViewerTarget?.ownerId && (
+        <ChatStoryViewer
+          ownerId={storyViewerTarget.ownerId}
+          storyId={storyViewerTarget.storyId}
+          onClose={() => setStoryViewerTarget(null)}
+        />
+      )}
     </PageShell>
   )
 }
