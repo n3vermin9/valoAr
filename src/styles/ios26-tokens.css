@@ -80,6 +80,7 @@
   /* Typography */
   --ios-font:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+  --ios-emoji-font: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', emoji;
 
   /* Control sizes */
   --ios-control-min: 44px;

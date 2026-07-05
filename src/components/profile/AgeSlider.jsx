@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
+import { APP_AGE_MIN, APP_AGE_MAX } from '../../utils/helpers'
 
-export default function AgeSlider({ value, onChange, min = 18, max = 40 }) {
+export default function AgeSlider({ value, onChange, min = APP_AGE_MIN, max = APP_AGE_MAX }) {
   const trackRef = useRef(null)
   const [dragging, setDragging] = useState(false)
 

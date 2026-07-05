@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findWordMatchesInText } from '../../utils/chatSearch'
 import { parseInAppRoute } from '../../utils/inAppNavigation'
+import { splitTextAndEmojis } from '../../utils/iosEmoji'
+import IosEmoji from '../ui/IosEmoji'
 
 const MENTION_REGEX = /@([a-z0-9]{4,20})/gi
 const URL_REGEX =
@@ -153,6 +155,41 @@ function withMentionOffsets(parts) {
   })
 }
 
+function renderTextWithIosEmojis(
+  segment,
+  searchQuery,
+  activeSearchMatch,
+  segmentStartOffset,
+  isOwn,
+  navigate
+) {
+  return splitTextAndEmojis(segment).map((part, index) => {
+    if (part.type === 'emoji') {
+      return (
+        <IosEmoji
+          key={`emoji-${segmentStartOffset}-${index}`}
+          emoji={part.value}
+          size={16}
+          className="align-text-bottom mx-px"
+        />
+      )
+    }
+
+    return (
+      <span key={`text-${segmentStartOffset}-${index}`}>
+        {renderTextWithLinks(
+          part.value,
+          searchQuery,
+          activeSearchMatch,
+          segmentStartOffset,
+          isOwn,
+          navigate
+        )}
+      </span>
+    )
+  })
+}
+
 export default function MessageText({
   text,
   isOwn = false,
@@ -190,7 +227,7 @@ export default function MessageText({
           </button>
         ) : (
           <span key={`text-${index}`}>
-            {renderTextWithLinks(
+            {renderTextWithIosEmojis(
               part.value,
               searchQuery,
               activeSearchMatch,

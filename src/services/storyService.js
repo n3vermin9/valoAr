@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { sendMessage } from './chatService'
-import { getMatchId } from '../utils/helpers'
+import { getMatchId, reportBackgroundError } from '../utils/helpers'
 import { pushInboxNotification } from './inboxService'
 import {
   isStoryActive,
@@ -53,22 +53,31 @@ async function syncPublicStoryAuthor(userId) {
   if (hasPublic) {
     await setDoc(authorRef, { updatedAt: serverTimestamp() }, { merge: true })
   } else {
-    await deleteDoc(authorRef).catch(() => {})
+    await deleteDoc(authorRef).catch(() => {
+      // The next story sync will retry stale public-author cleanup.
+    })
   }
 }
 
-export function subscribeUserStories(userId, callback) {
+export function subscribeUserStories(userId, callback, onError) {
   if (!userId) return () => {}
 
   const storiesRef = collection(db, 'users', userId, 'stories')
   const q = query(storiesRef, orderBy('createdAt', 'desc'))
 
-  return onSnapshot(q, (snap) => {
-    callback(mapStories(snap.docs))
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(mapStories(snap.docs))
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
 }
 
-export function subscribeStoriesFeed(viewerId, friendIds = [], callback) {
+export function subscribeStoriesFeed(viewerId, friendIds = [], callback, onError) {
   if (!viewerId) return () => {}
 
   const cache = new Map()
@@ -90,10 +99,14 @@ export function subscribeStoriesFeed(viewerId, friendIds = [], callback) {
 
   const ensureUserSub = (userId) => {
     if (userUnsubs.has(userId)) return
-    const unsub = subscribeUserStories(userId, (stories) => {
-      cache.set(userId, stories)
-      emit()
-    })
+    const unsub = subscribeUserStories(
+      userId,
+      (stories) => {
+        cache.set(userId, stories)
+        emit()
+      },
+      onError
+    )
     userUnsubs.set(userId, unsub)
   }
 
@@ -132,35 +145,49 @@ export function subscribeStoriesFeed(viewerId, friendIds = [], callback) {
 }
 
 /** @deprecated Use subscribeStoriesFeed */
-export function subscribeFriendsStories(viewerId, friendIds = [], callback) {
-  return subscribeStoriesFeed(viewerId, friendIds, callback)
+export function subscribeFriendsStories(viewerId, friendIds = [], callback, onError) {
+  return subscribeStoriesFeed(viewerId, friendIds, callback, onError)
 }
 
-export function subscribeStoryViews(viewerId, callback) {
+export function subscribeStoryViews(viewerId, callback, onError) {
   if (!viewerId) return () => {}
 
-  return onSnapshot(collection(db, 'users', viewerId, 'storyViews'), (snap) => {
-    const views = {}
-    snap.docs.forEach((d) => {
-      const data = d.data()
-      views[d.id] = data.viewedAt?.toMillis?.() ?? data.viewedAt ?? 0
-    })
-    callback(views)
-  })
+  return onSnapshot(
+    collection(db, 'users', viewerId, 'storyViews'),
+    (snap) => {
+      const views = {}
+      snap.docs.forEach((d) => {
+        const data = d.data()
+        views[d.id] = data.viewedAt?.toMillis?.() ?? data.viewedAt ?? 0
+      })
+      callback(views)
+    },
+    (err) => {
+      onError?.(err)
+      callback({})
+    }
+  )
 }
 
-export function subscribeStoryWatchers(ownerId, storyId, callback) {
+export function subscribeStoryWatchers(ownerId, storyId, callback, onError) {
   if (!ownerId || !storyId) return () => {}
 
   const viewsRef = collection(db, 'users', ownerId, 'stories', storyId, 'views')
   const q = query(viewsRef, orderBy('viewedAt', 'desc'))
 
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
 }
 
-export function subscribeStoryExists(ownerId, storyId, callback) {
+export function subscribeStoryExists(ownerId, storyId, callback, onError) {
   if (!ownerId || !storyId) {
     callback(null)
     return () => {}
@@ -176,7 +203,10 @@ export function subscribeStoryExists(ownerId, storyId, callback) {
       }
       callback(isStoryActive({ id: snap.id, ...snap.data() }))
     },
-    () => callback(false)
+    (err) => {
+      onError?.(err)
+      callback(false)
+    }
   )
 }
 
@@ -212,7 +242,7 @@ export async function deleteStory(userId, storyId) {
   await syncPublicStoryAuthor(userId)
 }
 
-export function subscribeStoryReactions(ownerId, storyId, callback) {
+export function subscribeStoryReactions(ownerId, storyId, callback, onError) {
   if (!ownerId || !storyId) {
     callback({})
     return () => {}
@@ -228,7 +258,10 @@ export function subscribeStoryReactions(ownerId, storyId, callback) {
       }
       callback(snap.data()?.reactions || {})
     },
-    () => callback({})
+    (err) => {
+      onError?.(err)
+      callback({})
+    }
   )
 }
 
@@ -258,7 +291,7 @@ export async function setStoryReaction(ownerId, storyId, userId, emoji, actorUse
       actorUsername,
       emoji,
       storyId,
-    }).catch(() => {})
+    }).catch((err) => reportBackgroundError('Failed to push story reaction inbox item', err))
   }
 
   return reactions[userId] || null
@@ -364,7 +397,9 @@ export async function deleteExpiredStories(userId) {
 export async function deleteAllUserStories(userId) {
   const snap = await getDocs(collection(db, 'users', userId, 'stories'))
   if (snap.empty) {
-    await deleteDoc(doc(db, 'publicStoryAuthors', userId)).catch(() => {})
+    await deleteDoc(doc(db, 'publicStoryAuthors', userId)).catch((err) =>
+      reportBackgroundError('Failed to clean public story author', err)
+    )
     return
   }
 

@@ -10,6 +10,7 @@ import { PublicProfileView } from './components/profile/ProfileView'
 import ChatNotifications from './components/chat/ChatNotifications'
 import GroupJoinPage from './components/chat/GroupJoinPage'
 import GroupInfoView from './components/chat/GroupInfoView'
+import CreateGroupPage from './components/chat/CreateGroupPage'
 import GroupSettingsRoutes from './components/chat/groupSettings/GroupSettingsRoutes'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import Modal from './components/ui/Modal'
@@ -121,6 +122,20 @@ export default function App() {
           user ? (
             profile?.username ? (
               <GroupJoinPage />
+            ) : (
+              <Navigate to="/setup" />
+            )
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+      <Route
+        path="/groups/new"
+        element={
+          user ? (
+            profile?.username ? (
+              <CreateGroupPage />
             ) : (
               <Navigate to="/setup" />
             )

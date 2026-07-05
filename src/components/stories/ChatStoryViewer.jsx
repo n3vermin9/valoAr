@@ -7,6 +7,7 @@ import {
   getFirstUnseenStoryIndex,
 } from '../../utils/storyHelpers'
 import StoryViewer from './StoryViewer'
+import StoryUnavailableViewer from './StoryUnavailableViewer'
 
 function computeStartIndex(stories, storyId, ownerId, viewerId, viewedAtMs) {
   if (!stories.length) return 0
@@ -23,6 +24,7 @@ function computeStartIndex(stories, storyId, ownerId, viewerId, viewedAtMs) {
 export default function ChatStoryViewer({ ownerId, storyId, onClose }) {
   const { user, profile } = useAuth()
   const [allStories, setAllStories] = useState([])
+  const [storiesLoaded, setStoriesLoaded] = useState(false)
   const [views, setViews] = useState({})
   const [owner, setOwner] = useState(null)
   const [viewerSession, setViewerSession] = useState(null)
@@ -41,19 +43,35 @@ export default function ChatStoryViewer({ ownerId, storyId, onClose }) {
 
   useEffect(() => {
     setViewerSession(null)
+    setStoriesLoaded(false)
   }, [ownerId, storyId])
 
   useEffect(() => {
-    if (!ownerId || !user?.uid || !stories.length || viewerSession) return
+    if (!ownerId) return
+    setStoriesLoaded(false)
+    return subscribeUserStories(ownerId, (nextStories) => {
+      setAllStories(nextStories)
+      setStoriesLoaded(true)
+    })
+  }, [ownerId])
+
+  useEffect(() => {
+    if (!ownerId || !user?.uid || !storiesLoaded) return
+
+    if (storyId && !stories.some((s) => s.id === storyId)) {
+      setViewerSession(null)
+      return
+    }
+
+    if (!stories.length) {
+      setViewerSession(null)
+      return
+    }
+
     setViewerSession({
       storyIndex: computeStartIndex(stories, storyId, ownerId, user.uid, views[ownerId]),
     })
-  }, [ownerId, storyId, stories, user?.uid, views, viewerSession])
-
-  useEffect(() => {
-    if (!ownerId) return
-    return subscribeUserStories(ownerId, setAllStories)
-  }, [ownerId])
+  }, [ownerId, storyId, stories, storiesLoaded, user?.uid, views])
 
   useEffect(() => {
     if (!user?.uid) return
@@ -78,7 +96,17 @@ export default function ChatStoryViewer({ ownerId, storyId, onClose }) {
 
   const users = useMemo(() => ({ [ownerId]: owner }), [ownerId, owner])
 
-  if (!ownerId || !user?.uid || !viewerSession || !queue.length) return null
+  if (!ownerId || !user?.uid) return null
+
+  if (storiesLoaded && storyId && !stories.some((s) => s.id === storyId)) {
+    return <StoryUnavailableViewer onClose={onClose} />
+  }
+
+  if (storiesLoaded && !stories.length && storyId) {
+    return <StoryUnavailableViewer onClose={onClose} />
+  }
+
+  if (!viewerSession || !queue.length) return null
 
   return (
     <StoryViewer

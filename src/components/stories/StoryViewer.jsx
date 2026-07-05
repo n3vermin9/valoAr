@@ -8,6 +8,7 @@ import {
   IconEye,
   IconSend,
   IconHeart,
+  IconMoodSmile,
 } from '@tabler/icons-react'
 import toast from 'react-hot-toast'
 import {
@@ -46,6 +47,9 @@ import {
 } from '../../utils/designSystem'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Modal from '../ui/Modal'
+import IosEmoji from '../ui/IosEmoji'
+import IosEmojiField from '../ui/IosEmojiField'
+import EmojiPickerPopover from '../ui/EmojiPickerPopover'
 import { PublicProfileView } from '../profile/ProfileView'
 import MessageReactions, { ReactionPicker } from '../chat/MessageReactions'
 import UsernameLabel from '../ui/UsernameLabel'
@@ -122,15 +126,17 @@ function StoryReactionButton({
   iconSize = 20,
   className = '',
 }) {
+  const myReaction = storyReactions[viewerId]
+
   return (
-    <div className={`relative shrink-0 ${STORY_FOOTER_ROW_H} ${className}`}>
+    <div data-reaction-ui className={`relative shrink-0 ${STORY_FOOTER_ROW_H} ${className}`}>
       <AnimatePresence>
         {showReactionPicker && (
           <motion.div
             initial={{ opacity: 0, y: 6, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.96 }}
-            transition={{ duration: 0.15 }}
+            transition={{ duration: 0.12 }}
             className="absolute bottom-full right-0 mb-2 z-10"
           >
             <div className={`liquid-glass-pill rounded-full ${navGlassMenuClass}`}>
@@ -149,17 +155,16 @@ function StoryReactionButton({
         onClick={onTogglePicker}
         whileTap={{ scale: 0.88 }}
         className={`${storyGlassButtonClass} h-full aspect-square !p-0 shrink-0 ${
-          storyReactions[viewerId] ? 'bg-white/20' : ''
+          myReaction ? 'bg-white/20' : ''
         }`}
         aria-label="React to story"
         aria-expanded={showReactionPicker}
       >
-        <IconHeart
-          size={iconSize}
-          className={storyReactions[viewerId] ? 'text-red-400' : 'text-white/90'}
-          stroke={2.5}
-          fill={storyReactions[viewerId] ? 'currentColor' : 'none'}
-        />
+        {myReaction ? (
+          <IosEmoji emoji={myReaction} size={iconSize + 2} />
+        ) : (
+          <IconHeart size={iconSize} className="text-white/90" stroke={2.5} fill="none" />
+        )}
       </motion.button>
     </div>
   )
@@ -195,8 +200,10 @@ export default function StoryViewer({
   const [watcherPhotos, setWatcherPhotos] = useState({})
   const [watcherDeleted, setWatcherDeleted] = useState({})
   const [storyReactions, setStoryReactions] = useState({})
+  const [optimisticReaction, setOptimisticReaction] = useState(null)
   const [reactionPulse, setReactionPulse] = useState(null)
   const [showReactionPicker, setShowReactionPicker] = useState(false)
+  const [showReplyEmoji, setShowReplyEmoji] = useState(false)
   const [isPresent, setIsPresent] = useState(true)
   const [slideGeneration, setSlideGeneration] = useState(0)
   const slideDirectionRef = useRef(1)
@@ -296,14 +303,38 @@ export default function StoryViewer({
   const canReply = !isOwn && (isFriend || owner?.allowDirectMessages === true)
   const viewCount = watchers.length
 
+  let effectiveReactions = storyReactions
+  if (optimisticReaction && optimisticReaction.storyId === story?.id) {
+    effectiveReactions = { ...storyReactions }
+    if (optimisticReaction.emoji) effectiveReactions[viewerId] = optimisticReaction.emoji
+    else delete effectiveReactions[viewerId]
+  }
+
   const interactionBlocked =
     replyFocused ||
     showWatchers ||
     showReactionPicker ||
+    showReplyEmoji ||
     replying ||
     confirmDelete ||
     Boolean(profileUserId)
   const isPaused = paused || holding || interactionBlocked
+
+  useEffect(() => {
+    const nextStory = stories[storyIndex + 1]
+    const nextOwnerId = entry?.userId
+    const nextOwnerPhoto = users[nextOwnerId]?.photos?.[0]
+    if (nextOwnerPhoto) {
+      const img = new Image()
+      img.decoding = 'async'
+      img.src = nextOwnerPhoto
+    }
+    if (nextStory?.imageUrl) {
+      const img = new Image()
+      img.decoding = 'async'
+      img.src = nextStory.imageUrl
+    }
+  }, [storyIndex, stories, entry?.userId, users])
 
   const footerReserve = canReply
     ? 'calc(var(--ios-safe-bottom) + 128px)'
@@ -393,6 +424,20 @@ export default function StoryViewer({
   }, [ownerId, story?.id])
 
   useEffect(() => {
+    setOptimisticReaction(null)
+  }, [story?.id])
+
+  useEffect(() => {
+    if (!showReactionPicker) return
+    const handleOutside = (e) => {
+      if (e.target.closest?.('[data-reaction-ui]')) return
+      setShowReactionPicker(false)
+    }
+    document.addEventListener('pointerdown', handleOutside, true)
+    return () => document.removeEventListener('pointerdown', handleOutside, true)
+  }, [showReactionPicker])
+
+  useEffect(() => {
     if (!showWatchers || watchers.length === 0) return
     let cancelled = false
 
@@ -467,11 +512,18 @@ export default function StoryViewer({
 
   const handleStoryReaction = async (emoji) => {
     if (!viewerId || isOwn || !ownerId || !story?.id || !emoji) return
-    setReactionPulse(emoji)
-    window.setTimeout(() => setReactionPulse(null), 700)
+
+    const removing = effectiveReactions[viewerId] === emoji
+    setOptimisticReaction({ storyId: story.id, emoji: removing ? null : emoji })
+    if (!removing) {
+      setReactionPulse(emoji)
+      window.setTimeout(() => setReactionPulse(null), 700)
+    }
+
     try {
       await setStoryReaction(ownerId, story.id, viewerId, emoji, viewerUsername || 'User')
     } catch {
+      setOptimisticReaction(null)
       toast.error('Could not react')
     }
   }
@@ -600,6 +652,7 @@ export default function StoryViewer({
     setReplying(true)
 
     setReplyText('')
+    setShowReplyEmoji(false)
     elapsedRef.current = progress * STORY_DURATION_MS
     setReplyFocused(false)
     setPaused(false)
@@ -731,9 +784,9 @@ export default function StoryViewer({
           <p className="text-2xl sm:text-3xl font-semibold leading-relaxed text-center text-white whitespace-pre-wrap break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)]">
             {story.text}
           </p>
-          {Object.keys(storyReactions).length > 0 && (
+          {Object.keys(effectiveReactions).length > 0 && (
             <MessageReactions
-              reactions={storyReactions}
+              reactions={effectiveReactions}
               isOwn={isOwn}
               currentUserId={viewerId}
               onEmojiClick={!isOwn ? handleStoryReaction : undefined}
@@ -748,9 +801,9 @@ export default function StoryViewer({
                 animate={{ scale: 1.4, opacity: 1 }}
                 exit={{ scale: 1.8, opacity: 0 }}
                 transition={{ duration: 0.55, ease: [0.34, 1.4, 0.64, 1] }}
-                className="absolute text-5xl pointer-events-none"
+                className="absolute pointer-events-none"
               >
-                {reactionPulse}
+                <IosEmoji emoji={reactionPulse} size={56} />
               </motion.span>
             )}
           </AnimatePresence>
@@ -767,6 +820,14 @@ export default function StoryViewer({
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
+            <EmojiPickerPopover
+              open={showReplyEmoji}
+              onClose={() => setShowReplyEmoji(false)}
+              onEmojiClick={(emoji) =>
+                setReplyText((prev) => (prev + emoji).slice(0, MAX_STORY_REPLY_LENGTH))
+              }
+              className="absolute bottom-full left-4 mb-2 z-40"
+            />
             <div className={`flex items-stretch gap-2 ${STORY_FOOTER_ROW_H}`}>
               <motion.div
                 layout
@@ -783,33 +844,46 @@ export default function StoryViewer({
                 }}
                 className={`flex-1 flex items-center gap-2 rounded-full px-3 min-w-0 h-full ${storyGlassInputClass}`}
               >
-                <motion.input
-                  type="text"
-                  data-story-reply-input
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value.slice(0, MAX_STORY_REPLY_LENGTH))}
-                  onKeyDown={(e) => {
-                    e.stopPropagation()
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleReply()
-                    }
-                  }}
-                  ref={replyInputRef}
-                  onFocus={() => {
-                    elapsedRef.current = progress * STORY_DURATION_MS
-                    setReplyFocused(true)
-                    setPaused(true)
-                  }}
-                  onBlur={() => {
-                    setReplyFocused(false)
-                    setPaused(false)
-                  }}
-                  placeholder={`Reply to ${owner?.username || 'user'}…`}
+                <button
+                  type="button"
+                  onClick={() => setShowReplyEmoji((value) => !value)}
+                  className="h-8 w-8 shrink-0 flex items-center justify-center text-white/60 hover:text-white rounded-full transition-colors"
+                  aria-label="Add emoji"
+                  aria-expanded={showReplyEmoji}
+                >
+                  <IconMoodSmile size={20} />
+                </button>
+                <motion.div
+                  className="flex-1 min-w-0"
                   animate={{ opacity: replyFocused ? 1 : 0.92 }}
                   transition={{ duration: 0.2 }}
-                  className="flex-1 bg-transparent text-[15px] text-white placeholder:text-white/50 outline-none min-w-0"
-                />
+                >
+                  <IosEmojiField
+                    data-story-reply-input
+                    value={replyText}
+                    maxLength={MAX_STORY_REPLY_LENGTH}
+                    onChange={(e) => setReplyText(e.target.value.slice(0, MAX_STORY_REPLY_LENGTH))}
+                    onKeyDown={(e) => {
+                      e.stopPropagation()
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleReply()
+                      }
+                    }}
+                    ref={replyInputRef}
+                    onFocus={() => {
+                      elapsedRef.current = progress * STORY_DURATION_MS
+                      setReplyFocused(true)
+                      setPaused(true)
+                    }}
+                    onBlur={() => {
+                      setReplyFocused(false)
+                      setPaused(false)
+                    }}
+                    placeholder={`Reply to ${owner?.username || 'user'}…`}
+                    className="ios-emoji-field w-full bg-transparent text-[15px] text-white outline-none min-w-0 empty:before:text-white/50"
+                  />
+                </motion.div>
                 <motion.button
                   type="button"
                   onClick={handleReply}
@@ -832,7 +906,7 @@ export default function StoryViewer({
               <StoryReactionButton
                 showReactionPicker={showReactionPicker}
                 onTogglePicker={() => setShowReactionPicker((v) => !v)}
-                storyReactions={storyReactions}
+                storyReactions={effectiveReactions}
                 viewerId={viewerId}
                 onReact={(emoji) => {
                   handleStoryReaction(emoji)
@@ -871,7 +945,7 @@ export default function StoryViewer({
               <StoryReactionButton
                 showReactionPicker={showReactionPicker}
                 onTogglePicker={() => setShowReactionPicker((v) => !v)}
-                storyReactions={storyReactions}
+                storyReactions={effectiveReactions}
                 viewerId={viewerId}
                 iconSize={22}
                 onReact={(emoji) => {
@@ -953,8 +1027,10 @@ export default function StoryViewer({
                             {formatStoryViewTime(w.viewedAt?.toMillis?.() ?? w.viewedAt)}
                           </p>
                         </div>
-                        <span className="text-xl shrink-0 w-8 text-center leading-none" aria-hidden>
-                          {storyReactions[watcherId] || ''}
+                        <span className="shrink-0 w-8 flex items-center justify-center" aria-hidden>
+                          {storyReactions[watcherId] ? (
+                            <IosEmoji emoji={storyReactions[watcherId]} size={20} />
+                          ) : null}
                         </span>
                       </button>
                     )

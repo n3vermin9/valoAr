@@ -136,16 +136,18 @@ export default function PhotoHeroView({
           />
         )}
 
-        <div
-          aria-hidden
-          className={chatRoomTopScrimClass}
-          style={{ height: 'calc(var(--ios-safe-top) + 4.5rem)' }}
-        />
         {!fullscreen ? (
-          <div
-            aria-hidden
-            className="absolute bottom-0 inset-x-0 z-[10] pointer-events-none bg-gradient-to-t from-black via-black/80 to-transparent h-32"
-          />
+          <>
+            <div
+              aria-hidden
+              className={chatRoomTopScrimClass}
+              style={{ height: 'calc(var(--ios-safe-top) + 4.5rem)' }}
+            />
+            <div
+              aria-hidden
+              className="absolute bottom-0 inset-x-0 z-[10] pointer-events-none bg-gradient-to-t from-black via-black/80 to-transparent h-32"
+            />
+          </>
         ) : null}
 
         {hasMultiplePhotos ? (

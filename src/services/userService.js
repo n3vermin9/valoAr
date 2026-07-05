@@ -33,9 +33,16 @@ function syncProfileSnapshot(userId, data) {
     username: data.username,
     photo: data.photos?.[0] || null,
   })
-  preloadAvatarImage(data.photos?.[0], 128).catch(() => {})
+  preloadAvatarImage(data.photos?.[0], 128).catch((err) =>
+    reportBackgroundError('Avatar preload failed', err)
+  )
 }
-import { buildUsernameBase, normalizeUsername } from '../utils/helpers'
+import {
+  DISCOVER_AGE_GAP_DEFAULT,
+  buildUsernameBase,
+  normalizeUsername,
+  reportBackgroundError,
+} from '../utils/helpers'
 import { normalizeSocials, sanitizeProfileSocials, stripSocials } from '../utils/socialLinks'
 import { removeChatForUser } from './chatService'
 import { deleteAllUserStories } from './storyService'
@@ -57,6 +64,7 @@ export async function fetchUser(userId) {
     allowDirectMessages: raw.allowDirectMessages === true,
     showFriendCount: raw.showFriendCount !== false,
     useMilitaryTime: raw.useMilitaryTime !== false,
+    discoverAgeGap: raw.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT,
     socials: normalizeSocials(raw.socials),
   }
   setCachedUser(userId, data)
@@ -78,26 +86,34 @@ export async function fetchUsersMap(userIds) {
   return Object.fromEntries(entries.filter(Boolean))
 }
 
-export function subscribeToUser(userId, callback) {
-  return onSnapshot(doc(db, 'users', userId), (snap) => {
-    if (snap.exists()) {
-      const raw = snap.data()
-      const data = {
-        id: userId,
-        ...raw,
-        allowDirectMessages: raw.allowDirectMessages === true,
-        showFriendCount: raw.showFriendCount !== false,
-        useMilitaryTime: raw.useMilitaryTime !== false,
-        socials: normalizeSocials(raw.socials),
+export function subscribeToUser(userId, callback, onError) {
+  return onSnapshot(
+    doc(db, 'users', userId),
+    (snap) => {
+      if (snap.exists()) {
+        const raw = snap.data()
+        const data = {
+          id: userId,
+          ...raw,
+          allowDirectMessages: raw.allowDirectMessages === true,
+          showFriendCount: raw.showFriendCount !== false,
+          useMilitaryTime: raw.useMilitaryTime !== false,
+          discoverAgeGap: raw.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT,
+          socials: normalizeSocials(raw.socials),
+        }
+        setCachedUser(userId, data)
+        syncProfileSnapshot(userId, data)
+        callback(data)
+      } else {
+        invalidateUser(userId)
+        callback(null)
       }
-      setCachedUser(userId, data)
-      syncProfileSnapshot(userId, data)
-      callback(data)
-    } else {
-      invalidateUser(userId)
+    },
+    (err) => {
+      onError?.(err)
       callback(null)
     }
-  })
+  )
 }
 
 export async function checkUsernameAvailable(username, currentUserId) {
@@ -159,6 +175,7 @@ export async function createUserProfile(userId, profileData) {
       allowDirectMessages: false,
       showFriendCount: true,
       useMilitaryTime: true,
+      discoverAgeGap: profileData.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT,
       createdAt: serverTimestamp(),
       swipeCount: 0,
     })
@@ -331,13 +348,20 @@ export async function createMatch(uid1, uid2) {
   return matchId
 }
 
-export function subscribeLikesReceived(userId, callback) {
-  return onSnapshot(collection(db, 'users', userId, 'likesReceived'), (snap) => {
-    const likes = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
-    callback(likes)
-  })
+export function subscribeLikesReceived(userId, callback, onError) {
+  return onSnapshot(
+    collection(db, 'users', userId, 'likesReceived'),
+    (snap) => {
+      const likes = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
+      callback(likes)
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
 }
 
 export async function acceptLike(userId, fromUserId) {
@@ -368,13 +392,20 @@ export async function cancelFriendRequest(userId, targetId) {
   invalidateUser(targetId)
 }
 
-export function subscribeIncomingRequest(userId, fromUserId, callback) {
-  return onSnapshot(doc(db, 'users', userId, 'likesReceived', fromUserId), (snap) => {
-    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
-  })
+export function subscribeIncomingRequest(userId, fromUserId, callback, onError) {
+  return onSnapshot(
+    doc(db, 'users', userId, 'likesReceived', fromUserId),
+    (snap) => {
+      callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+    },
+    (err) => {
+      onError?.(err)
+      callback(null)
+    }
+  )
 }
 
-export function subscribeOutgoingRequest(requesterId, targetId, callback) {
+export function subscribeOutgoingRequest(requesterId, targetId, callback, onError) {
   if (!requesterId || !targetId) {
     callback(false)
     return () => {}
@@ -382,7 +413,10 @@ export function subscribeOutgoingRequest(requesterId, targetId, callback) {
   return onSnapshot(
     doc(db, 'users', targetId, 'likesReceived', requesterId),
     (snap) => callback(snap.exists()),
-    () => callback(false)
+    (err) => {
+      onError?.(err)
+      callback(false)
+    }
   )
 }
 
@@ -397,7 +431,7 @@ function passesDiscoverBaseFilters(currentUser, profile) {
   if (currentUser.matches?.includes(profile.id)) return false
   if (!genderMatchesPreference(profile.gender, currentUser.interestedIn)) return false
   if (!genderMatchesPreference(currentUser.gender, profile.interestedIn)) return false
-  if (!ageInRange(currentUser.age, profile.age)) return false
+  if (!ageInRange(currentUser.age, profile.age, currentUser.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT)) return false
   return true
 }
 
@@ -516,7 +550,7 @@ function genderMatchesPreference(userGender, interestedIn) {
   return true
 }
 
-function ageInRange(userAge, targetAge, gap = 5) {
+function ageInRange(userAge, targetAge, gap = DISCOVER_AGE_GAP_DEFAULT) {
   return Math.abs(userAge - targetAge) <= gap
 }
 

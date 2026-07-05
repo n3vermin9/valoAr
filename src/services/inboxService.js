@@ -11,15 +11,22 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 
-export function subscribeInbox(userId, callback) {
+export function subscribeInbox(userId, callback, onError) {
   if (!userId) return () => {}
 
   const inboxRef = collection(db, 'users', userId, 'inbox')
   const q = query(inboxRef, orderBy('timestamp', 'desc'))
 
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
 }
 
 export async function pushInboxNotification(userId, payload) {

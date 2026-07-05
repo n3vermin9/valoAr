@@ -9,11 +9,12 @@ import Button from '../ui/Button'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import { typoTitle2Class } from '../../utils/designSystem'
 import PhotoGallery from '../ui/PhotoGallery'
+import PageShell from '../layout/PageShell'
 
 export default function GroupJoinPage() {
   const { inviteCode: joinSlug } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [group, setGroup] = useState(null)
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
@@ -44,9 +45,13 @@ export default function GroupJoinPage() {
     if (!user?.uid || !joinSlug) return
     setJoining(true)
     try {
-      const joined = await joinGroupByInviteCode(joinSlug, user.uid)
+      const result = await joinGroupByInviteCode(joinSlug, user.uid, profile?.username)
+      if (result.status === 'pending') {
+        toast.success('Join request sent')
+        return
+      }
       toast.success('Joined group')
-      navigate(`/chats/${joined.id}`, { replace: true })
+      navigate(`/chats/${result.chat.id}`, { replace: true })
     } catch (err) {
       toast.error(err.message || 'Failed to join group')
     } finally {

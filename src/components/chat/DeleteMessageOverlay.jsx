@@ -1,6 +1,6 @@
 import { useState, useRef, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
-import { IconArrowBackUp, IconCopy, IconTrash } from '@tabler/icons-react'
+import { IconArrowBackUp, IconCopy, IconTrash, IconPin } from '@tabler/icons-react'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 import {
   navGlassMenuClass,
@@ -24,11 +24,15 @@ export default function MessageActionOverlay({
   originRect,
   isOwn,
   canDelete = false,
+  canPin = false,
+  isPinned = false,
   currentUserId,
   onDelete,
   onCopy,
   onReply,
   onReact,
+  onPin,
+  onUnpin,
   onMentionClick,
   onCancel,
   replyAuthorName,
@@ -196,6 +200,17 @@ export default function MessageActionOverlay({
             {canCopy && (
               <ActionItem icon={IconCopy} onClick={() => onCopy(message)}>
                 Copy
+              </ActionItem>
+            )}
+            {canPin && (
+              <ActionItem
+                icon={IconPin}
+                onClick={() => {
+                  if (isPinned) onUnpin?.(message)
+                  else onPin?.(message)
+                }}
+              >
+                {isPinned ? 'Unpin' : 'Pin'}
               </ActionItem>
             )}
             {canDelete && canCopy && <div className="my-1.5 mx-3 border-t border-white/10" />}

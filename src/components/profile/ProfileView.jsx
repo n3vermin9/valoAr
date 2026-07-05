@@ -2,14 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconEdit, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette } from '@tabler/icons-react'
+import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconEdit, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette, IconChartBar } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import { getMatchId } from '../../utils/helpers'
+import { DISCOVER_AGE_GAP_DEFAULT, getMatchId } from '../../utils/helpers'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoCaptionClass, typoBodyClass, typoSubheadClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass } from '../../utils/designSystem'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
@@ -33,6 +33,8 @@ import SocialLinksDisplay from './SocialLinksDisplay'
 import ProfileMutualGroups from './ProfileMutualGroups'
 import ProfileStoryAvatar from '../stories/ProfileStoryAvatar'
 import StoryViewer from '../stories/StoryViewer'
+import AnalyticsDashboard from '../analytics/AnalyticsDashboard'
+import { isDurovAdmin } from '../../utils/appAdmin'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 
 export default function ProfileView() {
@@ -43,6 +45,7 @@ export default function ProfileView() {
   const [showMatches, setShowMatches] = useState(false)
   const [friendProfileId, setFriendProfileId] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showAnalytics, setShowAnalytics] = useState(false)
   const [showChatBackground, setShowChatBackground] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -51,6 +54,7 @@ export default function ProfileView() {
   const [allowDirectMessages, setAllowDirectMessages] = useState(false)
   const [showFriendCount, setShowFriendCount] = useState(true)
   const [useMilitaryTime, setUseMilitaryTime] = useState(true)
+  const [discoverAgeGap, setDiscoverAgeGap] = useState(DISCOVER_AGE_GAP_DEFAULT)
 
   useEffect(() => {
     setAllowDirectMessages(profile?.allowDirectMessages === true)
@@ -63,6 +67,10 @@ export default function ProfileView() {
   useEffect(() => {
     setUseMilitaryTime(profile?.useMilitaryTime !== false)
   }, [profile?.useMilitaryTime])
+
+  useEffect(() => {
+    setDiscoverAgeGap(profile?.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT)
+  }, [profile?.discoverAgeGap])
 
   if (!profile) return <LoadingSpinner />
 
@@ -132,6 +140,23 @@ export default function ProfileView() {
       toast.success(next ? 'Using 24-hour time' : 'Using 12-hour time')
     } catch {
       setUseMilitaryTime(!next)
+      toast.error('Failed to update setting')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const handleDiscoverAgeGapChange = async (nextGap) => {
+    if (!user?.uid || savingSettings || nextGap === discoverAgeGap) return
+    const previousGap = discoverAgeGap
+    setDiscoverAgeGap(nextGap)
+    setSavingSettings(true)
+    try {
+      await updateUserSettings(user.uid, { discoverAgeGap: nextGap })
+      setProfile((prev) => (prev ? { ...prev, discoverAgeGap: nextGap } : prev))
+      toast.success(`Discover age range set to ±${nextGap} years`)
+    } catch {
+      setDiscoverAgeGap(previousGap)
       toast.error('Failed to update setting')
     } finally {
       setSavingSettings(false)
@@ -261,6 +286,36 @@ export default function ProfileView() {
               />
             </SettingsSection>
 
+            <SettingsSection title="Discover">
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-medium text-[var(--ios-label)]">Age range</p>
+                    <p className="text-[13px] text-[var(--ios-label-secondary)]">
+                      Show people within ±{discoverAgeGap} years
+                    </p>
+                  </div>
+                  <div className="flex rounded-full bg-[var(--ios-fill-tertiary)] p-1">
+                    {[1, 2, 3, 4, 5].map((gap) => (
+                      <button
+                        key={gap}
+                        type="button"
+                        disabled={savingSettings}
+                        onClick={() => handleDiscoverAgeGapChange(gap)}
+                        className={`h-8 min-w-8 rounded-full px-2 text-[13px] font-semibold transition-colors ${
+                          discoverAgeGap === gap
+                            ? 'bg-[var(--ios-blue)] text-white'
+                            : 'text-[var(--ios-label-secondary)]'
+                        }`}
+                      >
+                        {gap}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
             <SettingsSection title="Appearance">
               <SettingsNavRow
                 icon={IconPalette}
@@ -269,6 +324,20 @@ export default function ProfileView() {
                 onClick={() => setShowChatBackground(true)}
               />
             </SettingsSection>
+
+            {isDurovAdmin(profile) && (
+              <SettingsSection title="Admin">
+                <SettingsNavRow
+                  icon={IconChartBar}
+                  iconTone="blue"
+                  label="App analytics"
+                  onClick={() => {
+                    setShowSettings(false)
+                    setShowAnalytics(true)
+                  }}
+                />
+              </SettingsSection>
+            )}
 
             <SettingsSection>
               <SettingsNavRow
@@ -300,6 +369,10 @@ export default function ProfileView() {
 
       {showChatBackground && (
         <ChatBackgroundSettings onBack={() => setShowChatBackground(false)} />
+      )}
+
+      {showAnalytics && (
+        <AnalyticsDashboard onBack={() => setShowAnalytics(false)} />
       )}
 
       <Modal isOpen={showBlocked} onClose={() => setShowBlocked(false)} className="max-w-lg">
@@ -531,20 +604,25 @@ export function PublicProfileView({
   const viewablePhotos = isSelf || isMatched ? allPhotos : allPhotos.slice(0, 1)
   const hasHeroPhoto = viewablePhotos.length > 0
 
-  const handleSendFriendRequest = () => {
+  const handleSendFriendRequest = async () => {
     if (requesting) return
+    const previousProfile = currentProfile
     setRequesting(true)
     setAuthProfile((prev) => patchProfileAfterSwipe(prev, userId, 'like'))
-    toast.success('Friend request sent!')
-    setRequesting(false)
-
-    recordSwipe(user.uid, userId, 'like').catch((err) => {
+    try {
+      await recordSwipe(user.uid, userId, 'like')
+      toast.success('Friend request sent!')
+    } catch (err) {
+      setAuthProfile(previousProfile)
       toast.error(err.message || 'Failed to send request')
-    })
+    } finally {
+      setRequesting(false)
+    }
   }
 
-  const handleCancelFriendRequest = () => {
+  const handleCancelFriendRequest = async () => {
     if (requesting) return
+    const previousProfile = currentProfile
     setRequesting(true)
     setAuthProfile((prev) => {
       if (!prev?.swipes) return prev
@@ -552,25 +630,32 @@ export function PublicProfileView({
       delete swipes[userId]
       return { ...prev, swipes }
     })
-    toast.success('Request cancelled')
-    setRequesting(false)
-
-    cancelFriendRequest(user.uid, userId).catch(() => {
+    try {
+      await cancelFriendRequest(user.uid, userId)
+      toast.success('Request cancelled')
+    } catch {
+      setAuthProfile(previousProfile)
       toast.error('Failed to cancel request')
-    })
+    } finally {
+      setRequesting(false)
+    }
   }
 
-  const handleAcceptRequest = () => {
+  const handleAcceptRequest = async () => {
     if (accepting) return
+    const previousProfile = currentProfile
     setAccepting(true)
     setAuthProfile((prev) => patchProfileAfterMatch(prev, userId))
-    toast.success("You're now friends!")
-    onClose?.()
-    setAccepting(false)
-
-    acceptLike(user.uid, userId).catch(() => {
+    try {
+      await acceptLike(user.uid, userId)
+      toast.success("You're now friends!")
+      onClose?.()
+    } catch {
+      setAuthProfile(previousProfile)
       toast.error('Failed to accept request')
-    })
+    } finally {
+      setAccepting(false)
+    }
   }
 
   const handleMessage = () => {

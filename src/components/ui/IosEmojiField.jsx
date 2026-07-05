@@ -1,0 +1,157 @@
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { getAppleEmojiUrl, splitTextAndEmojis } from '../../utils/iosEmoji'
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function valueToHtml(value, multiline) {
+  if (!value) return ''
+
+  return splitTextAndEmojis(value)
+    .map((segment) => {
+      if (segment.type === 'emoji') {
+        const url = getAppleEmojiUrl(segment.value)
+        return `<img src="${url}" alt="${escapeHtml(segment.value)}" data-emoji="${escapeHtml(segment.value)}" class="ios-emoji-inline" draggable="false" />`
+      }
+      const text = escapeHtml(segment.value)
+      return multiline ? text.replace(/\n/g, '<br>') : text.replace(/\n/g, ' ')
+    })
+    .join('')
+}
+
+export function domToValue(root, multiline = true) {
+  if (!root) return ''
+
+  let value = ''
+
+  const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      value += node.textContent
+      return
+    }
+
+    if (node.nodeName === 'BR') {
+      if (multiline) value += '\n'
+      return
+    }
+
+    if (node.nodeName === 'IMG') {
+      value += node.dataset.emoji || node.alt || ''
+      return
+    }
+
+    node.childNodes.forEach(walk)
+  }
+
+  root.childNodes.forEach(walk)
+  return multiline ? value : value.replace(/\n/g, ' ')
+}
+
+const IosEmojiField = forwardRef(function IosEmojiField(
+  {
+    value = '',
+    onChange,
+    onInput,
+    onFocus,
+    onBlur,
+    onKeyDown,
+    className = '',
+    placeholder,
+    multiline = false,
+    maxLength,
+    ...props
+  },
+  ref
+) {
+  const innerRef = useRef(null)
+  const composingRef = useRef(false)
+
+  const setRefs = (node) => {
+    innerRef.current = node
+    if (typeof ref === 'function') ref(node)
+    else if (ref) ref.current = node
+  }
+
+  const emitChange = useCallback(() => {
+    const el = innerRef.current
+    if (!el) return
+
+    let next = domToValue(el, multiline)
+    if (maxLength != null && next.length > maxLength) {
+      next = next.slice(0, maxLength)
+      el.innerHTML = valueToHtml(next, multiline)
+    }
+
+    onChange?.({ target: { value: next } })
+    onInput?.({ target: { value: next } })
+  }, [maxLength, multiline, onChange, onInput])
+
+  useLayoutEffect(() => {
+    const el = innerRef.current
+    if (!el || composingRef.current) return
+
+    const current = domToValue(el, multiline)
+    if (current === value) return
+    el.innerHTML = valueToHtml(value, multiline)
+  }, [multiline, value])
+
+  useEffect(() => {
+    const el = innerRef.current
+    if (!el || el.innerHTML) return
+    el.innerHTML = valueToHtml(value, multiline)
+  }, [multiline, value])
+
+  const handlePaste = (event) => {
+    event.preventDefault()
+    const pasted = event.clipboardData.getData('text/plain')
+    const selection = window.getSelection()
+    if (!selection?.rangeCount) return
+
+    selection.deleteFromDocument()
+    selection.getRangeAt(0).insertNode(document.createTextNode(pasted))
+    selection.collapseToEnd()
+    emitChange()
+  }
+
+  return (
+    <div
+      {...props}
+      ref={setRefs}
+      contentEditable={props.readOnly || props.disabled ? false : true}
+      suppressContentEditableWarning
+      role="textbox"
+      aria-multiline={multiline || undefined}
+      aria-placeholder={placeholder}
+      data-placeholder={placeholder}
+      data-allow-copy
+      className={`ios-emoji-field outline-none ${className}`}
+      onInput={() => {
+        if (composingRef.current) return
+        emitChange()
+      }}
+      onPaste={handlePaste}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onKeyDown={(event) => {
+        if (!multiline && event.key === 'Enter') {
+          event.preventDefault()
+        }
+        onKeyDown?.(event)
+      }}
+      onCompositionStart={() => {
+        composingRef.current = true
+      }}
+      onCompositionEnd={() => {
+        composingRef.current = false
+        emitChange()
+      }}
+    />
+  )
+})
+
+export default IosEmojiField

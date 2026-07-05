@@ -13,6 +13,7 @@ const tabs = [
 
 const pillSpring = { type: 'spring', stiffness: 420, damping: 34 }
 const tabSpring = { type: 'spring', stiffness: 480, damping: 24 }
+const SHOW_DEBUG_TOOLS = import.meta.env.DEV
 
 export default function BottomNav({ badges = {} }) {
   const location = useLocation()
@@ -41,12 +42,13 @@ export default function BottomNav({ badges = {} }) {
 
       const width = tabRect.width - insetX * 2
       const left = tabRect.left - containerRect.left + insetX
+      const height = tabRect.height - insetY
 
       setPill({
         width,
-        height: tabRect.height - insetY,
+        height,
         left,
-        top: tabRect.top - containerRect.top + insetY / 2,
+        top: (containerRect.height - height) / 2,
         glowLeft: left - glowSpread,
         glowWidth: width + glowSpread * 2,
       })
@@ -114,7 +116,7 @@ export default function BottomNav({ badges = {} }) {
                 type="button"
                 onClick={() => navigate(tab.path)}
                 onDoubleClick={() => {
-                  if (isChatsTab) navigate('/debug')
+                  if (SHOW_DEBUG_TOOLS && isChatsTab) navigate('/debug')
                 }}
                 transition={{ type: 'spring', stiffness: 520, damping: 28 }}
                 className="no-tap-scale relative flex-1 flex flex-col items-center justify-center py-3 z-10 min-h-[52px]"

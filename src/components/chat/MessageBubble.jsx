@@ -38,15 +38,17 @@ function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
   )
 }
 
-function TextWithCornerMeta({ children, meta }) {
+function TextWithCornerMeta({ children, meta, isOwn = false, fill = false }) {
   if (!meta) return children
 
   return (
-    <div className="relative w-full min-w-0">
-      <div className="pb-3.5 pr-11">{children}</div>
-      <div className="absolute right-0 bottom-0 flex h-3.5 translate-y-0.5 items-end justify-end leading-none select-none pointer-events-none">
-        {meta}
+    <div className={`relative min-w-0 max-w-full ${fill ? 'w-full' : 'w-fit'}`}>
+      <div className={`min-w-0 pb-1 ${isOwn ? 'pr-[3.3rem]' : 'pr-[2.7rem]'}`}>
+        {children}
       </div>
+      <span className="absolute bottom-0 right-0 flex items-center leading-none select-none pointer-events-none">
+        {meta}
+      </span>
     </div>
   )
 }
@@ -209,7 +211,7 @@ export default function MessageBubble({
         />
       )}
       {displayText && (
-        <TextWithCornerMeta meta={meta}>
+        <TextWithCornerMeta meta={meta} isOwn={isOwn} fill={showSenderNameInBubble}>
           <MessageText
             text={displayText}
             isOwn={isOwn}

@@ -19,36 +19,42 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userProfile = await fetchUser(firebaseUser.uid)
-        if (!userProfile) {
-          const deleted = await fetchDeletedUser(firebaseUser.uid)
-          if (deleted) {
-            try {
-              await signOut(auth)
-            } catch {
-              // Session may already be cleared.
+      try {
+        if (firebaseUser) {
+          const userProfile = await fetchUser(firebaseUser.uid)
+          if (!userProfile) {
+            const deleted = await fetchDeletedUser(firebaseUser.uid)
+            if (deleted) {
+              try {
+                await signOut(auth)
+              } catch {
+                // Session may already be cleared.
+              }
+              setUser(null)
+              setProfile(null)
+              clearCache()
+              return
             }
-            setUser(null)
+            setUser(firebaseUser)
             setProfile(null)
-            clearCache()
-            setLoading(false)
             return
           }
           setUser(firebaseUser)
+          setProfile(userProfile)
+          setupPresence(firebaseUser.uid)
+        } else {
+          setUser(null)
           setProfile(null)
-          setLoading(false)
-          return
+          clearCache()
         }
-        setUser(firebaseUser)
-        setProfile(userProfile)
-        setupPresence(firebaseUser.uid)
-      } else {
+      } catch (err) {
+        console.error('Failed to initialize auth session', err)
         setUser(null)
         setProfile(null)
         clearCache()
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     })
     return unsub
   }, [])

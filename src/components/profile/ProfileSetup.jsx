@@ -5,7 +5,7 @@ import { IconInfoCircle } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { createUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
-import { normalizeUsername } from '../../utils/helpers'
+import { APP_AGE_MAX, APP_AGE_MIN, DISCOVER_AGE_GAP_DEFAULT, normalizeUsername } from '../../utils/helpers'
 import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
@@ -16,7 +16,7 @@ export default function ProfileSetup() {
   const { user, refreshProfile } = useAuth()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
-  const [age, setAge] = useState(25)
+  const [age, setAge] = useState(18)
   const [gender, setGender] = useState('')
   const [interestedIn, setInterestedIn] = useState('')
   const [bio, setBio] = useState('')
@@ -34,8 +34,8 @@ export default function ProfileSetup() {
     photos[0].trim() !== '' &&
     gender !== '' &&
     interestedIn !== '' &&
-    age >= 18 &&
-    age <= 40
+    age >= APP_AGE_MIN &&
+    age <= APP_AGE_MAX
 
   const usernameBorder =
     status === 'available'
@@ -70,6 +70,7 @@ export default function ProfileSetup() {
         age,
         gender,
         interestedIn,
+        discoverAgeGap: DISCOVER_AGE_GAP_DEFAULT,
         bio,
         photos: photos.filter(Boolean),
       })

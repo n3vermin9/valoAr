@@ -2,6 +2,7 @@ export const DEFAULT_GROUP_SETTINGS = {
   visibility: 'private',
   joinViaLink: true,
   joinViaButton: false,
+  requireApproval: false,
 }
 
 /** Normalize join settings from visibility (private = link only, public = search + link). */

@@ -29,7 +29,7 @@ export default function StoryReplyQuote({
   if (!storyReply) return null
 
   const removed = storyExists === false
-  const snippet = removed ? 'story removed' : getStoryReplySnippet(storyReply.text)
+  const snippet = removed ? 'Story unavailable' : getStoryReplySnippet(storyReply.text)
   const colorClass = getStoryReplyQuoteColorClass(storyReply.color)
   const label = storyReply.ownerUsername ? `${storyReply.ownerUsername}'s story` : 'Story'
   const canOpen = Boolean(onClick && storyReply.ownerId && storyExists === true)

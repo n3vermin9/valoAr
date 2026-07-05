@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import { updateUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
-import { normalizeUsername, formatGenderLabel } from '../../utils/helpers'
+import { APP_AGE_MAX, APP_AGE_MIN, normalizeUsername, formatGenderLabel } from '../../utils/helpers'
 import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
 import { normalizeSocials, SOCIAL_PLATFORMS } from '../../utils/socialLinks'
 import { setProfileEditorOpen } from '../../utils/profileOverlay'
@@ -40,7 +40,7 @@ export default function EditProfile({ onCancel }) {
   const initialSocials = useMemo(() => normalizeSocials(profile?.socials), [profile?.socials])
 
   const [username, setUsername] = useState(profile?.username || '')
-  const [age, setAge] = useState(profile?.age || 25)
+  const [age, setAge] = useState(profile?.age || 18)
   const [interestedIn, setInterestedIn] = useState(profile?.interestedIn || '')
   const [bio, setBio] = useState(profile?.bio || '')
   const [socials, setSocials] = useState(() => normalizeSocials(profile?.socials))
@@ -100,7 +100,7 @@ export default function EditProfile({ onCancel }) {
 
   const hasChanges =
     username !== (profile?.username || '') ||
-    age !== (profile?.age || 25) ||
+    age !== (profile?.age || 18) ||
     interestedIn !== (profile?.interestedIn || '') ||
     bio !== (profile?.bio || '') ||
     photosChanged ||
@@ -109,8 +109,8 @@ export default function EditProfile({ onCancel }) {
   const canSubmit =
     currentPhotos.length > 0 &&
     interestedIn !== '' &&
-    age >= 18 &&
-    age <= 40 &&
+    age >= APP_AGE_MIN &&
+    age <= APP_AGE_MAX &&
     (!usernameChanged || status === 'available')
 
   const usernameBorder =

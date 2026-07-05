@@ -3,6 +3,15 @@ import { storage, auth } from '../firebase/config'
 
 export const APP_NAME = 'valoAr'
 export const APP_SLUG = 'valoar'
+export const APP_AGE_MIN = 16
+export const APP_AGE_MAX = 26
+export const DISCOVER_AGE_GAP_DEFAULT = 3
+
+export function reportBackgroundError(label, err) {
+  if (!import.meta.env.DEV) return
+  // Keep production quiet while still surfacing silent background failures during development.
+  console.debug(label, err)
+}
 
 export {
   navGlassClass,
@@ -216,7 +225,7 @@ export function genderMatchesPreference(userGender, interestedIn) {
   return true
 }
 
-export function ageInRange(userAge, targetAge, gap = 5) {
+export function ageInRange(userAge, targetAge, gap = DISCOVER_AGE_GAP_DEFAULT) {
   return Math.abs(userAge - targetAge) <= gap
 }
 

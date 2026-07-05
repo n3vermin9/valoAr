@@ -42,9 +42,9 @@ export const chatFloatingPanelClass = `${chatFloatingGlassClass} liquid-glass-ro
 export const chatFloatingButtonClass = `${chatFloatingGlassClass} liquid-glass-circle h-12 w-12 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
 export const chatMessageTextClass = 'text-[16px] leading-[1.35] break-words min-w-0'
-export const chatBubblePadClass = 'px-3.5 py-1.5'
+export const chatBubblePadClass = 'px-3.5 py-2'
 export const chatComposerInputClass =
-  'flex-1 min-w-0 py-2 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-6 max-h-36'
+  'ios-emoji-field flex-1 min-w-0 py-2 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-6 max-h-36'
 
 export const glassActionButtonClass = `${glassInputBarClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
@@ -87,7 +87,7 @@ export const typoCaptionClass = 'text-[13px] font-medium text-[var(--ios-label-s
 
 export const sectionLabelClass = `${typoCaptionClass} mb-2 px-[var(--ios-page-x-lg)]`
 export const insetCardClass =
-  'rounded-[var(--ios-radius-xl)] border border-white/10 bg-white/[0.03]'
+  'rounded-[var(--ios-radius-xl)] border border-white/10 bg-white/[0.055]'
 export const insetCardOuterClass = `mx-4 ${insetCardClass}`
 export const subpageHeaderClass =
   'flex items-center gap-3 px-[var(--ios-page-x-lg)] pt-[max(1rem,var(--ios-safe-top))] pb-4 shrink-0'
@@ -134,7 +134,7 @@ export const insetListClass =
   'mx-4 rounded-[var(--ios-radius-xl)] overflow-hidden border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]'
 
 export const textFieldClass =
-  'w-full px-5 py-3 min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-glass-border)] text-[17px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none focus:border-[var(--ios-blue)] transition-colors'
+  'ios-emoji-field w-full px-5 py-3 min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-glass-border)] text-[17px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none focus:border-[var(--ios-blue)] transition-colors'
 
 export const btnFilledClass =
   'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-semibold bg-[var(--ios-blue)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'

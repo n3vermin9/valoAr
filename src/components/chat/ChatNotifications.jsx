@@ -4,10 +4,12 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import { subscribeChats } from '../../services/chatService'
 import { subscribeLikesReceived, fetchUser } from '../../services/userService'
+import { subscribeInbox } from '../../services/inboxService'
 import { isGroupChat, getGroupDisplayName, getGroupPhotoUrl } from '../../utils/groupChat'
 import { shouldSuppressChatNotification } from '../../utils/chatMute'
 import { notificationGlassClass } from '../../utils/helpers'
 import UsernameLabel from '../ui/UsernameLabel'
+import IosEmojiText from '../ui/IosEmojiText'
 import { sad } from '../../assets'
 
 function NotificationTitle({ username }) {
@@ -48,6 +50,7 @@ function getLikeKey(like) {
 function getGroupKey(notification) {
   if (notification.type === 'chat') return `chat:${notification.chatId}`
   if (notification.type === 'friend_request') return `friend:${notification.fromUserId}`
+  if (notification.type === 'inbox') return `inbox:${notification.inboxId}`
   return notification.id
 }
 
@@ -193,7 +196,9 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
           />
           <div className="flex-1 min-w-0">
             <NotificationTitle username={notification.username} />
-            <p className="text-xs text-white/70 truncate mt-0.5">{preview}</p>
+            <p className="text-xs text-white/70 truncate mt-0.5">
+              <IosEmojiText text={preview} size={12} />
+            </p>
           </div>
         </div>
       </motion.div>
@@ -207,9 +212,11 @@ function ChatNotificationSession({ userId, pathname, username }) {
   const queueRef = useRef([])
   const knownMessagesRef = useRef(new Map())
   const knownLikesRef = useRef(new Set())
+  const knownInboxRef = useRef(new Set())
   const notifiedIdsRef = useRef(new Set())
   const chatsInitializedRef = useRef(false)
   const likesInitializedRef = useRef(false)
+  const inboxInitializedRef = useRef(false)
   const usersRef = useRef({})
 
   const dismiss = useCallback((id) => {
@@ -222,11 +229,11 @@ function ChatNotificationSession({ userId, pathname, username }) {
   const openNotification = useCallback(
     (notification) => {
       dismiss(notification.id)
-      if (notification.type === 'friend_request') {
+      if (notification.type === 'friend_request' || notification.type === 'inbox') {
         navigate('/liked')
-      } else {
-        navigate(`/chats/${notification.chatId}`)
+        return
       }
+      navigate(`/chats/${notification.chatId}`)
     },
     [dismiss, navigate]
   )
@@ -379,6 +386,63 @@ function ChatNotificationSession({ userId, pathname, username }) {
           username: fromUser?.username || 'User',
           photo: fromUser?.photos?.[0],
           preview: like.message || 'Sent you a friend request',
+        })
+      }
+    })
+  }, [userId, pathname, enqueueNotification])
+
+  useEffect(() => {
+    return subscribeInbox(userId, async (items) => {
+      if (!inboxInitializedRef.current) {
+        items.forEach((item) => knownInboxRef.current.add(item.id))
+        inboxInitializedRef.current = true
+        return
+      }
+
+      if (pathname === '/liked') {
+        items.forEach((item) => knownInboxRef.current.add(item.id))
+        return
+      }
+
+      for (const item of items) {
+        if (item.read || knownInboxRef.current.has(item.id)) continue
+        knownInboxRef.current.add(item.id)
+
+        let preview = 'New notification'
+        let username = item.actorUsername || 'Someone'
+        let photo = sad
+
+        if (item.type === 'match') {
+          preview = 'You are now friends'
+        } else if (item.type === 'story_reaction') {
+          preview = 'Reacted to your story'
+        } else if (item.type === 'group_join_request') {
+          preview = `Requested to join ${item.groupName || 'your group'}`
+          username = item.actorUsername || username
+        } else if (item.type === 'group_join_approved') {
+          preview = `Approved your request to join ${item.groupName || 'a group'}`
+          username = item.groupName || 'Group'
+        } else if (item.type === 'group_join_denied') {
+          preview = `Declined your request to join ${item.groupName || 'a group'}`
+          username = item.groupName || 'Group'
+        }
+
+        if (item.actorId && !usersRef.current[item.actorId]) {
+          usersRef.current[item.actorId] = await fetchUser(item.actorId)
+        }
+        const actor = item.actorId ? usersRef.current[item.actorId] : null
+        if (actor?.photos?.[0]) photo = actor.photos[0]
+
+        enqueueNotification({
+          id: `inbox_${item.id}`,
+          sourceId: `inbox_${item.id}`,
+          type: 'inbox',
+          inboxId: item.id,
+          inboxType: item.type,
+          chatId: item.chatId,
+          username,
+          photo,
+          preview,
         })
       }
     })

@@ -7,10 +7,19 @@ export default function StoryBar({
   feed,
   views,
   users,
+  loaded = true,
   onCompose,
   onOpenViewer,
 }) {
   if (!profile) return null
+
+  if (!loaded) {
+    return (
+      <div className="px-[var(--ios-page-x-lg)] pb-3" aria-hidden>
+        <div className="h-[88px]" />
+      </div>
+    )
+  }
 
   const ownStories = feed.find((e) => e.userId === profile.id)?.stories || []
   const friendEntries = feed.filter((e) => e.userId !== profile.id)

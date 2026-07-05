@@ -1,4 +1,5 @@
 import { MESSAGE_REACTIONS } from '../../utils/helpers'
+import IosEmoji from '../ui/IosEmoji'
 
 function groupReactions(reactions = {}) {
   const groups = {}
@@ -36,7 +37,7 @@ export default function MessageReactions({
         if (!onEmojiClick) {
           return (
             <span key={emoji} className={pillClass}>
-              <span>{emoji}</span>
+              <IosEmoji emoji={emoji} size={16} className="align-text-bottom" />
               {userIds.length > 1 && (
                 <span className="text-[11px] text-white/60 tabular-nums">{userIds.length}</span>
               )}
@@ -55,7 +56,7 @@ export default function MessageReactions({
             className={pillClass}
             aria-label={mine ? `Remove ${emoji} reaction` : `React with ${emoji}`}
           >
-            <span>{emoji}</span>
+            <IosEmoji emoji={emoji} size={16} className="align-text-bottom" />
             {userIds.length > 1 && (
               <span className="text-[11px] text-white/60 tabular-nums">{userIds.length}</span>
             )}
@@ -79,12 +80,12 @@ export function ReactionPicker({ reactions, currentUserId, onReact, className = 
             e.stopPropagation()
             onReact(emoji)
           }}
-          className={`h-10 w-10 flex items-center justify-center rounded-full text-xl transition-colors ${
+          className={`h-10 w-10 flex items-center justify-center rounded-full transition-colors ${
             myReaction === emoji ? 'bg-blue-500/30 scale-110' : 'hover:bg-white/10'
           }`}
           aria-label={`React with ${emoji}`}
         >
-          {emoji}
+          <IosEmoji emoji={emoji} size={28} />
         </button>
       ))}
     </div>

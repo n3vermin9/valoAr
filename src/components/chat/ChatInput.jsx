@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
-import EmojiPicker from 'emoji-picker-react'
+import EmojiPickerPopover from '../ui/EmojiPickerPopover'
+import IosEmojiText from '../ui/IosEmojiText'
 import toast from 'react-hot-toast'
 import { IconMoodSmile, IconPhoto, IconSend, IconMicrophone, IconX } from '@tabler/icons-react'
 import { getVoiceMimeType, getMessagePreviewText } from '../../utils/helpers'
@@ -13,6 +14,7 @@ import {
 import ChatSearchControls from './ChatSearchControls'
 import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
 import { focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
+import IosEmojiField from '../ui/IosEmojiField'
 
 const actionButtonClass = chatFloatingButtonClass
 
@@ -93,7 +95,6 @@ export default function ChatInput({
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [sendingVoice, setSendingVoice] = useState(false)
   const wasSearchActiveRef = useRef(false)
-  const emojiRef = useRef(null)
   const fileRef = useRef(null)
   const textareaRef = useRef(null)
   const mediaRecorderRef = useRef(null)
@@ -106,10 +107,11 @@ export default function ChatInput({
   const showSend = Boolean(text.trim() || imagePreview)
   const draftKey = `${chatId ?? ''}:${focusKey ?? ''}`
 
-  if (draftKey !== trackedDraftKey) {
+  useEffect(() => {
+    if (draftKey === trackedDraftKey) return
     setTrackedDraftKey(draftKey)
     setText(chatId ? getChatDraft(chatId) : '')
-  }
+  }, [chatId, draftKey, trackedDraftKey])
 
   useEffect(() => {
     if (!chatId) return
@@ -247,23 +249,13 @@ export default function ChatInput({
   }, [releaseStream])
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target)) {
-        setShowEmoji(false)
-      }
-    }
-    if (showEmoji) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showEmoji])
-
-  const showEmojiPicker = showEmoji && !searchActive
-
-  useEffect(() => {
     if (wasSearchActiveRef.current && !searchActive) {
       focusTextarea(textareaRef)
     }
     wasSearchActiveRef.current = searchActive
   }, [searchActive])
+
+  const showEmojiPicker = showEmoji && !searchActive
 
   useEffect(() => {
     const el = textareaRef.current
@@ -315,7 +307,9 @@ export default function ChatInput({
               <p className="text-[13px] font-semibold text-blue-300 truncate">
                 Replying to {replyAuthorName}
               </p>
-              <p className="text-[13px] text-white/55 truncate">{getMessagePreviewText(replyTo)}</p>
+              <p className="text-[13px] text-white/55 truncate">
+                <IosEmojiText text={getMessagePreviewText(replyTo)} size={14} />
+              </p>
             </div>
             <button
               type="button"
@@ -343,18 +337,11 @@ export default function ChatInput({
         </div>
       )}
 
-      {showEmojiPicker && (
-        <div ref={emojiRef} className="absolute bottom-full left-4 mb-2 z-20">
-          <EmojiPicker
-            onEmojiClick={(emojiData) => setText((t) => t + emojiData.emoji)}
-            theme="dark"
-            previewConfig={{ showPreview: false }}
-            skinTonesDisabled
-            width={300}
-            height={350}
-          />
-        </div>
-      )}
+      <EmojiPickerPopover
+        open={showEmojiPicker}
+        onClose={() => setShowEmoji(false)}
+        onEmojiClick={(emoji) => setText((t) => t + emoji)}
+      />
 
       <div className="overflow-hidden px-4 py-3 shrink-0 min-h-[76px]">
         {searchActive ? (
@@ -418,10 +405,10 @@ export default function ChatInput({
                 >
                   <IconMoodSmile size={22} />
                 </button>
-                <textarea
+                <IosEmojiField
                   ref={textareaRef}
                   value={text}
-                  rows={1}
+                  multiline
                   data-allow-copy
                   onChange={(e) => {
                     setText(e.target.value)

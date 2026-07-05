@@ -1,10 +1,15 @@
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { IconCopy, IconLink } from '@tabler/icons-react'
+import { IconCopy, IconLink, IconCheck, IconX } from '@tabler/icons-react'
 import {
   updateGroupSettings,
   regenerateInviteCode,
+  subscribeGroupJoinRequests,
+  approveGroupJoinRequest,
+  denyGroupJoinRequest,
 } from '../../../services/groupChatService'
+import { fetchUser } from '../../../services/userService'
 import { getGroupJoinLink } from '../../../utils/groupChat'
 import { normalizeUsername } from '../../../utils/helpers'
 import Button from '../../ui/Button'
@@ -12,20 +17,48 @@ import LoadingSpinner from '../../ui/LoadingSpinner'
 import { useGroupSettingsChat } from './useGroupSettingsChat'
 import GroupSettingsShell from './GroupSettingsShell'
 import { SettingSwitch, SettingsSection } from '../../ui/SettingsUI'
+import { typoSubheadClass } from '../../../utils/designSystem'
 
 export default function GroupSettingsJoin() {
   const { chatId } = useParams()
   const { chat, loading, isMember, canManageSettings, user } = useGroupSettingsChat(chatId)
+  const [joinRequests, setJoinRequests] = useState([])
+  const [requestProfiles, setRequestProfiles] = useState({})
+  const [actingOn, setActingOn] = useState(null)
 
   const isPublic = chat?.settings?.visibility === 'public'
+  const requireApproval = chat?.settings?.requireApproval === true
   const normalizedUsername = normalizeUsername(chat?.username || '')
 
+  useEffect(() => {
+    if (!chatId || !canManageSettings) return
+    return subscribeGroupJoinRequests(chatId, setJoinRequests)
+  }, [chatId, canManageSettings])
+
+  useEffect(() => {
+    if (!joinRequests.length) {
+      setRequestProfiles({})
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const profiles = {}
+      await Promise.all(
+        joinRequests.map(async (req) => {
+          profiles[req.userId] = (await fetchUser(req.userId)) || { username: req.username }
+        })
+      )
+      if (!cancelled) setRequestProfiles(profiles)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [joinRequests])
+
   const handleVisibilityChange = async (makePublic) => {
-    if (makePublic) {
-      if (!normalizedUsername) {
-        toast.error('Set a group username before making the group public')
-        return
-      }
+    if (makePublic && !normalizedUsername) {
+      toast.error('Set a group username before making the group public')
+      return
     }
 
     try {
@@ -33,6 +66,39 @@ export default function GroupSettingsJoin() {
       toast.success(makePublic ? 'Group is now public' : 'Group is now private')
     } catch (err) {
       toast.error(err.message || 'Failed to update settings')
+    }
+  }
+
+  const handleRequireApprovalChange = async (checked) => {
+    try {
+      await updateGroupSettings(chatId, user.uid, { requireApproval: checked })
+      toast.success(checked ? 'Join requests require approval' : 'Members can join instantly')
+    } catch (err) {
+      toast.error(err.message || 'Failed to update settings')
+    }
+  }
+
+  const handleApprove = async (requestUserId) => {
+    setActingOn(requestUserId)
+    try {
+      await approveGroupJoinRequest(chatId, user.uid, requestUserId)
+      toast.success('Member approved')
+    } catch (err) {
+      toast.error(err.message || 'Failed to approve request')
+    } finally {
+      setActingOn(null)
+    }
+  }
+
+  const handleDeny = async (requestUserId) => {
+    setActingOn(requestUserId)
+    try {
+      await denyGroupJoinRequest(chatId, user.uid, requestUserId)
+      toast.success('Request declined')
+    } catch (err) {
+      toast.error(err.message || 'Failed to decline request')
+    } finally {
+      setActingOn(null)
     }
   }
 
@@ -81,7 +147,47 @@ export default function GroupSettingsJoin() {
             checked={isPublic}
             onChange={handleVisibilityChange}
           />
+          <SettingSwitch
+            label="Require admin approval"
+            checked={requireApproval}
+            onChange={handleRequireApprovalChange}
+          />
         </SettingsSection>
+
+        {joinRequests.length > 0 && (
+          <SettingsSection title="Pending requests">
+            {joinRequests.map((req) => {
+              const profile = requestProfiles[req.userId]
+              const name = profile?.username || req.username || 'User'
+              return (
+                <div key={req.id} className="px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-b-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium text-white truncate">{name}</p>
+                    <p className={`${typoSubheadClass} mt-0.5`}>Wants to join</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={actingOn === req.userId}
+                    onClick={() => handleDeny(req.userId)}
+                    className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center"
+                    aria-label={`Decline ${name}`}
+                  >
+                    <IconX size={18} className="text-white/70" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actingOn === req.userId}
+                    onClick={() => handleApprove(req.userId)}
+                    className="h-9 w-9 rounded-full bg-[var(--ios-blue)] flex items-center justify-center"
+                    aria-label={`Approve ${name}`}
+                  >
+                    <IconCheck size={18} className="text-white" />
+                  </button>
+                </div>
+              )
+            })}
+          </SettingsSection>
+        )}
 
         <SettingsSection title="Invite link">
           <div className="px-4 py-4">

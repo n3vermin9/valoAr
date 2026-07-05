@@ -9,7 +9,7 @@ import StoryViewer from './StoryViewer'
 
 export default function StoriesHost({ profile, friendIds, showBar = true }) {
   const { user } = useAuth()
-  const { feed, views, users } = useStoriesFeed(user?.uid, friendIds)
+  const { feed, views, users, loaded } = useStoriesFeed(user?.uid, friendIds)
   const [composerOpen, setComposerOpen] = useState(false)
   const [viewerState, setViewerState] = useState(null)
 
@@ -39,6 +39,7 @@ export default function StoriesHost({ profile, friendIds, showBar = true }) {
           feed={feed}
           views={views}
           users={users}
+          loaded={loaded}
           onCompose={() => setComposerOpen(true)}
           onOpenViewer={openViewer}
         />

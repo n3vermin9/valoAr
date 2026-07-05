@@ -6,6 +6,7 @@ export default function useStoriesFeed(userId, friendIdsProp = []) {
   const [feed, setFeed] = useState([])
   const [views, setViews] = useState({})
   const [users, setUsers] = useState({})
+  const [loaded, setLoaded] = useState(false)
   const [friendIds, setFriendIds] = useState(friendIdsProp)
   const feedUnsubRef = useRef(null)
 
@@ -27,7 +28,10 @@ export default function useStoriesFeed(userId, friendIdsProp = []) {
   useEffect(() => {
     if (!userId) return
 
-    const unsub = subscribeStoriesFeed(userId, friendIds, setFeed)
+    const unsub = subscribeStoriesFeed(userId, friendIds, (nextFeed) => {
+      setFeed(nextFeed)
+      setLoaded(true)
+    })
     feedUnsubRef.current = unsub
     return () => {
       feedUnsubRef.current = null
@@ -44,12 +48,14 @@ export default function useStoriesFeed(userId, friendIdsProp = []) {
     return subscribeStoryViews(userId, setViews)
   }, [userId])
 
+  const feedIdsKey = feed.map((entry) => entry.userId).join(',')
+
   useEffect(() => {
-    if (!feed.length) return
+    if (!feedIdsKey) return
     let cancelled = false
 
     ;(async () => {
-      const ids = feed.map((entry) => entry.userId)
+      const ids = feedIdsKey.split(',')
       const next = {}
       await Promise.all(
         ids.map(async (id) => {
@@ -63,7 +69,7 @@ export default function useStoriesFeed(userId, friendIdsProp = []) {
     return () => {
       cancelled = true
     }
-  }, [feed])
+  }, [feedIdsKey])
 
-  return { feed, views, users }
+  return { feed, views, users, loaded }
 }

@@ -35,6 +35,7 @@ export default function Discover() {
   const [newProfiles, setNewProfiles] = useState([])
   const [recentProfiles, setRecentProfiles] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [section, setSection] = useState('new')
   const [newIndex, setNewIndex] = useState(0)
   const [recentIndex, setRecentIndex] = useState(0)
@@ -62,16 +63,22 @@ export default function Discover() {
     setRefreshing(true)
     try {
       const feed = await getDiscoverFeed(profile)
+      const changed =
+        feed.newProfiles.length !== newProfiles.length ||
+        feed.recentProfiles.length !== recentProfiles.length ||
+        feed.newProfiles.some((p, i) => p.id !== newProfiles[i]?.id) ||
+        feed.recentProfiles.some((p, i) => p.id !== recentProfiles[i]?.id)
       setNewProfiles(feed.newProfiles)
       setRecentProfiles(feed.recentProfiles)
-      toast.success('Discover updated')
+      setLoadError(null)
+      if (changed) toast.success('Discover updated')
     } catch {
       toast.error('Could not refresh')
     } finally {
       setRefreshing(false)
       setPullY(0)
     }
-  }, [profile?.id, refreshing])
+  }, [profile?.id, refreshing, newProfiles, recentProfiles])
 
   useEffect(() => {
     pullYRef.current = pullY
@@ -106,14 +113,23 @@ export default function Discover() {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const feed = await getDiscoverFeed(profile)
-      if (cancelled) return
-      setNewProfiles(feed.newProfiles)
-      setRecentProfiles(feed.recentProfiles)
-      setNewIndex(0)
-      setRecentIndex(0)
-      setSection(feed.newProfiles.length > 0 ? 'new' : 'recent')
-      setLoading(false)
+      setLoadError(null)
+      try {
+        const feed = await getDiscoverFeed(profile)
+        if (cancelled) return
+        setNewProfiles(feed.newProfiles)
+        setRecentProfiles(feed.recentProfiles)
+        setNewIndex(0)
+        setRecentIndex(0)
+        setSection(feed.newProfiles.length > 0 ? 'new' : 'recent')
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(err?.message || 'Could not load Discover')
+          toast.error('Could not load Discover')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     })()
     return () => {
       cancelled = true
@@ -146,11 +162,13 @@ export default function Discover() {
       return
     }
     if (likedYou && action === 'like') {
-      toast.error('They already sent you a request! Check Friend Requests.')
+      toast.error('They already sent you a request! Check Inbox.')
       return
     }
 
     const targetId = targetProfile.id
+    const previousProfile = profile
+    const previousSection = section
     if (section === 'new') {
       setNewIndex((i) => i + 1)
     } else {
@@ -161,6 +179,12 @@ export default function Discover() {
     feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
 
     recordSwipe(user.uid, targetId, action, message).catch((err) => {
+      if (previousSection === 'new') {
+        setNewIndex((i) => Math.max(0, i - 1))
+      } else {
+        setRecentIndex((i) => Math.max(0, i - 1))
+      }
+      setProfile(previousProfile)
       toast.error(err.message || 'Failed to save swipe')
     })
   }
@@ -174,7 +198,7 @@ export default function Discover() {
   const openLikeMessageModal = (targetProfile) => {
     if (profile?.matches?.includes(targetProfile.id)) return
     if (likedYouIds.has(targetProfile.id)) {
-      toast.error('They already sent you a request! Check Friend Requests.')
+      toast.error('They already sent you a request! Check Inbox.')
       return
     }
     setMessageTarget(targetProfile)
@@ -244,6 +268,9 @@ export default function Discover() {
 
       setSearchResults(userResult.status === 'fulfilled' ? userResult.value : [])
       setGroupSearchResults(groupResult.status === 'fulfilled' ? groupResult.value : [])
+      if (userResult.status === 'rejected' || groupResult.status === 'rejected') {
+        toast.error('Some search results could not load')
+      }
       setSearchLoading(false)
     }, 120)
 
@@ -365,6 +392,32 @@ export default function Discover() {
           <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
           <div className="flex-1 flex items-center justify-center min-h-0">
             <LoadingSpinner />
+          </div>
+        </PageShell>
+        {discoverOverlays}
+      </>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <>
+        <PageShell
+          title="Discover"
+          trailing={discoverSearchButton}
+          contentClassName="flex flex-col min-h-0"
+        >
+          <StoriesHost profile={profile} friendIds={profile?.matches} />
+          <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 text-center">
+            <EmptyState message={loadError} />
+            <button
+              type="button"
+              onClick={refreshDiscover}
+              className="mt-4 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-sm font-medium"
+            >
+              Try again
+            </button>
           </div>
         </PageShell>
         {discoverOverlays}

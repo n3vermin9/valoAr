@@ -9,10 +9,11 @@ import ProfileView from '../profile/ProfileView'
 import DebugTools from '../debug/DebugTools'
 
 const NAV_TAB_PATHS = ['/discover', '/chats', '/liked', '/profile']
+const SHOW_DEBUG_TOOLS = import.meta.env.DEV
 
 function getNavTabIndex(pathname) {
   if (pathname.startsWith('/chats/') && pathname !== '/chats') return null
-  if (pathname.startsWith('/debug')) return NAV_TAB_PATHS.length
+  if (SHOW_DEBUG_TOOLS && pathname.startsWith('/debug')) return NAV_TAB_PATHS.length
 
   const index = NAV_TAB_PATHS.findIndex((path) =>
     path === '/discover' ? pathname === path : pathname.startsWith(path)
@@ -22,7 +23,7 @@ function getNavTabIndex(pathname) {
 
 function getRouteTransitionKey(pathname) {
   if (pathname.startsWith('/chats/') && pathname !== '/chats') return pathname
-  if (pathname.startsWith('/debug')) return '/debug'
+  if (SHOW_DEBUG_TOOLS && pathname.startsWith('/debug')) return '/debug'
 
   const index = getNavTabIndex(pathname)
   return index !== null ? NAV_TAB_PATHS[index] : pathname
@@ -42,7 +43,7 @@ export default function AnimatedNavRoutes() {
             <Route path="/chats/:matchId" element={<ChatRoom />} />
             <Route path="/liked" element={<LikedYou />} />
             <Route path="/profile" element={<ProfileView />} />
-            <Route path="/debug" element={<DebugTools />} />
+            {SHOW_DEBUG_TOOLS && <Route path="/debug" element={<DebugTools />} />}
             <Route path="*" element={<Navigate to="/discover" replace />} />
           </Routes>
         </PageTransition>

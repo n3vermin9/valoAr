@@ -33,6 +33,8 @@ import GroupAvatar from './GroupAvatar'
 import MuteChatModal from './MuteChatModal'
 import GroupMemberRow from './GroupMemberRow'
 import LoadingSpinner from '../ui/LoadingSpinner'
+import Modal from '../ui/Modal'
+import { PublicProfileView } from '../profile/ProfileView'
 import PhotoGallery from '../ui/PhotoGallery'
 import PhotoHeroView, {
   PhotoHeroContentOverlap,
@@ -44,13 +46,15 @@ export default function GroupInfoView() {
   const { chatId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [chat, setChat] = useState(null)
   const [members, setMembers] = useState({})
+  const [memberSearch, setMemberSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
   const [showMuteModal, setShowMuteModal] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [profileUserId, setProfileUserId] = useState(null)
 
   const fromChat = location.state?.fromChat === true
   const fromChatPreview = location.state?.fromChatPreview === true
@@ -132,7 +136,11 @@ export default function GroupInfoView() {
     if (!user?.uid) return
     setJoining(true)
     try {
-      await joinGroupViaButton(chatId, user.uid)
+      const result = await joinGroupViaButton(chatId, user.uid, profile?.username)
+      if (result.status === 'pending') {
+        toast.success('Join request sent')
+        return
+      }
       toast.success('Joined group')
       navigate(`/chats/${chatId}`, { replace: true, state: {} })
     } catch (err) {
@@ -191,6 +199,13 @@ export default function GroupInfoView() {
   const showAboutCard = Boolean((joinLink && isMember) || showFullPreview)
   const groupPhoto = getGroupPhotoUrl(chat)
   const groupPhotos = groupPhoto ? [groupPhoto] : []
+  const memberSearchTerm = memberSearch.trim().toLowerCase()
+  const filteredMemberIds = (chat.participants || []).filter((memberId) => {
+    if (!memberSearchTerm) return true
+    const member = members[memberId]
+    const username = member?.username?.toLowerCase() || ''
+    return username.includes(memberSearchTerm) || memberId.includes(memberSearchTerm)
+  })
 
   return (
     <>
@@ -293,18 +308,34 @@ export default function GroupInfoView() {
       {showMembers && (
         <div className="mt-6">
           <SettingsSection title={`Members · ${memberCount}`}>
-            {(chat.participants || []).map((memberId) => (
-              <GroupMemberRow
-                key={memberId}
-                chat={chat}
-                chatId={chatId}
-                memberId={memberId}
-                member={members[memberId]}
-                currentUserId={user?.uid}
-                variant={canManageMembers ? 'info' : 'readonly'}
-                className="border-b border-white/10 last:border-b-0"
-              />
-            ))}
+            {memberCount > 8 && (
+              <div className="px-4 py-3 border-b border-white/10">
+                <input
+                  type="search"
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  placeholder="Search members"
+                  className="w-full min-h-[40px] px-4 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 text-[15px] text-white placeholder:text-white/40 outline-none"
+                />
+              </div>
+            )}
+            {filteredMemberIds.length === 0 ? (
+              <p className="px-4 py-4 text-sm text-white/50">No members match your search</p>
+            ) : (
+              filteredMemberIds.map((memberId) => (
+                <GroupMemberRow
+                  key={memberId}
+                  chat={chat}
+                  chatId={chatId}
+                  memberId={memberId}
+                  member={members[memberId]}
+                  currentUserId={user?.uid}
+                  variant={canManageMembers ? 'info' : 'readonly'}
+                  onSelect={setProfileUserId}
+                  className="border-b border-white/10 last:border-b-0"
+                />
+              ))
+            )}
           </SettingsSection>
         </div>
       )}
@@ -337,6 +368,15 @@ export default function GroupInfoView() {
       {galleryOpen && groupPhotos.length > 0 && (
         <PhotoGallery photos={groupPhotos} onClose={() => setGalleryOpen(false)} />
       )}
+
+      <Modal isOpen={Boolean(profileUserId)} onClose={() => setProfileUserId(null)} fullscreen>
+        {profileUserId && (
+          <PublicProfileView
+            userId={profileUserId}
+            onClose={() => setProfileUserId(null)}
+          />
+        )}
+      </Modal>
     </>
   )
 }

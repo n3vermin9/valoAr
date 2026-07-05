@@ -254,8 +254,8 @@ export async function ensureSavedMessagesChat(userId) {
   return chatId
 }
 
-export function subscribeChats(userId, callback) {
-  ensureSavedMessagesChat(userId).catch(() => {})
+export function subscribeChats(userId, callback, onError) {
+  ensureSavedMessagesChat(userId).catch((err) => onError?.(err))
 
   let hydrateGeneration = 0
 
@@ -264,32 +264,48 @@ export function subscribeChats(userId, callback) {
     where('participants', 'array-contains', userId)
   )
 
-  return onSnapshot(chatsQuery, (snap) => {
-    const chats = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((c) => !c.hiddenFor?.includes(userId))
-      .sort((a, b) => {
-        const aPinned = a.pinnedBy?.includes(userId)
-        const bPinned = b.pinnedBy?.includes(userId)
-        if (aPinned !== bPinned) return aPinned ? -1 : 1
-        return getChatSortTime(b, userId) - getChatSortTime(a, userId)
+  return onSnapshot(
+    chatsQuery,
+    (snap) => {
+      const chats = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((c) => !c.hiddenFor?.includes(userId))
+        .sort((a, b) => {
+          const aPinned = a.pinnedBy?.includes(userId)
+          const bPinned = b.pinnedBy?.includes(userId)
+          if (aPinned !== bPinned) return aPinned ? -1 : 1
+          return getChatSortTime(b, userId) - getChatSortTime(a, userId)
+        })
+
+      callback(chats)
+
+      const generation = ++hydrateGeneration
+      hydrateChatsForUser(userId, chats).then((hydrated) => {
+        if (generation !== hydrateGeneration) return
+        callback(hydrated)
+      }).catch((err) => {
+        onError?.(err)
       })
-
-    callback(chats)
-
-    const generation = ++hydrateGeneration
-    hydrateChatsForUser(userId, chats).then((hydrated) => {
-      if (generation !== hydrateGeneration) return
-      callback(hydrated)
-    })
-  })
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
 }
 
-export function subscribeMessages(matchId, callback) {
+export function subscribeMessages(matchId, callback, onError) {
   const q = query(collection(db, 'chats', matchId, 'messages'), orderBy('createdAt', 'asc'))
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-  })
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
 }
 
 export async function sendMessage(
@@ -583,18 +599,32 @@ export async function touchChatActivity(matchId, userId) {
   })
 }
 
-export function subscribeChat(matchId, callback) {
-  return onSnapshot(doc(db, 'chats', matchId), (snap) => {
-    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
-  })
+export function subscribeChat(matchId, callback, onError) {
+  return onSnapshot(
+    doc(db, 'chats', matchId),
+    (snap) => {
+      callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+    },
+    (err) => {
+      onError?.(err)
+      callback(null)
+    }
+  )
 }
 
 function onSnapshotOnce(colRef) {
-  return new Promise((resolve) => {
-    const unsub = onSnapshot(colRef, (snap) => {
-      unsub()
-      resolve(snap.docs)
-    })
+  return new Promise((resolve, reject) => {
+    const unsub = onSnapshot(
+      colRef,
+      (snap) => {
+        unsub()
+        resolve(snap.docs)
+      },
+      (err) => {
+        unsub()
+        reject(err)
+      }
+    )
   })
 }
 
@@ -655,6 +685,42 @@ export async function setMessageReaction(matchId, messageId, userId, emoji) {
   })
 
   return reactions[userId] || null
+}
+
+function canPinMessages(chatData, userId) {
+  if (!chatData || !userId) return false
+  if (isGroupChat(chatData)) {
+    return canAdmin(chatData, userId, 'deleteMessages') || chatData.admins?.includes(userId)
+  }
+  return chatData.participants?.includes(userId)
+}
+
+export async function pinChatMessage(matchId, userId, messageId, chatData) {
+  if (!canPinMessages(chatData, userId)) {
+    throw new Error('You do not have permission to pin messages')
+  }
+
+  const messageRef = doc(db, 'chats', matchId, 'messages', messageId)
+  const messageSnap = await getDoc(messageRef)
+  if (!messageSnap.exists()) throw new Error('Message not found')
+
+  await updateDoc(doc(db, 'chats', matchId), {
+    pinnedMessage: {
+      messageId,
+      pinnedBy: userId,
+      pinnedAt: Date.now(),
+    },
+  })
+}
+
+export async function unpinChatMessage(matchId, userId, chatData) {
+  if (!canPinMessages(chatData, userId)) {
+    throw new Error('You do not have permission to unpin messages')
+  }
+
+  await updateDoc(doc(db, 'chats', matchId), {
+    pinnedMessage: deleteField(),
+  })
 }
 
 export function setTyping(matchId, userId, isTyping) {

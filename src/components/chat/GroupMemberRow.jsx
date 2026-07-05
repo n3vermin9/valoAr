@@ -64,6 +64,7 @@ export default function GroupMemberRow({
   variant = 'info',
   showChevron = false,
   onNavigateManage,
+  onSelect,
   className = '',
 }) {
   const navigate = useNavigate()
@@ -199,10 +200,22 @@ export default function GroupMemberRow({
     }
   }
 
+  const clickable = Boolean(onSelect)
   const rowClass =
     variant === 'settings' || variant === 'info' || variant === 'readonly'
-      ? `${settingsRowClass} ${variant === 'info' || variant === 'readonly' ? 'cursor-default' : 'disabled:cursor-default'}`
+      ? `${settingsRowClass} ${
+          clickable
+            ? 'cursor-pointer'
+            : variant === 'info' || variant === 'readonly'
+              ? 'cursor-default'
+              : 'disabled:cursor-default'
+        }`
       : 'flex items-center gap-3 py-1'
+
+  const handleRowClick = () => {
+    if (menuOpen) return
+    onSelect?.(memberId)
+  }
 
   const content = (
     <>
@@ -349,12 +362,25 @@ export default function GroupMemberRow({
     <>
       <div
         ref={rowRef}
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : undefined}
         data-allow-contextmenu={canShowMenu ? true : undefined}
         onContextMenu={openMenu}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchCancel}
+        onClick={clickable ? handleRowClick : undefined}
+        onKeyDown={
+          clickable
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleRowClick()
+                }
+              }
+            : undefined
+        }
         className={`${rowClass} ${className}`}
       >
         {content}

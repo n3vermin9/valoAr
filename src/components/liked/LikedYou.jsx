@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { IconCheck, IconX } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -14,11 +15,11 @@ import {
   patchProfileAfterMatch,
 } from '../../services/userService'
 import UsernameLabel from '../ui/UsernameLabel'
-import { subscribeInbox, markInboxRead, markAllInboxRead } from '../../services/inboxService'
+import { subscribeInbox, markInboxRead } from '../../services/inboxService'
 import { subscribeUserStories } from '../../services/storyService'
 import { getStoryColorClass } from '../../utils/storyHelpers'
 import { sad, star } from '../../assets'
-import { APP_NAME, formatLastSeen } from '../../utils/helpers'
+import { APP_NAME, formatLastSeen, reportBackgroundError } from '../../utils/helpers'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import Modal from '../ui/Modal'
@@ -61,6 +62,7 @@ function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
 }
 
 export default function LikedYou() {
+  const navigate = useNavigate()
   const { user, profile, setProfile } = useAuth()
   const [section, setSection] = useState('inbox')
   const [likes, setLikes] = useState([])
@@ -207,17 +209,17 @@ export default function LikedYou() {
   useEffect(() => {
     likes.forEach((like) => {
       if (!like.read) {
-        markLikeAsRead(user.uid, like.fromUserId || like.id)
+        markLikeAsRead(user.uid, like.fromUserId || like.id).catch((err) =>
+          reportBackgroundError('Failed to mark like as read', err)
+        )
       }
     })
   }, [likes, user?.uid])
 
-  useEffect(() => {
-    if (section !== 'inbox' || !user?.uid || unreadInbox.length === 0) return
-    markAllInboxRead(user.uid).catch(() => {})
-  }, [section, user?.uid, unreadInbox.length])
-
-  const handleAccept = (fromUserId) => {
+  const handleAccept = async (fromUserId) => {
+    const previousLikes = likes
+    const previousProfiles = profiles
+    const previousProfile = profile
     setLikes((prev) => prev.filter((l) => (l.fromUserId || l.id) !== fromUserId))
     setProfiles((prev) => {
       const next = { ...prev }
@@ -225,39 +227,51 @@ export default function LikedYou() {
       return next
     })
     setProfile((prev) => patchProfileAfterMatch(prev, fromUserId))
-    toast.success("You're now friends!")
-
-    acceptLike(user.uid, fromUserId).catch(() => {
+    try {
+      await acceptLike(user.uid, fromUserId)
+      toast.success("You're now friends!")
+    } catch {
+      setLikes(previousLikes)
+      setProfiles(previousProfiles)
+      setProfile(previousProfile)
       toast.error('Failed to accept')
-    })
+    }
   }
 
-  const handleDecline = (fromUserId) => {
+  const handleDecline = async (fromUserId) => {
+    const previousLikes = likes
+    const previousProfiles = profiles
     setLikes((prev) => prev.filter((l) => (l.fromUserId || l.id) !== fromUserId))
     setProfiles((prev) => {
       const next = { ...prev }
       delete next[fromUserId]
       return next
     })
-    toast.success('Declined')
-
-    declineLike(user.uid, fromUserId).catch(() => {
+    try {
+      await declineLike(user.uid, fromUserId)
+      toast.success('Declined')
+    } catch {
+      setLikes(previousLikes)
+      setProfiles(previousProfiles)
       toast.error('Failed to decline')
-    })
+    }
   }
 
-  const handleCancelRequest = (targetId) => {
+  const handleCancelRequest = async (targetId) => {
+    const previousProfile = profile
     setProfile((prev) => {
       if (!prev?.swipes) return prev
       const swipes = { ...prev.swipes }
       delete swipes[targetId]
       return { ...prev, swipes }
     })
-    toast.success('Request cancelled')
-
-    cancelFriendRequest(user.uid, targetId).catch(() => {
+    try {
+      await cancelFriendRequest(user.uid, targetId)
+      toast.success('Request cancelled')
+    } catch {
+      setProfile(previousProfile)
       toast.error('Failed to cancel request')
-    })
+    }
   }
 
   if (loading) {
@@ -384,6 +398,19 @@ export default function LikedYou() {
     if (item.type === 'story_reaction') {
       return <>{nameLabel} reacted to your story</>
     }
+    if (item.type === 'group_join_request') {
+      return (
+        <>
+          {nameLabel} requested to join {item.groupName || 'your group'}
+        </>
+      )
+    }
+    if (item.type === 'group_join_approved') {
+      return <>Your request to join {item.groupName || 'the group'} was approved</>
+    }
+    if (item.type === 'group_join_denied') {
+      return <>Your request to join {item.groupName || 'the group'} was declined</>
+    }
     return (
       <>
         You and {nameLabel} are now friends
@@ -401,6 +428,20 @@ export default function LikedYou() {
     setStoryViewerTarget({ unavailable: true })
   }
 
+  const handleInboxItemClick = (item) => {
+    if (!item.read) markInboxRead(user.uid, item.id)
+
+    if (item.type === 'group_join_request' && item.chatId) {
+      navigate(`/groups/${item.chatId}/settings/join`)
+      return
+    }
+    if ((item.type === 'group_join_approved' || item.type === 'group_join_denied') && item.chatId) {
+      navigate(`/chats/${item.chatId}`)
+      return
+    }
+    if (item.actorId) setViewProfile(item.actorId)
+  }
+
   const renderInboxItem = (item) => {
     const actorId = item.actorId
     const p = inboxProfiles[actorId]
@@ -412,10 +453,7 @@ export default function LikedYou() {
       <button
         key={item.id}
         type="button"
-        onClick={() => {
-          if (!item.read) markInboxRead(user.uid, item.id)
-          if (actorId) setViewProfile(actorId)
-        }}
+        onClick={() => handleInboxItemClick(item)}
         className={`w-full flex items-center gap-3 py-3 text-left transition-colors ${
           item.read ? 'opacity-80' : 'bg-white/[0.055]'
         }`}

@@ -16,6 +16,8 @@ import {
   runTransaction,
   deleteDoc,
   writeBatch,
+  onSnapshot,
+  orderBy,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import {
@@ -28,6 +30,7 @@ import {
   normalizeGroupJoinSettings,
 } from '../utils/groupChat'
 import { normalizeUsername, validateUsername } from '../utils/helpers'
+import { pushInboxNotification } from './inboxService'
 
 function normalizeGroupName(name) {
   return name.trim().slice(0, 64)
@@ -220,7 +223,47 @@ export async function getGroupById(chatId) {
   return { id: snap.id, ...snap.data() }
 }
 
-export async function joinGroupChat(chatId, userId) {
+function getGroupAdminIds(chat) {
+  const ids = new Set([chat.createdBy, ...(chat.admins || [])].filter(Boolean))
+  return [...ids]
+}
+
+async function notifyGroupAdmins(chat, payload) {
+  const adminIds = getGroupAdminIds(chat)
+  await Promise.all(
+    adminIds.map((adminId) =>
+      pushInboxNotification(adminId, payload).catch(() => {})
+    )
+  )
+}
+
+export function subscribeGroupJoinRequests(chatId, callback, onError) {
+  if (!chatId) return () => {}
+
+  const requestsRef = collection(db, 'chats', chatId, 'joinRequests')
+
+  return onSnapshot(
+    requestsRef,
+    (snap) => {
+      callback(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((req) => req.status === 'pending')
+          .sort((a, b) => {
+            const aTime = a.requestedAt?.toMillis?.() ?? a.requestedAt ?? 0
+            const bTime = b.requestedAt?.toMillis?.() ?? b.requestedAt ?? 0
+            return bTime - aTime
+          })
+      )
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
+}
+
+export async function requestGroupJoin(chatId, userId, username = '') {
   const chatRef = doc(db, 'chats', chatId)
   const snap = await getDoc(chatRef)
   if (!snap.exists() || snap.data()?.type !== 'group') {
@@ -232,6 +275,107 @@ export async function joinGroupChat(chatId, userId) {
     throw new Error('You are banned from this group')
   }
   if (data.participants?.includes(userId)) {
+    return { status: 'joined', chat: { id: snap.id, ...data } }
+  }
+
+  const requestRef = doc(db, 'chats', chatId, 'joinRequests', userId)
+  const existing = await getDoc(requestRef)
+  if (existing.exists() && existing.data()?.status === 'pending') {
+    return { status: 'pending' }
+  }
+
+  await setDoc(requestRef, {
+    userId,
+    username: username || 'User',
+    status: 'pending',
+    requestedAt: serverTimestamp(),
+  })
+
+  await notifyGroupAdmins(data, {
+    type: 'group_join_request',
+    chatId,
+    actorId: userId,
+    actorUsername: username || 'User',
+    groupName: data.name || 'Group',
+  })
+
+  return { status: 'pending' }
+}
+
+export async function approveGroupJoinRequest(chatId, adminId, requestUserId) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+
+  const data = snap.data()
+  if (!canAdmin(data, adminId, 'addMembers') && !isGroupOwner(data, adminId)) {
+    throw new Error('You do not have permission to approve join requests')
+  }
+
+  const requestRef = doc(db, 'chats', chatId, 'joinRequests', requestUserId)
+  const requestSnap = await getDoc(requestRef)
+  if (!requestSnap.exists() || requestSnap.data()?.status !== 'pending') {
+    throw new Error('Join request not found')
+  }
+
+  await updateDoc(chatRef, {
+    participants: arrayUnion(requestUserId),
+    memberHistory: arrayUnion(requestUserId),
+    [`unreadCount.${requestUserId}`]: 0,
+    hiddenFor: arrayRemove(requestUserId),
+  })
+
+  await deleteDoc(requestRef)
+
+  await pushInboxNotification(requestUserId, {
+    type: 'group_join_approved',
+    chatId,
+    actorId: adminId,
+    groupName: data.name || 'Group',
+  })
+
+  const updated = await getDoc(chatRef)
+  return { id: updated.id, ...updated.data() }
+}
+
+export async function denyGroupJoinRequest(chatId, adminId, requestUserId) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
+
+  const data = snap.data()
+  if (!canAdmin(data, adminId, 'addMembers') && !isGroupOwner(data, adminId)) {
+    throw new Error('You do not have permission to deny join requests')
+  }
+
+  const requestRef = doc(db, 'chats', chatId, 'joinRequests', requestUserId)
+  const requestSnap = await getDoc(requestRef)
+  if (!requestSnap.exists()) throw new Error('Join request not found')
+
+  await deleteDoc(requestRef)
+
+  await pushInboxNotification(requestUserId, {
+    type: 'group_join_denied',
+    chatId,
+    actorId: adminId,
+    groupName: data.name || 'Group',
+  })
+}
+
+export async function joinGroupChat(chatId, userId, { username = '' } = {}) {
+  const chatRef = doc(db, 'chats', chatId)
+  const snap = await getDoc(chatRef)
+  if (!snap.exists() || snap.data()?.type !== 'group') {
+    throw new Error('Group not found')
+  }
+
+  const data = snap.data()
+  const settings = normalizeGroupJoinSettings(data.settings)
+
+  if (data.bannedUserIds?.includes(userId)) {
+    throw new Error('You are banned from this group')
+  }
+  if (data.participants?.includes(userId)) {
     const hiddenFor = data.hiddenFor || []
     if (hiddenFor.includes(userId)) {
       await updateDoc(chatRef, {
@@ -239,7 +383,11 @@ export async function joinGroupChat(chatId, userId) {
         [`unreadCount.${userId}`]: 0,
       })
     }
-    return { id: snap.id, ...data }
+    return { status: 'joined', chat: { id: snap.id, ...data } }
+  }
+
+  if (settings.requireApproval) {
+    return requestGroupJoin(chatId, userId, username)
   }
 
   await updateDoc(chatRef, {
@@ -250,25 +398,25 @@ export async function joinGroupChat(chatId, userId) {
   })
 
   const updated = await getDoc(chatRef)
-  return { id: updated.id, ...updated.data() }
+  return { status: 'joined', chat: { id: updated.id, ...updated.data() } }
 }
 
-export async function joinGroupByInviteCode(inviteCode, userId) {
+export async function joinGroupByInviteCode(inviteCode, userId, username = '') {
   const group = await resolveGroupJoinSlug(inviteCode)
   if (!group) throw new Error('Invalid invite link')
   const settings = normalizeGroupJoinSettings(group.settings)
   if (!settings.joinViaLink) throw new Error('This group does not allow joining via link')
-  return joinGroupChat(group.id, userId)
+  return joinGroupChat(group.id, userId, { username })
 }
 
-export async function joinGroupViaButton(chatId, userId) {
+export async function joinGroupViaButton(chatId, userId, username = '') {
   const group = await getGroupById(chatId)
   if (!group) throw new Error('Group not found')
   const settings = normalizeGroupJoinSettings(group.settings)
   if (settings.visibility !== 'public') {
     throw new Error('This group can only be joined via invite link')
   }
-  return joinGroupChat(chatId, userId)
+  return joinGroupChat(chatId, userId, { username })
 }
 
 export async function leaveGroupChat(chatId, userId) {

@@ -13,6 +13,7 @@ import {
   IconChevronDown,
   IconX,
   IconSettings,
+  IconPin,
 } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -28,6 +29,8 @@ import {
   ensureSavedMessagesChat,
   setMessageReaction,
   touchChatActivity,
+  pinChatMessage,
+  unpinChatMessage,
 } from '../../services/chatService'
 import {
   getCachedUser,
@@ -38,7 +41,7 @@ import {
   getUserIdByUsername,
   fetchUsersMap,
 } from '../../services/userService'
-import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
+import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime, reportBackgroundError } from '../../utils/helpers'
 import {
   navGlassMenuClass,
   contextMenuMotion,
@@ -83,6 +86,7 @@ import {
 } from '../../utils/groupChat'
 import { leaveGroupChat, joinGroupViaButton, joinGroupByInviteCode } from '../../services/groupChatService'
 import { getMessageClusterMeta } from '../../utils/messageCluster'
+import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
 import UsernameLabel from '../ui/UsernameLabel'
@@ -218,6 +222,16 @@ export default function ChatRoom() {
     groupPreviewRequested && isGroup && isPublicGroup && !isGroupMemberUser
   const canDeleteOthersMessages =
     isGroup && !isGroupPreview && canAdmin(chatMeta, user?.uid, 'deleteMessages')
+  const canPinMessages =
+    !isGroupPreview &&
+    (isGroup
+      ? canAdmin(chatMeta, user?.uid, 'deleteMessages') || isGroupAdmin(chatMeta, user?.uid)
+      : Boolean(chatMeta?.participants?.includes(user?.uid)))
+  const pinnedMeta = chatMeta?.pinnedMessage
+  const pinnedMessage = useMemo(
+    () => (pinnedMeta?.messageId ? messages.find((m) => m.id === pinnedMeta.messageId) : null),
+    [messages, pinnedMeta?.messageId]
+  )
 
   if (otherId !== trackedOtherId) {
     setTrackedOtherId(otherId)
@@ -225,7 +239,9 @@ export default function ChatRoom() {
     setOtherUser(initial)
     setOtherUserLoaded(Boolean(initial))
     if (initial?.photos?.[0]) {
-      preloadAvatarImage(initial.photos[0], 64).catch(() => {})
+      preloadAvatarImage(initial.photos[0], 64).catch((err) =>
+        reportBackgroundError('Chat avatar preload failed', err)
+      )
     }
   }
 
@@ -249,13 +265,17 @@ export default function ChatRoom() {
   useEffect(() => {
     if (!matchId || !user?.uid) return
     if (isSavedMessagesChat(matchId, user.uid)) {
-      ensureSavedMessagesChat(user.uid).catch(() => {})
+      ensureSavedMessagesChat(user.uid).catch((err) =>
+        reportBackgroundError('Failed to ensure saved messages chat', err)
+      )
     }
   }, [matchId, user?.uid])
 
   useEffect(() => {
     if (!matchId || !user?.uid || isSavedMessages || isGroupPreview) return
-    touchChatActivity(matchId, user.uid).catch(() => {})
+    touchChatActivity(matchId, user.uid).catch((err) =>
+      reportBackgroundError('Failed to touch chat activity', err)
+    )
   }, [matchId, user?.uid, isSavedMessages, isDraft, isGroupPreview])
 
   useEffect(() => {
@@ -338,7 +358,9 @@ export default function ChatRoom() {
       if (isGroupPreview) return
       clearTimeout(markReadTimerRef.current)
       markReadTimerRef.current = setTimeout(() => {
-        markMessagesRead(matchId, user.uid).catch(() => {})
+        markMessagesRead(matchId, user.uid).catch((err) =>
+          reportBackgroundError('Failed to mark messages read', err)
+        )
       }, 80)
     }
 
@@ -358,7 +380,9 @@ export default function ChatRoom() {
       unsub()
       clearTimeout(markReadTimerRef.current)
       if (!isGroupPreview) {
-        markMessagesRead(matchId, user.uid).catch(() => {})
+        markMessagesRead(matchId, user.uid).catch((err) =>
+          reportBackgroundError('Failed to mark messages read', err)
+        )
       }
     }
   }, [matchId, user?.uid, chatAvailable, isGroupPreview])
@@ -370,7 +394,9 @@ export default function ChatRoom() {
       if (getUnreadCount(chat, user.uid) > 0) {
         clearTimeout(markReadTimerRef.current)
         markReadTimerRef.current = setTimeout(() => {
-          markMessagesRead(matchId, user.uid).catch(() => {})
+          markMessagesRead(matchId, user.uid).catch((err) =>
+            reportBackgroundError('Failed to mark messages read', err)
+          )
         }, 80)
       }
     })
@@ -737,6 +763,7 @@ export default function ChatRoom() {
 
   const handleReactToMessage = async (message, emoji) => {
     if (!matchId || !user?.uid) return
+    const previousReactions = message.reactions
     const reactions = { ...(message.reactions || {}) }
     if (reactions[user.uid] === emoji) {
       delete reactions[user.uid]
@@ -759,6 +786,15 @@ export default function ChatRoom() {
     try {
       await setMessageReaction(matchId, message.id, user.uid, emoji)
     } catch {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === message.id ? { ...msg, reactions: previousReactions } : msg
+        )
+      )
+      setDeleteTarget((prev) => {
+        if (!prev || prev.message.id !== message.id) return prev
+        return { ...prev, message: { ...prev.message, reactions: previousReactions } }
+      })
       toast.error('Failed to add reaction')
     }
   }
@@ -969,10 +1005,12 @@ export default function ChatRoom() {
     if (!user?.uid || !matchId) return
     setPreviewJoining(true)
     try {
-      if (previewJoinSlug) {
-        await joinGroupByInviteCode(previewJoinSlug, user.uid)
-      } else {
-        await joinGroupViaButton(matchId, user.uid)
+      const result = previewJoinSlug
+        ? await joinGroupByInviteCode(previewJoinSlug, user.uid, profile?.username)
+        : await joinGroupViaButton(matchId, user.uid, profile?.username)
+      if (result.status === 'pending') {
+        toast.success('Join request sent')
+        return
       }
       toast.success('Joined group')
       navigate(`/chats/${matchId}`, { replace: true, state: {} })
@@ -980,6 +1018,27 @@ export default function ChatRoom() {
       toast.error(err.message || 'Failed to join group')
     } finally {
       setPreviewJoining(false)
+    }
+  }
+
+  const handlePinMessage = async (message) => {
+    if (!matchId || !canPinMessages) return
+    try {
+      await pinChatMessage(matchId, user.uid, message.id, chatMeta)
+      setDeleteTarget(null)
+      toast.success('Message pinned')
+    } catch (err) {
+      toast.error(err.message || 'Failed to pin message')
+    }
+  }
+
+  const handleUnpinMessage = async () => {
+    if (!matchId || !canPinMessages) return
+    try {
+      await unpinChatMessage(matchId, user.uid, chatMeta)
+      toast.success('Message unpinned')
+    } catch (err) {
+      toast.error(err.message || 'Failed to unpin message')
     }
   }
 
@@ -1068,6 +1127,43 @@ export default function ChatRoom() {
             deleteTarget ? '!pb-52 pointer-events-none' : ''
           }`}
         >
+          {pinnedMessage && (
+            <button
+              type="button"
+              onClick={() => scrollToMessage(pinnedMessage.id)}
+              className="sticky top-0 z-10 mb-3 w-full text-left rounded-[var(--ios-radius-lg)] border border-white/10 bg-[var(--ios-bg-secondary)] px-3 py-2.5 flex items-center gap-2"
+            >
+              <IconPin size={16} className="text-[var(--ios-blue)] shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-[var(--ios-blue)]">Pinned message</p>
+                <p className="text-sm text-white/85 truncate mt-0.5">
+                  {getStoryReplyDisplay(pinnedMessage).text ||
+                    (pinnedMessage.imageUrl ? 'Photo' : pinnedMessage.audioUrl ? 'Voice message' : 'Message')}
+                </p>
+              </div>
+              {canPinMessages && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleUnpinMessage()
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleUnpinMessage()
+                    }
+                  }}
+                  className="shrink-0 self-center flex items-center justify-center p-1 text-white/45 hover:text-white/70"
+                  aria-label="Unpin message"
+                >
+                  <IconX size={16} />
+                </span>
+              )}
+            </button>
+          )}
           {visibleMessages.map((msg, index) => {
             const cluster = getMessageClusterMeta(visibleMessages, index, user.uid, isGroup)
             const senderProfile = isGroup ? memberProfiles[msg.senderId] : null
@@ -1315,6 +1411,10 @@ export default function ChatRoom() {
             canDelete={
               deleteTarget.message.senderId === user.uid || canDeleteOthersMessages
             }
+            canPin={canPinMessages}
+            isPinned={pinnedMeta?.messageId === deleteTarget.message.id}
+            onPin={handlePinMessage}
+            onUnpin={handleUnpinMessage}
             currentUserId={user.uid}
             militaryTime={militaryTime}
             replyAuthorName={

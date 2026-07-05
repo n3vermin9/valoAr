@@ -23,10 +23,10 @@ import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, listRowClass, listRowSelectedClass, iconButtonClass } from '../../utils/designSystem'
 import { isGroupChat, getGroupDisplayName, formatGroupPreview } from '../../utils/groupChat'
 import { isChatMuteActive } from '../../utils/chatMute'
-import CreateGroupModal from './CreateGroupModal'
 import GroupAvatar from './GroupAvatar'
 import MuteChatModal from './MuteChatModal'
 import UsernameLabel from '../ui/UsernameLabel'
+import IosEmojiText from '../ui/IosEmojiText'
 import PageShell from '../layout/PageShell'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
@@ -45,7 +45,6 @@ export default function ChatList() {
   const [confirmTarget, setConfirmTarget] = useState(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [chatActivity, setChatActivity] = useState({})
-  const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [muteModalChatId, setMuteModalChatId] = useState(null)
   const listRef = useRef(null)
   const rowRefs = useRef({})
@@ -172,6 +171,7 @@ export default function ChatList() {
     const chatId = selectedChatId
     if (!chatId || !user?.uid) return
     const wasPinned = selectedIsPinned
+    const previousChats = chats
     closeMenu()
     setChats((prev) =>
       prev.map((c) => {
@@ -184,6 +184,7 @@ export default function ChatList() {
       })
     )
     togglePinChat(chatId, user.uid).catch(() => {
+      setChats(previousChats)
       toast.error('Failed to update pin')
     })
   }
@@ -310,7 +311,7 @@ export default function ChatList() {
       trailing={
         <button
           type="button"
-          onClick={() => setShowCreateGroup(true)}
+          onClick={() => navigate('/groups/new')}
           className={iconButtonClass}
           aria-label="Create group chat"
         >
@@ -486,21 +487,26 @@ export default function ChatList() {
                               )}
                             </span>
                           )}
-                          <span className="truncate">
-                            {isSaved
-                              ? lastMsg?.text || 'Save notes and messages here'
-                              : isGroup
-                                ? formatGroupPreview(
-                                    lastMsg,
-                                    lastMsg && !sentByYou
-                                      ? users[lastMsg.senderId]?.username
-                                      : sentByYou
-                                        ? 'You'
-                                        : null
-                                  )
-                                : isRemoved
-                                  ? 'This account is no longer available'
-                                  : lastMsg?.text || 'Start a conversation'}
+                          <span className="truncate min-w-0">
+                            <IosEmojiText
+                              text={
+                                isSaved
+                                  ? lastMsg?.text || 'Save notes and messages here'
+                                  : isGroup
+                                    ? formatGroupPreview(
+                                        lastMsg,
+                                        lastMsg && !sentByYou
+                                          ? users[lastMsg.senderId]?.username
+                                          : sentByYou
+                                            ? 'You'
+                                            : null
+                                      )
+                                    : isRemoved
+                                      ? 'This account is no longer available'
+                                      : lastMsg?.text || 'Start a conversation'
+                              }
+                              size={14}
+                            />
                           </span>
                         </>
                       )}
@@ -556,13 +562,6 @@ export default function ChatList() {
         confirmLabel="Block"
         danger
         loading={actionLoading}
-      />
-
-      <CreateGroupModal
-        isOpen={showCreateGroup}
-        onClose={() => setShowCreateGroup(false)}
-        userId={user?.uid}
-        onCreated={(group) => navigate(`/chats/${group.id}`)}
       />
 
       <MuteChatModal

@@ -20,6 +20,11 @@ export function setupInteractionGuards() {
   )
 
   document.addEventListener('contextmenu', (e) => {
+    const target = e.target
+    const editable =
+      target?.closest?.('input, textarea, [contenteditable="true"], [data-allow-copy]') ||
+      target?.isContentEditable
+    if (editable || target?.closest?.('[data-allow-contextmenu]')) return
     e.preventDefault()
   })
 

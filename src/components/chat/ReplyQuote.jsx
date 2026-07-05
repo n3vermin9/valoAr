@@ -1,4 +1,5 @@
 import { getMessagePreviewText } from '../../utils/helpers'
+import IosEmojiText from '../ui/IosEmojiText'
 
 import UsernameLabel from '../ui/UsernameLabel'
 
@@ -18,7 +19,9 @@ export default function ReplyQuote({ reply, authorName, isOwn, onClick, classNam
         badgeSize={11}
         as="p"
       />
-      <p className={`text-[13px] truncate ${previewClass}`}>{preview}</p>
+      <p className={`text-[13px] truncate ${previewClass}`}>
+        <IosEmojiText text={preview} size={13} />
+      </p>
     </>
   )
 
