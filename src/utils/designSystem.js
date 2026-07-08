@@ -41,6 +41,9 @@ export const chatFloatingPanelClass = `${chatFloatingGlassClass} liquid-glass-ro
 
 export const chatFloatingButtonClass = `${chatFloatingGlassClass} liquid-glass-circle h-12 w-12 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
+export const photoOverlayButtonClass =
+  'liquid-glass liquid-glass-circle h-12 w-12 shrink-0 flex items-center justify-center rounded-full transition-colors border border-white/20 bg-black/55 backdrop-blur-xl text-white shadow-[0_2px_14px_rgba(0,0,0,0.42)] hover:bg-black/65 active:scale-95'
+
 export const chatMessageTextClass = 'text-[16px] leading-[1.35] break-words min-w-0'
 export const chatBubblePadClass = 'px-3.5 py-2'
 export const chatComposerInputClass =
@@ -78,8 +81,8 @@ export const pageBottomClearanceClass = 'pb-[var(--ios-nav-clearance)]'
 /** iOS typography scale — use these instead of ad-hoc text-* / font-* on screens */
 export const typoLargeTitleClass = pageTitleClass
 export const typoTitle2Class = 'text-[22px] font-bold leading-tight text-[var(--ios-label)]'
-export const typoTitle3Class = 'text-[20px] font-semibold text-[var(--ios-label)]'
-export const typoHeadlineClass = 'text-[17px] font-semibold text-[var(--ios-label)]'
+export const typoTitle3Class = 'text-[20px] font-medium text-[var(--ios-label)]'
+export const typoHeadlineClass = 'text-[17px] font-medium text-[var(--ios-label)]'
 export const typoBodyClass = 'text-[17px] text-[var(--ios-label)] leading-relaxed'
 export const typoSubheadClass = 'text-[15px] text-[var(--ios-label-secondary)]'
 export const typoFootnoteClass = 'text-[13px] text-[var(--ios-label-secondary)]'
@@ -137,10 +140,10 @@ export const textFieldClass =
   'ios-emoji-field w-full px-5 py-3 min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-glass-border)] text-[17px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none focus:border-[var(--ios-blue)] transition-colors'
 
 export const btnFilledClass =
-  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-semibold bg-[var(--ios-blue)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
+  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-medium bg-[var(--ios-blue)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
 
 export const btnFilledDangerClass =
-  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-semibold bg-[var(--ios-red)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
+  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-medium bg-[var(--ios-red)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
 
 export const btnBorderedClass =
   'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-medium border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-input)] backdrop-blur-md hover:bg-white/[0.12] transition-colors disabled:opacity-50'
@@ -153,6 +156,15 @@ export const iconButtonClass =
 
 export const profileActionBtnClass =
   'flex-1 min-w-0 h-14 flex items-center justify-center rounded-[var(--ios-radius-md)] bg-white/10 hover:bg-white/15 border border-white/10 disabled:opacity-50 transition-colors'
+
+export const segmentedControlClass =
+  'flex rounded-full border border-[var(--ios-glass-border)] bg-[var(--ios-fill-tertiary)] p-1'
+
+export const segmentedItemClass =
+  'flex-1 py-2 text-center text-sm font-medium rounded-full transition-colors text-[var(--ios-label-secondary)] hover:text-[var(--ios-label)]'
+
+export const segmentedItemActiveClass =
+  'flex-1 py-2 text-center text-sm font-medium rounded-full transition-colors bg-[var(--ios-blue)] text-white shadow-sm'
 
 export const contextMenuMotion = {
   initial: { opacity: 0, scale: 0.95, y: -4 },

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import ChevronBack from './ChevronBack'
-import { chatFloatingButtonClass, chatRoomTopScrimClass, photoHeroFrameClass, photoHeroFullscreenFrameClass, photoHeroImageClass } from '../../utils/designSystem'
+import { chatRoomTopScrimClass, photoHeroFrameClass, photoHeroFullscreenFrameClass, photoHeroImageClass, photoOverlayButtonClass } from '../../utils/designSystem'
 
 export function PhotoHeroFixedBack({ onBack, className = '' }) {
   if (!onBack) return null
@@ -12,7 +12,7 @@ export function PhotoHeroFixedBack({ onBack, className = '' }) {
     >
       <ChevronBack
         onClick={onBack}
-        buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+        buttonClassName={photoOverlayButtonClass}
         className="w-6 h-6"
       />
     </div>
@@ -171,7 +171,7 @@ export default function PhotoHeroView({
           <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
             <ChevronBack
               onClick={onBack}
-              buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+              buttonClassName={photoOverlayButtonClass}
               className="w-6 h-6"
             />
           </div>

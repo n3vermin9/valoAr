@@ -64,7 +64,6 @@ export async function fetchUser(userId) {
     allowDirectMessages: raw.allowDirectMessages === true,
     showFriendCount: raw.showFriendCount !== false,
     useMilitaryTime: raw.useMilitaryTime !== false,
-    discoverAgeGap: raw.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT,
     socials: normalizeSocials(raw.socials),
   }
   setCachedUser(userId, data)
@@ -98,7 +97,6 @@ export function subscribeToUser(userId, callback, onError) {
           allowDirectMessages: raw.allowDirectMessages === true,
           showFriendCount: raw.showFriendCount !== false,
           useMilitaryTime: raw.useMilitaryTime !== false,
-          discoverAgeGap: raw.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT,
           socials: normalizeSocials(raw.socials),
         }
         setCachedUser(userId, data)
@@ -175,7 +173,6 @@ export async function createUserProfile(userId, profileData) {
       allowDirectMessages: false,
       showFriendCount: true,
       useMilitaryTime: true,
-      discoverAgeGap: profileData.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT,
       createdAt: serverTimestamp(),
       swipeCount: 0,
     })
@@ -431,7 +428,7 @@ function passesDiscoverBaseFilters(currentUser, profile) {
   if (currentUser.matches?.includes(profile.id)) return false
   if (!genderMatchesPreference(profile.gender, currentUser.interestedIn)) return false
   if (!genderMatchesPreference(currentUser.gender, profile.interestedIn)) return false
-  if (!ageInRange(currentUser.age, profile.age, currentUser.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT)) return false
+  if (!ageInRange(currentUser.age, profile.age, DISCOVER_AGE_GAP_DEFAULT)) return false
   return true
 }
 

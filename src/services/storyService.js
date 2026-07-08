@@ -22,6 +22,7 @@ import {
   isStoryActive,
   storyCreatedMs,
   MAX_STORIES_PER_USER,
+  MAX_STORY_LENGTH,
   STORY_TTL_MS,
   STORY_PRIVACY,
   filterStoriesForViewer,
@@ -210,7 +211,19 @@ export function subscribeStoryExists(ownerId, storyId, callback, onError) {
   )
 }
 
-export async function postStory(userId, { text, color, privacy = STORY_PRIVACY.FRIENDS }) {
+export async function postStory(
+  userId,
+  {
+    text,
+    color,
+    privacy = STORY_PRIVACY.FRIENDS,
+    meetupId,
+    meetupChatId,
+    meetupExpiresAt,
+    meetupStartAt,
+    storyKind,
+  }
+) {
   const trimmed = text.trim()
   if (!trimmed) throw new Error('Story cannot be empty')
 
@@ -222,15 +235,71 @@ export async function postStory(userId, { text, color, privacy = STORY_PRIVACY.F
     throw new Error(`You can only have ${MAX_STORIES_PER_USER} active stories`)
   }
 
-  await addDoc(storiesRef, {
+  const payload = {
     text: trimmed,
     color: color || 'violet',
     privacy: privacy === STORY_PRIVACY.ALL ? STORY_PRIVACY.ALL : STORY_PRIVACY.FRIENDS,
     createdAt: serverTimestamp(),
     userId,
-  })
+  }
+
+  if (meetupId) {
+    payload.storyKind = storyKind || 'meetup'
+    payload.meetupId = meetupId
+    if (meetupChatId) payload.meetupChatId = meetupChatId
+    if (meetupExpiresAt) payload.meetupExpiresAt = meetupExpiresAt
+    if (meetupStartAt) payload.meetupStartAt = meetupStartAt
+  }
+
+  await addDoc(storiesRef, payload)
 
   await syncPublicStoryAuthor(userId)
+}
+
+export async function postMeetupStory(
+  userId,
+  {
+    meetupId,
+    chatId,
+    title,
+    placeName,
+    subplaceName = '',
+    description = '',
+    startAt,
+    expiresAt,
+    privacy = STORY_PRIVACY.FRIENDS,
+  }
+) {
+  if (!meetupId) throw new Error('Missing meetup')
+
+  const locationLabel = subplaceName ? `${placeName} · ${subplaceName}` : placeName
+  const startLabel = new Date(startAt).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  const lines = [
+    `📍 ${title || `Meetup at ${locationLabel}`}`,
+    locationLabel,
+    `🕐 ${startLabel}`,
+    description.trim(),
+  ].filter(Boolean)
+
+  const text = lines.join('\n').slice(0, MAX_STORY_LENGTH)
+
+  await postStory(userId, {
+    text,
+    color: 'amber',
+    privacy,
+    meetupId,
+    meetupChatId: chatId,
+    meetupExpiresAt: expiresAt,
+    meetupStartAt: startAt,
+    storyKind: 'meetup',
+  })
 }
 
 export async function deleteStory(userId, storyId) {

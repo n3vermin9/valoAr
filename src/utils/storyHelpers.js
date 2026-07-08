@@ -104,6 +104,55 @@ export function filterStoriesForViewer(
   })
 }
 
+export function formatMeetupCountdown(expiresAtMs, now = Date.now()) {
+  const diff = expiresAtMs - now
+  if (!expiresAtMs || diff <= 0) return 'Ended'
+  const hours = Math.floor(diff / 3600000)
+  const minutes = Math.floor((diff % 3600000) / 60000)
+  const seconds = Math.floor((diff % 60000) / 1000)
+  if (hours > 0) return `${hours}h ${minutes}m left`
+  if (minutes > 0) return `${minutes}m ${seconds}s left`
+  return `${seconds}s left`
+}
+
+export function isMeetupStory(story) {
+  return story?.storyKind === 'meetup' && Boolean(story?.meetupId)
+}
+
+export function parseMeetupStoryContent(story, meetupData = null) {
+  if (meetupData) {
+    const locationLabel = meetupData.subplaceName
+      ? `${meetupData.placeName} · ${meetupData.subplaceName}`
+      : meetupData.placeName || ''
+    const startMs = toTimestampMs(meetupData.startAt)
+    const startLabel = startMs
+      ? new Date(startMs).toLocaleString(undefined, {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : ''
+    return {
+      title: meetupData.title || 'Meetup',
+      location: locationLabel,
+      time: startLabel,
+      description: (meetupData.description || '').trim(),
+    }
+  }
+
+  const lines = (story?.text || '').split('\n')
+  const titleLine = lines[0]?.trim() || ''
+  const title = titleLine.startsWith('📍 ') ? titleLine.slice(2) : titleLine || 'Meetup'
+  const location = lines[1]?.trim() || ''
+  const timeLine = lines[2]?.trim() || ''
+  const time = timeLine.startsWith('🕐 ') ? timeLine.slice(2) : timeLine
+  const description = lines.slice(3).join('\n').trim()
+
+  return { title, location, time, description }
+}
+
 export function formatStoryTime(ms) {
   if (!ms) return ''
   const diff = Math.max(0, Date.now() - ms)

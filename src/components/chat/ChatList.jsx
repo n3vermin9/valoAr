@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconCheck, IconChecks, IconBellOff, IconPin, IconPinnedOff, IconTrash, IconBan, IconPlus, IconLogout } from '@tabler/icons-react'
+import { IconCheck, IconChecks, IconBellOff, IconPin, IconPinnedOff, IconTrash, IconBan, IconPlus, IconLogout, IconClockHour4 } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   subscribeChats,
@@ -14,6 +14,7 @@ import {
 } from '../../services/chatService'
 import { fetchUsersMap, blockUser } from '../../services/userService'
 import { leaveGroupChat } from '../../services/groupChatService'
+import { cancelMeetup } from '../../services/meetupService'
 import { getProfileSnapshots } from '../../services/profileSnapshotCache'
 import { preloadAvatarImages } from '../../services/avatarImageCache'
 import StoryAvatarButton from '../stories/StoryAvatarButton'
@@ -146,6 +147,8 @@ export default function ChatList() {
   const selectedOtherUserLoaded = !selectedOtherId || Object.hasOwn(users, selectedOtherId)
   const selectedIsSaved = isSavedMessagesChat(selectedChat, user?.uid)
   const selectedIsGroup = isGroupChat(selectedChat)
+  const selectedIsMeetup = selectedIsGroup && Boolean(selectedChat?.isMeetup || selectedChat?.meetupId)
+  const selectedIsMeetupHost = selectedIsMeetup && selectedChat?.createdBy === user?.uid
   const selectedIsRemoved =
     !selectedIsSaved &&
     !selectedIsGroup &&
@@ -197,8 +200,13 @@ export default function ChatList() {
         await removeChatForUser(confirmTarget.chatId, user.uid)
         toast.success('Saved messages cleared')
       } else if (confirmTarget.isGroup) {
-        await leaveGroupChat(confirmTarget.chatId, user.uid)
-        toast.success('Left group')
+        if (confirmTarget.isMeetup && confirmTarget.meetupId) {
+          await cancelMeetup(confirmTarget.meetupId, user.uid)
+          toast.success(confirmTarget.isMeetupHost ? 'Meetup cancelled' : 'Left meetup')
+        } else {
+          await leaveGroupChat(confirmTarget.chatId, user.uid)
+          toast.success('Left group')
+        }
       } else {
         await removeChatForUser(confirmTarget.chatId, user.uid)
         toast.success('Chat deleted')
@@ -211,7 +219,9 @@ export default function ChatList() {
         confirmTarget.isSaved
           ? 'Failed to clear saved messages'
           : confirmTarget.isGroup
-            ? 'Failed to leave group'
+            ? confirmTarget.isMeetup
+              ? 'Failed to cancel meetup'
+              : 'Failed to leave group'
             : 'Failed to delete chat'
       )
     } finally {
@@ -223,10 +233,13 @@ export default function ChatList() {
     setConfirmTarget({
       chatId: selectedChatId,
       isGroup: selectedIsGroup,
+      isMeetup: selectedIsMeetup,
+      meetupId: selectedChat?.meetupId,
+      isMeetupHost: selectedIsMeetupHost,
       isSaved: selectedIsSaved,
     })
     closeMenu()
-    setConfirmAction(selectedIsGroup ? 'leaveGroup' : 'removeChat')
+    setConfirmAction(selectedIsMeetup ? 'cancelMeetup' : selectedIsGroup ? 'leaveGroup' : 'removeChat')
   }
 
   const handleBlock = async () => {
@@ -276,7 +289,7 @@ export default function ChatList() {
             onClick={openLeaveOrRemoveConfirm}
             danger
           >
-            {selectedIsSaved ? 'Clear saved messages' : selectedIsGroup ? 'Leave group' : 'Delete chat'}
+            {selectedIsSaved ? 'Clear saved messages' : selectedIsMeetup ? (selectedIsMeetupHost ? 'Cancel meetup' : 'Leave meetup') : selectedIsGroup ? 'Leave group' : 'Delete chat'}
           </ContextMenuItem>
           {!selectedIsRemoved && !selectedIsSaved && !selectedIsGroup && (
             <ContextMenuItem
@@ -340,6 +353,7 @@ export default function ChatList() {
                   : otherUser?.username || 'User'
             const isMuted = isChatMuteActive(chat, user.uid)
             const isPinned = chat.pinnedBy?.includes(user.uid)
+            const isTemporary = chat.isMeetup || Boolean(chat.expiresAt)
             const lastMsg = chat.lastMessage
             const sentByYou = lastMsg?.senderId === user.uid
             const unreadCount = getUnreadCount(chat, user.uid)
@@ -436,7 +450,7 @@ export default function ChatList() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                       <div
-                          className={`truncate min-w-0 ${unreadCount > 0 ? 'font-bold' : 'font-semibold'} ${isRemoved ? 'text-white/50' : ''}`}
+                          className={`truncate min-w-0 ${unreadCount > 0 ? 'font-semibold' : 'font-medium'} ${isRemoved ? 'text-white/50' : ''}`}
                         >
                         {isSaved ? (
                           'Saved Messages'
@@ -452,6 +466,9 @@ export default function ChatList() {
                         </div>
                         {isMuted && (
                           <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
+                        )}
+                        {isTemporary && (
+                          <IconClockHour4 size={14} className="text-amber-300 shrink-0" aria-label="Temporary chat" />
                         )}
                         {isPinned && (
                           <IconPin size={14} className="text-blue-400 shrink-0" aria-label="Pinned" />
@@ -522,7 +539,7 @@ export default function ChatList() {
       {contextMenu}
 
       <ConfirmDialog
-        isOpen={confirmAction === 'removeChat' || confirmAction === 'leaveGroup'}
+        isOpen={confirmAction === 'removeChat' || confirmAction === 'leaveGroup' || confirmAction === 'cancelMeetup'}
         onClose={() => {
           setConfirmAction(null)
           setConfirmTarget(null)
@@ -531,23 +548,35 @@ export default function ChatList() {
         title={
           confirmTarget?.isSaved
             ? 'Clear saved messages?'
-            : confirmTarget?.isGroup
-              ? 'Leave group?'
-              : 'Delete chat?'
+            : confirmTarget?.isMeetup
+              ? confirmTarget.isMeetupHost
+                ? 'Cancel meetup?'
+                : 'Leave meetup?'
+              : confirmTarget?.isGroup
+                ? 'Leave group?'
+                : 'Delete chat?'
         }
         message={
           confirmTarget?.isSaved
             ? 'All saved messages will be deleted. The chat will stay in your list.'
-            : confirmTarget?.isGroup
-              ? 'You will leave this group. Chat history stays in the group for other members.'
-              : 'This will delete all messages and hide the chat for both of you.'
+            : confirmTarget?.isMeetup
+              ? confirmTarget.isMeetupHost
+                ? 'This will end the meetup for everyone and delete the group chat.'
+                : 'You will leave this meetup and its group chat.'
+              : confirmTarget?.isGroup
+                ? 'You will leave this group. Chat history stays in the group for other members.'
+                : 'This will delete all messages and hide the chat for both of you.'
         }
         confirmLabel={
           confirmTarget?.isSaved
             ? 'Clear messages'
-            : confirmTarget?.isGroup
-              ? 'Leave group'
-              : 'Delete chat'
+            : confirmTarget?.isMeetup
+              ? confirmTarget.isMeetupHost
+                ? 'Cancel meetup'
+                : 'Leave meetup'
+              : confirmTarget?.isGroup
+                ? 'Leave group'
+                : 'Delete chat'
         }
         danger
         loading={actionLoading}

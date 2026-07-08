@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   IconX,
@@ -9,6 +10,9 @@ import {
   IconSend,
   IconHeart,
   IconMoodSmile,
+  IconClockHour4,
+  IconCalendarPlus,
+  IconUsers,
 } from '@tabler/icons-react'
 import toast from 'react-hot-toast'
 import {
@@ -19,12 +23,17 @@ import {
   subscribeStoryReactions,
   subscribeStoryWatchers,
 } from '../../services/storyService'
+import { joinMeetup, subscribeMeetup, fetchMeetup, isMeetupActive, meetupExpiryMs } from '../../services/meetupService'
 import {
   STORY_DURATION_MS,
   getStoryColorClass,
   storyCreatedMs,
   formatStoryTime,
   formatStoryViewTime,
+  formatMeetupCountdown,
+  isMeetupStory,
+  parseMeetupStoryContent,
+  toTimestampMs,
   buildStoryShareText,
   MAX_STORY_REPLY_LENGTH,
   getStoryOpenMotion,
@@ -44,6 +53,10 @@ import {
   storyProgressFillClass,
   storyPausedBadgeClass,
   navGlassMenuClass,
+  btnFilledClass,
+  typoTitle3Class,
+  typoBodyClass,
+  typoSubheadClass,
 } from '../../utils/designSystem'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Modal from '../ui/Modal'
@@ -170,6 +183,101 @@ function StoryReactionButton({
   )
 }
 
+function MeetupStoryCard({
+  story,
+  meetupData,
+  meetupChatId,
+  meetupTimeLeft,
+  isOwn,
+  showJoin,
+  isJoined,
+  meetupStillActive,
+  meetupIsFull,
+  onJoinClick,
+  onOpenChat,
+  className = '',
+}) {
+  const { title, location, time, description } = parseMeetupStoryContent(story, meetupData)
+
+  return (
+    <div
+      className={`relative w-full max-w-[320px] mx-auto ${className}`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {meetupTimeLeft ? (
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap">
+          <span className={`${storyGlassPillClass} tabular-nums text-sm shadow-lg`}>
+            <IconClockHour4 size={16} stroke={2} />
+            <span>{meetupTimeLeft}</span>
+            {meetupData ? (
+              <span className="text-white/70">
+                · {meetupData.participants?.length || 0}/{meetupData.maxMembers}
+              </span>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
+
+      <div className="rounded-[var(--ios-radius-xl)] border border-white/20 bg-black/25 backdrop-blur-2xl px-5 pt-8 pb-5 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+        <div className="text-center space-y-1.5">
+          <h2 className={`${typoTitle3Class} text-white`}>{title}</h2>
+          {location ? (
+            <p className={`${typoSubheadClass} text-white/75`}>{location}</p>
+          ) : null}
+          {time ? (
+            <p className={`${typoSubheadClass} text-white/65`}>{time}</p>
+          ) : null}
+          {description ? (
+            <p className={`${typoBodyClass} text-white/85 mt-3 whitespace-pre-wrap break-words`}>
+              {description}
+            </p>
+          ) : null}
+        </div>
+
+        {!isOwn ? (
+          <div className="mt-6">
+            {showJoin ? (
+              <button
+                type="button"
+                onClick={onJoinClick}
+                className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
+              >
+                <IconCalendarPlus size={18} stroke={2} />
+                Join
+              </button>
+            ) : isJoined && meetupStillActive && meetupChatId ? (
+              <button
+                type="button"
+                onClick={onOpenChat}
+                className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
+              >
+                <IconUsers size={18} stroke={2} />
+                Open meetup chat
+              </button>
+            ) : meetupIsFull && meetupStillActive ? (
+              <p className="text-center text-sm text-white/60 py-2">This meetup is full</p>
+            ) : !meetupStillActive ? (
+              <p className="text-center text-sm text-white/60 py-2">This meetup has ended</p>
+            ) : null}
+          </div>
+        ) : isOwn && meetupStillActive && meetupChatId ? (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={onOpenChat}
+              className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
+            >
+              <IconUsers size={18} stroke={2} />
+              Open meetup chat
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export default function StoryViewer({
   queue = [],
   startIndex = 0,
@@ -204,6 +312,10 @@ export default function StoryViewer({
   const [reactionPulse, setReactionPulse] = useState(null)
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [showReplyEmoji, setShowReplyEmoji] = useState(false)
+  const [meetupData, setMeetupData] = useState(null)
+  const [meetupTimeLeft, setMeetupTimeLeft] = useState('')
+  const [confirmJoinMeetup, setConfirmJoinMeetup] = useState(false)
+  const [joiningMeetup, setJoiningMeetup] = useState(false)
   const [isPresent, setIsPresent] = useState(true)
   const [slideGeneration, setSlideGeneration] = useState(0)
   const slideDirectionRef = useRef(1)
@@ -222,6 +334,7 @@ export default function StoryViewer({
   const recordedViewsRef = useRef(new Set())
   const replyInputRef = useRef(null)
   const replyInFlightRef = useRef(false)
+  const navigate = useNavigate()
   queueRef.current = sessionQueue
   navRef.current = nav
 
@@ -310,6 +423,26 @@ export default function StoryViewer({
     else delete effectiveReactions[viewerId]
   }
 
+  const isMeetupAnnouncement = isMeetupStory(story)
+  const meetupChatId = meetupData?.chatId || story?.meetupChatId || null
+  const meetupExpiresAtMs = meetupData
+    ? meetupExpiryMs(meetupData)
+    : toTimestampMs(story?.meetupExpiresAt)
+  const meetupStillActive = meetupData
+    ? isMeetupActive(meetupData)
+    : meetupExpiresAtMs > Date.now()
+  const isJoinedMeetup = isOwn || Boolean(meetupData?.participants?.includes(viewerId))
+  const meetupIsFull =
+    meetupData &&
+    (meetupData.participants?.length || 0) >= (meetupData.maxMembers || 0)
+  const showMeetupJoin =
+    isMeetupAnnouncement &&
+    !isOwn &&
+    viewerId &&
+    meetupStillActive &&
+    !isJoinedMeetup &&
+    !meetupIsFull
+
   const interactionBlocked =
     replyFocused ||
     showWatchers ||
@@ -317,6 +450,7 @@ export default function StoryViewer({
     showReplyEmoji ||
     replying ||
     confirmDelete ||
+    confirmJoinMeetup ||
     Boolean(profileUserId)
   const isPaused = paused || holding || interactionBlocked
 
@@ -425,6 +559,40 @@ export default function StoryViewer({
 
   useEffect(() => {
     setOptimisticReaction(null)
+  }, [story?.id])
+
+  useEffect(() => {
+    if (!isMeetupAnnouncement || !story?.meetupId) {
+      setMeetupData(null)
+      return
+    }
+
+    let cancelled = false
+    fetchMeetup(story.meetupId).then((data) => {
+      if (!cancelled && data) setMeetupData((prev) => prev || data)
+    })
+
+    const unsub = subscribeMeetup(story.meetupId, setMeetupData)
+    return () => {
+      cancelled = true
+      unsub()
+    }
+  }, [isMeetupAnnouncement, story?.meetupId])
+
+  useEffect(() => {
+    if (!isMeetupAnnouncement || !meetupExpiresAtMs) {
+      setMeetupTimeLeft('')
+      return
+    }
+
+    const update = () => setMeetupTimeLeft(formatMeetupCountdown(meetupExpiresAtMs))
+    update()
+    const timer = window.setInterval(update, 1000)
+    return () => window.clearInterval(timer)
+  }, [isMeetupAnnouncement, meetupExpiresAtMs])
+
+  useEffect(() => {
+    setConfirmJoinMeetup(false)
   }, [story?.id])
 
   useEffect(() => {
@@ -643,6 +811,22 @@ export default function StoryViewer({
 
   const closeProfileOverlay = () => setProfileUserId(null)
 
+  const handleConfirmJoinMeetup = async () => {
+    if (!story?.meetupId || !viewerId || joiningMeetup) return
+    setJoiningMeetup(true)
+    try {
+      const { chatId } = await joinMeetup(story.meetupId, viewerId)
+      toast.success('Joined meetup!')
+      setConfirmJoinMeetup(false)
+      requestClose()
+      navigate(`/chats/${chatId}`)
+    } catch (err) {
+      toast.error(err.message || 'Could not join meetup')
+    } finally {
+      setJoiningMeetup(false)
+    }
+  }
+
   const handleReply = async () => {
     const trimmed = replyText.trim()
     if (!trimmed || !canReply || !story || replyInFlightRef.current) return
@@ -781,9 +965,11 @@ export default function StoryViewer({
         />
 
         <div className="flex-1 flex items-center justify-center px-8 select-none relative min-h-0 pointer-events-none z-[6]">
-          <p className="text-2xl sm:text-3xl font-semibold leading-relaxed text-center text-white whitespace-pre-wrap break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)]">
-            {story.text}
-          </p>
+          {!isMeetupAnnouncement ? (
+            <p className="text-2xl sm:text-3xl font-semibold leading-relaxed text-center text-white whitespace-pre-wrap break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)]">
+              {story.text}
+            </p>
+          ) : null}
           {Object.keys(effectiveReactions).length > 0 && (
             <MessageReactions
               reactions={effectiveReactions}
@@ -813,6 +999,32 @@ export default function StoryViewer({
             </div>
           )}
         </div>
+
+        {isMeetupAnnouncement && (
+          <div
+            className="absolute inset-x-0 z-30 flex items-center justify-center px-6 pointer-events-none"
+            style={{ top: '72px', bottom: footerReserve }}
+          >
+            <MeetupStoryCard
+              story={story}
+              meetupData={meetupData}
+              meetupChatId={meetupChatId}
+              meetupTimeLeft={meetupTimeLeft}
+              isOwn={isOwn}
+              showJoin={showMeetupJoin}
+              isJoined={isJoinedMeetup}
+              meetupStillActive={meetupStillActive}
+              meetupIsFull={meetupIsFull}
+              onJoinClick={() => setConfirmJoinMeetup(true)}
+              onOpenChat={() => {
+                if (!meetupChatId) return
+                requestClose()
+                navigate(`/chats/${meetupChatId}`)
+              }}
+              className="pointer-events-auto"
+            />
+          </div>
+        )}
 
         {canReply && (
           <div
@@ -919,7 +1131,7 @@ export default function StoryViewer({
 
         {isOwn && !canReply && (
           <div
-            className="relative z-30 px-4 pb-[calc(var(--ios-safe-bottom)+12px)] pt-2 flex justify-center"
+            className="relative z-30 px-4 pb-[calc(var(--ios-safe-bottom)+12px)] pt-2 flex flex-col items-center gap-2"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1063,6 +1275,21 @@ export default function StoryViewer({
             />
           )}
         </Modal>
+
+        <ConfirmDialog
+          isOpen={confirmJoinMeetup}
+          onClose={() => !joiningMeetup && setConfirmJoinMeetup(false)}
+          onConfirm={handleConfirmJoinMeetup}
+          title="Join this meetup?"
+          message={
+            meetupData
+              ? `Join "${meetupData.title}" at ${meetupData.placeName || 'the meetup spot'}? You'll be added to the group chat.`
+              : 'Join this meetup and enter the group chat?'
+          }
+          confirmLabel="Join"
+          loading={joiningMeetup}
+          overlayClassName="z-[100]"
+        />
 
         <ConfirmDialog
           isOpen={confirmDelete}

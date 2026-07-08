@@ -167,6 +167,53 @@ export async function createGroupChat(
   return { id: chatRef.id, ...chatData }
 }
 
+export async function createMeetupGroupChat(
+  creatorId,
+  { name, description = '', memberLimit = 0, expiresAt = null, meetupId = null } = {}
+) {
+  const trimmedName = normalizeGroupName(name) || 'Meetup'
+  const inviteCode = await uniqueInviteCode()
+  const chatRef = doc(collection(db, 'chats'))
+
+  const mergedSettings = normalizeGroupJoinSettings({
+    ...DEFAULT_GROUP_SETTINGS,
+    visibility: 'private',
+    joinViaLink: true,
+    requireApproval: false,
+  })
+
+  const chatData = {
+    type: 'group',
+    isMeetup: true,
+    meetupId,
+    expiresAt,
+    memberLimit: memberLimit || 0,
+    name: trimmedName,
+    nameLower: trimmedName.toLowerCase(),
+    description: description.trim().slice(0, 280),
+    photoUrl: DEFAULT_GROUP_PHOTO_URL,
+    participants: [creatorId],
+    admins: [creatorId],
+    createdBy: creatorId,
+    createdAt: serverTimestamp(),
+    inviteCode,
+    settings: mergedSettings,
+    adminSettings: {},
+    adminTags: {},
+    bannedUserIds: [],
+    mutedMemberIds: [],
+    lastMessage: null,
+    mutedBy: [],
+    pinnedBy: [],
+    hiddenFor: [],
+    unreadCount: { [creatorId]: 0 },
+    memberHistory: [creatorId],
+  }
+
+  await setDoc(chatRef, chatData)
+  return { id: chatRef.id, ...chatData }
+}
+
 export async function getGroupByInviteCode(inviteCode) {
   const normalized = inviteCode?.trim().toLowerCase()
   if (!normalized) return null

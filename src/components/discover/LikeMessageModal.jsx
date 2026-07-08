@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Modal from '../ui/Modal'
+import { typoTitle3Class } from '../../utils/designSystem'
 
 export default function LikeMessageModal({ isOpen, onClose, onSend }) {
   const [message, setMessage] = useState('')
@@ -13,7 +14,7 @@ export default function LikeMessageModal({ isOpen, onClose, onSend }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Send a friend request with message</h3>
+        <h3 className={`${typoTitle3Class} mb-4`}>Send a friend request with message</h3>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}

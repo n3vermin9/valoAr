@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { leaveGroupChat, deleteGroupChat } from '../../../services/groupChatService'
+import { cancelMeetup } from '../../../services/meetupService'
 import { getGroupDisplayName, getGroupMemberRole } from '../../../utils/groupChat'
 import GroupAvatar from '../GroupAvatar'
 import LoadingSpinner from '../../ui/LoadingSpinner'
@@ -98,13 +99,21 @@ export default function GroupSettingsHub() {
       return role === 'admin' || role === 'owner'
     }).length || 0
 
+  const isMeetupChat = Boolean(chat?.isMeetup || chat?.meetupId)
+  const isMeetupHost = isMeetupChat && chat?.createdBy === user?.uid
+
   const handleLeave = async () => {
     setSaving(true)
     try {
-      await leaveGroupChat(chatId, user.uid)
+      if (isMeetupChat && chat?.meetupId) {
+        await cancelMeetup(chat.meetupId, user.uid)
+        toast.success(isMeetupHost ? 'Meetup cancelled' : 'Left meetup')
+      } else {
+        await leaveGroupChat(chatId, user.uid)
+      }
       navigate('/chats')
     } catch (err) {
-      toast.error(err.message || 'Failed to leave group')
+      toast.error(err.message || (isMeetupChat ? 'Failed to cancel meetup' : 'Failed to leave group'))
     } finally {
       setSaving(false)
       setConfirmLeaveGroup(false)
@@ -188,7 +197,7 @@ export default function GroupSettingsHub() {
             icon={IconLogout}
             iconTone="red"
             danger
-            label="Leave group"
+            label={isMeetupChat ? (isMeetupHost ? 'Cancel meetup' : 'Leave meetup') : 'Leave group'}
             onClick={() => setConfirmLeaveGroup(true)}
             disabled={saving}
             trailing={null}
@@ -211,9 +220,15 @@ export default function GroupSettingsHub() {
         isOpen={confirmLeaveGroup}
         onClose={() => !saving && setConfirmLeaveGroup(false)}
         onConfirm={handleLeave}
-        title="Leave group?"
-        message="You will leave this group. You can rejoin later if you have an invite link."
-        confirmLabel="Leave group"
+        title={isMeetupChat ? (isMeetupHost ? 'Cancel meetup?' : 'Leave meetup?') : 'Leave group?'}
+        message={
+          isMeetupChat
+            ? isMeetupHost
+              ? 'This will end the meetup for everyone and delete the group chat.'
+              : 'You will leave this meetup and its group chat.'
+            : 'You will leave this group. You can rejoin later if you have an invite link.'
+        }
+        confirmLabel={isMeetupChat ? (isMeetupHost ? 'Cancel meetup' : 'Leave meetup') : 'Leave group'}
         danger
         loading={saving}
       />

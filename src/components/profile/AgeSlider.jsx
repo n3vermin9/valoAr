@@ -2,7 +2,14 @@ import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { APP_AGE_MIN, APP_AGE_MAX } from '../../utils/helpers'
 
-export default function AgeSlider({ value, onChange, min = APP_AGE_MIN, max = APP_AGE_MAX }) {
+export default function AgeSlider({
+  value,
+  onChange,
+  min = APP_AGE_MIN,
+  max = APP_AGE_MAX,
+  label = 'Years old',
+  compact = false,
+}) {
   const trackRef = useRef(null)
   const [dragging, setDragging] = useState(false)
 
@@ -30,14 +37,16 @@ export default function AgeSlider({ value, onChange, min = APP_AGE_MIN, max = AP
   const thumbOffset = 10
 
   return (
-    <div className="py-1">
-      <p className="text-[14px] text-[var(--ios-label-secondary)] text-center mb-1">Years old</p>
-      <div className="flex justify-center mb-2">
+    <div className={compact ? 'py-0' : 'py-1'}>
+      {!compact && (
+        <p className="text-[14px] text-[var(--ios-label-secondary)] text-center mb-1">{label}</p>
+      )}
+      <div className={`flex justify-center ${compact ? 'mb-1' : 'mb-2'}`}>
         <motion.span
           key={value}
           initial={{ scale: 0.92, opacity: 0.6 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="text-[24px] font-semibold text-[var(--ios-blue)] tabular-nums"
+          className={`${compact ? 'text-[20px]' : 'text-[24px]'} font-semibold text-[var(--ios-blue)] tabular-nums`}
         >
           {value}
         </motion.span>
@@ -45,7 +54,7 @@ export default function AgeSlider({ value, onChange, min = APP_AGE_MIN, max = AP
 
       <div
         ref={trackRef}
-        className="relative h-5 mx-1 mb-4 cursor-pointer touch-none select-none"
+        className={`relative h-5 mx-1 cursor-pointer touch-none select-none ${compact ? 'mb-2' : 'mb-4'}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -65,7 +74,7 @@ export default function AgeSlider({ value, onChange, min = APP_AGE_MIN, max = AP
           style={{ left: `calc(${percentage}% - ${thumbOffset}px)` }}
           animate={{ scale: dragging ? 1.12 : 1 }}
         />
-        <div className="absolute top-full mt-1.5 left-0 right-0 flex justify-between text-[11px] text-white/40 px-0.5">
+        <div className={`absolute top-full mt-1 left-0 right-0 flex justify-between text-[11px] text-white/40 px-0.5 ${compact ? 'hidden' : ''}`}>
           <span>{min}</span>
           <span>{max}</span>
         </div>

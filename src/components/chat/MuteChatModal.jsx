@@ -7,7 +7,7 @@ import {
   CHAT_MUTE_MENTIONS_REPLIES,
   getChatMuteMode,
 } from '../../utils/chatMute'
-import { listRowClass } from '../../utils/designSystem'
+import { listRowClass, typoTitle3Class } from '../../utils/designSystem'
 
 const OPTIONS = [
   {
@@ -49,7 +49,7 @@ export default function MuteChatModal({ isOpen, onClose, chatId, chat, userId, t
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} glass className="p-6">
-      <h2 className="text-xl font-semibold text-white mb-1">{title}</h2>
+      <h2 className={`${typoTitle3Class} text-white mb-1`}>{title}</h2>
       <p className="text-sm text-white/55 mb-5">Choose what you want to be notified about.</p>
       <div className="space-y-2">
         {OPTIONS.map(({ id, label, description }) => (

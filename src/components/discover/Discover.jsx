@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconSearch } from '@tabler/icons-react'
+import { IconSearch, IconX } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   getDiscoverFeed,
@@ -9,11 +9,13 @@ import {
   searchUsersByUsername,
   subscribeLikesReceived,
   patchProfileAfterSwipe,
+  fetchUsersMap,
 } from '../../services/userService'
 import { searchPublicGroups } from '../../services/groupChatService'
 import { getGroupDisplayName } from '../../utils/groupChat'
 import GroupAvatar from '../chat/GroupAvatar'
 import SwipeCard from './SwipeCard'
+import DiscoverMap from './DiscoverMap'
 import LikeMessageModal from './LikeMessageModal'
 import EmptyState from '../ui/EmptyState'
 import LoadingSpinner from '../ui/LoadingSpinner'
@@ -27,7 +29,8 @@ import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../util
 import { useNavigate } from 'react-router-dom'
 
 import PageShell from '../layout/PageShell'
-import { pageSwitchMotion, pageSwitchTransition, pageSwitchVariants } from '../../utils/designSystem'
+import { pageSwitchMotion, pageSwitchTransition, pageSwitchVariants, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
+import { setMapModeOverlayOpen } from '../../utils/mapModeOverlay'
 
 export default function Discover() {
   const navigate = useNavigate()
@@ -37,17 +40,20 @@ export default function Discover() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [section, setSection] = useState('new')
+  const [view, setView] = useState('cards')
   const [newIndex, setNewIndex] = useState(0)
   const [recentIndex, setRecentIndex] = useState(0)
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [viewProfile, setViewProfile] = useState(null)
   const [profileFromSearch, setProfileFromSearch] = useState(false)
+  const [profileFromMap, setProfileFromMap] = useState(false)
   const [showSearchPage, setShowSearchPage] = useState(false)
   const [searchUsername, setSearchUsername] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [groupSearchResults, setGroupSearchResults] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [likedYouIds, setLikedYouIds] = useState(new Set())
+  const [mapFriendProfiles, setMapFriendProfiles] = useState([])
   const [messageTarget, setMessageTarget] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [pullY, setPullY] = useState(0)
@@ -143,9 +149,36 @@ export default function Discover() {
     })
   }, [user?.uid])
 
+  // Load full profiles for all current matches so they are always visible on the map.
+  useEffect(() => {
+    const friendIds = profile?.matches || []
+    if (!friendIds.length) {
+      setMapFriendProfiles([])
+      return
+    }
+    fetchUsersMap(friendIds)
+      .then((userMap) => {
+        setMapFriendProfiles(Object.values(userMap || {}))
+      })
+      .catch(() => {
+        // Non-fatal for discover; map will still show feed users.
+        setMapFriendProfiles([])
+      })
+  }, [profile?.matches])
+
   const remainingNew = newProfiles.slice(newIndex)
   const remainingRecent = recentProfiles.slice(recentIndex)
   const remainingProfiles = section === 'new' ? remainingNew : remainingRecent
+
+  const mapProfiles = useMemo(() => {
+    const seen = new Set()
+    const combined = [...mapFriendProfiles, ...newProfiles, ...recentProfiles]
+    return combined.filter((p) => {
+      if (!p?.id || seen.has(p.id)) return false
+      seen.add(p.id)
+      return true
+    })
+  }, [mapFriendProfiles, newProfiles, recentProfiles])
 
   const handleSectionChange = (next) => {
     if (next === section) return
@@ -219,6 +252,13 @@ export default function Discover() {
   }
 
   const handleViewProfile = (profile) => {
+    setProfileFromMap(false)
+    setProfileFromSearch(false)
+    setViewProfile(profile)
+  }
+
+  const handleViewProfileFromMap = (profile) => {
+    setProfileFromMap(true)
     setProfileFromSearch(false)
     setViewProfile(profile)
   }
@@ -229,6 +269,7 @@ export default function Discover() {
       setShowSearchPage(true)
       setProfileFromSearch(false)
     }
+    setProfileFromMap(false)
   }
 
   const handleSearchByUsername = (usernameOverride) => {
@@ -380,59 +421,47 @@ export default function Discover() {
     )
   }
 
-  if (loading) {
-    return (
-      <>
-        <PageShell
-          title="Discover"
-          trailing={discoverSearchButton}
-          contentClassName="flex flex-col min-h-0"
-        >
-          <StoriesHost profile={profile} friendIds={profile?.matches} />
-          <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
-          <div className="flex-1 flex items-center justify-center min-h-0">
-            <LoadingSpinner />
-          </div>
-        </PageShell>
-        {discoverOverlays}
-      </>
-    )
+  const handleViewChange = (next) => {
+    if (next === view) return
+    setView(next)
+    feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
   }
 
-  if (loadError) {
-    return (
-      <>
-        <PageShell
-          title="Discover"
-          trailing={discoverSearchButton}
-          contentClassName="flex flex-col min-h-0"
-        >
-          <StoriesHost profile={profile} friendIds={profile?.matches} />
-          <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
-          <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 text-center">
-            <EmptyState message={loadError} />
-            <button
-              type="button"
-              onClick={refreshDiscover}
-              className="mt-4 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-sm font-medium"
-            >
-              Try again
-            </button>
-          </div>
-        </PageShell>
-        {discoverOverlays}
-      </>
-    )
+  useEffect(() => {
+    setMapModeOverlayOpen(view === 'map')
+    return () => setMapModeOverlayOpen(false)
+  }, [view])
+
+  const mapCloseButton = (
+    <button
+      type="button"
+      onClick={() => setView('cards')}
+      className="p-2 hover:bg-white/10 rounded-full transition-colors"
+      aria-label="Exit map"
+    >
+      <IconX size={20} stroke={2} />
+    </button>
+  )
+
+  const discoverTrailing =
+    view === 'cards' ? discoverSearchButton : viewProfile ? null : mapCloseButton
+
+  const discoverMapProps = {
+    profiles: mapProfiles,
+    friendIds: profile?.matches,
+    profile,
+    userId: user?.uid,
+    onViewProfile: handleViewProfileFromMap,
+    onOpenChat: (chatId) => navigate(`/chats/${chatId}`),
+    onExitMap: () => setView('cards'),
+    chromeHidden: !!viewProfile,
   }
 
-  return (
-    <>
-      <PageShell
-        title="Discover"
-        trailing={discoverSearchButton}
-        contentClassName="flex flex-col min-h-0"
-      >
-        <StoriesHost profile={profile} friendIds={profile?.matches} />
+  const discoverMainContent =
+    view === 'map' ? (
+      <DiscoverMap {...discoverMapProps} />
+    ) : (
+      <>
         <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
         <div className="flex-1 min-h-0 relative overflow-hidden">
           <AnimatePresence mode="popLayout" initial={false}>
@@ -449,6 +478,97 @@ export default function Discover() {
             </motion.div>
           </AnimatePresence>
         </div>
+      </>
+    )
+
+  if (loading) {
+    return (
+      <>
+        <PageShell
+          title={view === 'cards' ? 'Discover' : null}
+          trailing={discoverTrailing}
+          contentClassName="flex flex-col min-h-0"
+          withNavClearance={view !== 'map'}
+        >
+          {view === 'cards' && (
+            <>
+              <StoriesHost profile={profile} friendIds={profile?.matches} showBar />
+              <DiscoverViewToggle view={view} onViewChange={handleViewChange} />
+            </>
+          )}
+          {view === 'cards' ? (
+            <>
+              <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <LoadingSpinner />
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center min-h-0">
+              <LoadingSpinner />
+            </div>
+          )}
+        </PageShell>
+        {discoverOverlays}
+      </>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <>
+        <PageShell
+          title={view === 'cards' ? 'Discover' : null}
+          trailing={discoverTrailing}
+          contentClassName="flex flex-col min-h-0"
+          withNavClearance={view !== 'map'}
+        >
+          {view === 'cards' && (
+            <>
+              <StoriesHost profile={profile} friendIds={profile?.matches} showBar />
+              <DiscoverViewToggle view={view} onViewChange={handleViewChange} />
+            </>
+          )}
+          {view === 'cards' ? (
+            <>
+              <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+              <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 text-center">
+                <EmptyState message={loadError} />
+                <button
+                  type="button"
+                  onClick={refreshDiscover}
+                  className="mt-4 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-sm font-medium"
+                >
+                  Try again
+                </button>
+              </div>
+            </>
+          ) : (
+            <DiscoverMap {...discoverMapProps} />
+          )}
+        </PageShell>
+        {discoverOverlays}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <PageShell
+        title={view === 'cards' ? 'Discover' : null}
+        trailing={discoverTrailing}
+        contentClassName="flex flex-col min-h-0"
+        withNavClearance={view !== 'map'}
+      >
+        {view === 'cards' && (
+          <>
+            <StoriesHost profile={profile} friendIds={profile?.matches} showBar />
+            <DiscoverViewToggle view={view} onViewChange={handleViewChange} />
+          </>
+        )}
+        <motion.div layout transition={pageSwitchTransition} className="flex-1 min-h-0 flex flex-col">
+          {discoverMainContent}
+        </motion.div>
       </PageShell>
 
       <LikeMessageModal
@@ -469,6 +589,28 @@ const discoverSectionTransition = pageSwitchTransition
 
 const discoverSectionVariants = pageSwitchVariants
 
+function DiscoverViewToggle({ view, onViewChange }) {
+  return (
+    <div className="px-[var(--ios-page-x-lg)] pt-2 pb-1 z-10">
+      <div className={segmentedControlClass}>
+        {[
+          { id: 'cards', label: 'Cards' },
+          { id: 'map', label: 'Map' },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onViewChange(id)}
+            className={view === id ? segmentedItemActiveClass : segmentedItemClass}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function DiscoverSectionTabs({ section, onSectionChange }) {
   return (
     <>
@@ -482,7 +624,7 @@ function DiscoverSectionTabs({ section, onSectionChange }) {
             key={id}
             type="button"
             onClick={() => onSectionChange(id)}
-            className={`flex-1 py-1 text-center text-sm font-semibold transition-colors ${
+            className={`flex-1 py-1 text-center text-sm font-medium transition-colors ${
               section === id ? 'text-white' : 'text-white/45 hover:text-white/70'
             }`}
           >

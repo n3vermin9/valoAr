@@ -5,12 +5,12 @@ import { IconInfoCircle } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { createUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
-import { APP_AGE_MAX, APP_AGE_MIN, DISCOVER_AGE_GAP_DEFAULT, normalizeUsername } from '../../utils/helpers'
+import { APP_AGE_MAX, APP_AGE_MIN, normalizeUsername } from '../../utils/helpers'
 import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
 import Modal from '../ui/Modal'
-import { pageTitleClass, typoSubheadClass, fieldLabelClass, btnFilledClass } from '../../utils/designSystem'
+import { pageTitleClass, typoSubheadClass, typoTitle3Class, fieldLabelClass, btnFilledClass } from '../../utils/designSystem'
 
 export default function ProfileSetup() {
   const { user, refreshProfile } = useAuth()
@@ -70,7 +70,6 @@ export default function ProfileSetup() {
         age,
         gender,
         interestedIn,
-        discoverAgeGap: DISCOVER_AGE_GAP_DEFAULT,
         bio,
         photos: photos.filter(Boolean),
       })
@@ -197,7 +196,7 @@ export default function ProfileSetup() {
 
       <Modal isOpen={showBothInfo} onClose={() => setShowBothInfo(false)}>
         <div className="p-6">
-          <h3 className="text-lg font-semibold mb-2">About "Both"</h3>
+          <h3 className={`${typoTitle3Class} mb-2`}>About "Both"</h3>
           <p className="text-white/70">
             Selecting "Both" means you're open to meeting all kinds of people as friends.
             You'll see profiles of all genders that fit your other preferences.
@@ -207,7 +206,7 @@ export default function ProfileSetup() {
 
       <Modal isOpen={showGenderConfirm} onClose={() => setShowGenderConfirm(false)}>
         <div className="p-6">
-          <h3 className="text-lg font-semibold mb-2">Confirm Gender</h3>
+          <h3 className={`${typoTitle3Class} mb-2`}>Confirm Gender</h3>
           <p className="text-white/70 mb-6">
             Your gender will be set to <span className="font-medium text-white">{gender === 'male' ? 'Boy' : 'Girl'}</span> and
             cannot be changed later. Are you sure?

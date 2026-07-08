@@ -568,7 +568,7 @@ function InboxSectionTabs({ section, onSectionChange, requestCount, inboxUnread 
             key={id}
             type="button"
             onClick={() => onSectionChange(id)}
-            className={`flex-1 py-1 text-center text-sm font-semibold transition-colors ${
+            className={`flex-1 py-1 text-center text-sm font-medium transition-colors ${
               section === id ? 'text-white' : 'text-white/45 hover:text-white/70'
             }`}
           >

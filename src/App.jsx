@@ -20,6 +20,8 @@ import { subscribeLikesReceived } from './services/userService'
 import { subscribeInbox } from './services/inboxService'
 import { subscribeStoryComposerOpen } from './utils/storyOverlay'
 import { subscribeProfileEditorOpen } from './utils/profileOverlay'
+import { subscribeModalOverlayOpen } from './utils/modalOverlay'
+import { subscribeMapModeOverlayOpen } from './utils/mapModeOverlay'
 
 function AppLayout() {
   const { user } = useAuth()
@@ -27,6 +29,8 @@ function AppLayout() {
   const [badges, setBadges] = useState({ unreadChats: 0, newLikes: 0, inboxUnread: 0 })
   const [storyComposerOpen, setStoryComposerOpenState] = useState(false)
   const [profileEditorOpen, setProfileEditorOpenState] = useState(false)
+  const [modalOverlayOpen, setModalOverlayOpenState] = useState(false)
+  const [mapModeOverlayOpen, setMapModeOverlayOpenState] = useState(false)
 
   useEffect(() => {
     return subscribeStoryComposerOpen(setStoryComposerOpenState)
@@ -34,6 +38,14 @@ function AppLayout() {
 
   useEffect(() => {
     return subscribeProfileEditorOpen(setProfileEditorOpenState)
+  }, [])
+
+  useEffect(() => {
+    return subscribeModalOverlayOpen(setModalOverlayOpenState)
+  }, [])
+
+  useEffect(() => {
+    return subscribeMapModeOverlayOpen(setMapModeOverlayOpenState)
   }, [])
 
   useEffect(() => {
@@ -66,7 +78,9 @@ function AppLayout() {
     (location.pathname.startsWith('/chats/') && location.pathname !== '/chats') ||
     location.pathname.startsWith('/groups/') ||
     storyComposerOpen ||
-    profileEditorOpen
+    profileEditorOpen ||
+    modalOverlayOpen ||
+    mapModeOverlayOpen
 
   return (
     <div className="h-full">

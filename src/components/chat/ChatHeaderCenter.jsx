@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { IconBellOff } from '@tabler/icons-react'
+import { IconBellOff, IconClockHour4 } from '@tabler/icons-react'
 import { storyGlassBlur } from '../../utils/designSystem'
 import CachedAvatar from '../ui/CachedAvatar'
 import GroupAvatar from './GroupAvatar'
@@ -56,6 +56,7 @@ export default function ChatHeaderCenter({
   presence,
   isTyping,
   isMuted,
+  isTemporary,
   statusText,
   typingText,
   statusColor,
@@ -125,6 +126,9 @@ export default function ChatHeaderCenter({
             <div className="min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1">
                 <p className="font-semibold text-[15px] truncate text-white">{groupName}</p>
+                {isTemporary && (
+                  <IconClockHour4 size={14} className="text-amber-300 shrink-0" aria-label="Temporary chat" />
+                )}
                 {isMuted && (
                   <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
                 )}

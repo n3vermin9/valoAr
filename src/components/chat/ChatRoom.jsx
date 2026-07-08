@@ -85,6 +85,7 @@ import {
   canAdmin,
 } from '../../utils/groupChat'
 import { leaveGroupChat, joinGroupViaButton, joinGroupByInviteCode } from '../../services/groupChatService'
+import { cancelMeetup } from '../../services/meetupService'
 import { getMessageClusterMeta } from '../../utils/messageCluster'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 import { isChatMuteActive } from '../../utils/chatMute'
@@ -199,6 +200,8 @@ export default function ChatRoom() {
   const isSavedMessages =
     isSavedMessagesChat(matchId, user?.uid) || chatMeta?.isSavedMessages === true
   const isGroup = isGroupChat(chatMeta)
+  const isMeetupChat = isGroup && Boolean(chatMeta?.isMeetup || chatMeta?.meetupId)
+  const isMeetupHost = isMeetupChat && chatMeta?.createdBy === user?.uid
   const otherId = isSavedMessages || isGroup ? null : matchId?.split('_').find((id) => id !== user?.uid)
   const iBlockedThem = !isSavedMessages && profile?.blocked?.includes(otherId)
   const theyBlockedMe = !isSavedMessages && chatMeta?.blockedBy?.includes(otherId) && !iBlockedThem
@@ -868,6 +871,21 @@ export default function ChatRoom() {
     }
   }
 
+  const handleCancelMeetup = async () => {
+    const meetupId = chatMeta?.meetupId
+    if (!meetupId) {
+      await handleLeaveGroup()
+      return
+    }
+    try {
+      await cancelMeetup(meetupId, user.uid)
+      toast.success(isMeetupHost ? 'Meetup cancelled' : 'Left meetup')
+      navigate('/chats')
+    } catch (err) {
+      toast.error(err.message || 'Failed to cancel meetup')
+    }
+  }
+
   const handleRemoveChat = async () => {
     try {
       if (isSavedMessages) {
@@ -910,6 +928,8 @@ export default function ChatRoom() {
     try {
       if (confirmAction === 'leaveGroup') {
         await handleLeaveGroup()
+      } else if (confirmAction === 'cancelMeetup') {
+        await handleCancelMeetup()
       } else if (confirmAction === 'removeChat') {
         await handleRemoveChat()
       }
@@ -1074,11 +1094,11 @@ export default function ChatRoom() {
               icon={IconLogout}
               onClick={() => {
                 setShowMenu(false)
-                setConfirmAction('leaveGroup')
+                setConfirmAction(isMeetupChat ? 'cancelMeetup' : 'leaveGroup')
               }}
               danger
             >
-              Leave group
+              {isMeetupChat ? (isMeetupHost ? 'Cancel meetup' : 'Leave meetup') : 'Leave group'}
             </MenuItem>
           ) : (
             <MenuItem
@@ -1135,7 +1155,7 @@ export default function ChatRoom() {
             >
               <IconPin size={16} className="text-[var(--ios-blue)] shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-[var(--ios-blue)]">Pinned message</p>
+                <p className="text-xs font-medium text-[var(--ios-blue)]">Pinned message</p>
                 <p className="text-sm text-white/85 truncate mt-0.5">
                   {getStoryReplyDisplay(pinnedMessage).text ||
                     (pinnedMessage.imageUrl ? 'Photo' : pinnedMessage.audioUrl ? 'Voice message' : 'Message')}
@@ -1274,6 +1294,7 @@ export default function ChatRoom() {
                 presence={presence}
                 isTyping={isTyping}
                 isMuted={isGroupPreview ? false : isMuted}
+                isTemporary={chatMeta?.isMeetup || Boolean(chatMeta?.expiresAt)}
                 statusText={statusText}
                 typingText={typingHeaderText}
                 statusColor={statusColorHeader}
@@ -1455,6 +1476,21 @@ export default function ChatRoom() {
         title="Leave group?"
         message="You will leave this group. Chat history stays in the group for other members."
         confirmLabel="Leave group"
+        danger
+        loading={confirmLoading}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmAction === 'cancelMeetup'}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={runConfirmAction}
+        title={isMeetupHost ? 'Cancel meetup?' : 'Leave meetup?'}
+        message={
+          isMeetupHost
+            ? 'This will end the meetup for everyone and delete the group chat.'
+            : 'You will leave this meetup and its group chat.'
+        }
+        confirmLabel={isMeetupHost ? 'Cancel meetup' : 'Leave meetup'}
         danger
         loading={confirmLoading}
       />

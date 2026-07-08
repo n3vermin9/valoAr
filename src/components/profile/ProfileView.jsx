@@ -9,8 +9,8 @@ import { subscribeChat } from '../../services/chatService'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import { DISCOVER_AGE_GAP_DEFAULT, getMatchId } from '../../utils/helpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoCaptionClass, typoBodyClass, typoSubheadClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass } from '../../utils/designSystem'
+import { getMatchId } from '../../utils/helpers'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoCaptionClass, typoBodyClass, typoSubheadClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass } from '../../utils/designSystem'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
@@ -54,7 +54,6 @@ export default function ProfileView() {
   const [allowDirectMessages, setAllowDirectMessages] = useState(false)
   const [showFriendCount, setShowFriendCount] = useState(true)
   const [useMilitaryTime, setUseMilitaryTime] = useState(true)
-  const [discoverAgeGap, setDiscoverAgeGap] = useState(DISCOVER_AGE_GAP_DEFAULT)
 
   useEffect(() => {
     setAllowDirectMessages(profile?.allowDirectMessages === true)
@@ -67,10 +66,6 @@ export default function ProfileView() {
   useEffect(() => {
     setUseMilitaryTime(profile?.useMilitaryTime !== false)
   }, [profile?.useMilitaryTime])
-
-  useEffect(() => {
-    setDiscoverAgeGap(profile?.discoverAgeGap ?? DISCOVER_AGE_GAP_DEFAULT)
-  }, [profile?.discoverAgeGap])
 
   if (!profile) return <LoadingSpinner />
 
@@ -140,23 +135,6 @@ export default function ProfileView() {
       toast.success(next ? 'Using 24-hour time' : 'Using 12-hour time')
     } catch {
       setUseMilitaryTime(!next)
-      toast.error('Failed to update setting')
-    } finally {
-      setSavingSettings(false)
-    }
-  }
-
-  const handleDiscoverAgeGapChange = async (nextGap) => {
-    if (!user?.uid || savingSettings || nextGap === discoverAgeGap) return
-    const previousGap = discoverAgeGap
-    setDiscoverAgeGap(nextGap)
-    setSavingSettings(true)
-    try {
-      await updateUserSettings(user.uid, { discoverAgeGap: nextGap })
-      setProfile((prev) => (prev ? { ...prev, discoverAgeGap: nextGap } : prev))
-      toast.success(`Discover age range set to ±${nextGap} years`)
-    } catch {
-      setDiscoverAgeGap(previousGap)
       toast.error('Failed to update setting')
     } finally {
       setSavingSettings(false)
@@ -286,36 +264,6 @@ export default function ProfileView() {
               />
             </SettingsSection>
 
-            <SettingsSection title="Discover">
-              <div className="px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[15px] font-medium text-[var(--ios-label)]">Age range</p>
-                    <p className="text-[13px] text-[var(--ios-label-secondary)]">
-                      Show people within ±{discoverAgeGap} years
-                    </p>
-                  </div>
-                  <div className="flex rounded-full bg-[var(--ios-fill-tertiary)] p-1">
-                    {[1, 2, 3, 4, 5].map((gap) => (
-                      <button
-                        key={gap}
-                        type="button"
-                        disabled={savingSettings}
-                        onClick={() => handleDiscoverAgeGapChange(gap)}
-                        className={`h-8 min-w-8 rounded-full px-2 text-[13px] font-semibold transition-colors ${
-                          discoverAgeGap === gap
-                            ? 'bg-[var(--ios-blue)] text-white'
-                            : 'text-[var(--ios-label-secondary)]'
-                        }`}
-                      >
-                        {gap}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </SettingsSection>
-
             <SettingsSection title="Appearance">
               <SettingsNavRow
                 icon={IconPalette}
@@ -391,7 +339,7 @@ export default function ProfileView() {
 
       <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
         <div className="p-6 text-center">
-          <h3 className="text-lg font-semibold mb-2">Delete Account?</h3>
+          <h3 className={`${typoTitle3Class} mb-2`}>Delete Account?</h3>
           <p className="text-white/60 mb-6">This action is permanent and cannot be undone.</p>
           <div className="flex gap-3">
             <button
@@ -949,7 +897,7 @@ export function PublicProfileView({
 
       <Modal isOpen={confirmRemoveMatch} onClose={() => !removeMatchLoading && setConfirmRemoveMatch(false)} glass>
         <div className="p-6">
-          <h3 className="text-lg font-semibold mb-2">Remove friend?</h3>
+          <h3 className={`${typoTitle3Class} mb-2`}>Remove friend?</h3>
           <p className="text-white/60 mb-5">Choose what happens to your chat with this person.</p>
           <div className="flex flex-col gap-3">
             <button

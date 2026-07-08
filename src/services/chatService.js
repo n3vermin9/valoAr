@@ -267,9 +267,14 @@ export function subscribeChats(userId, callback, onError) {
   return onSnapshot(
     chatsQuery,
     (snap) => {
+      const nowMs = Date.now()
       const chats = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((c) => !c.hiddenFor?.includes(userId))
+        .filter((c) => {
+          const expiresAt = typeof c.expiresAt?.toMillis === 'function' ? c.expiresAt.toMillis() : c.expiresAt
+          return !expiresAt || expiresAt > nowMs
+        })
         .sort((a, b) => {
           const aPinned = a.pinnedBy?.includes(userId)
           const bPinned = b.pinnedBy?.includes(userId)

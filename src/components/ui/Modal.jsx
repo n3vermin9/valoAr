@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { modalGlassClass, modalScrimClass, pageSwitchMotion } from '../../utils/designSystem'
+import { setModalOverlayOpen } from '../../utils/modalOverlay'
 
 const overlayTransition = { duration: 0.24, ease: [0.32, 0.72, 0, 1] }
 
@@ -14,6 +15,12 @@ export default function Modal({
   overlayClassName = 'z-50',
 }) {
   const ref = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    setModalOverlayOpen(true)
+    return () => setModalOverlayOpen(false)
+  }, [isOpen])
 
   useEffect(() => {
     if (fullscreen) return

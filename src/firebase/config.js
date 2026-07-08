@@ -1,6 +1,10 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 import { getDatabase } from 'firebase/database'
 import { getStorage } from 'firebase/storage'
 
@@ -18,16 +22,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+// Modern persistent cache (replaces deprecated enableIndexedDbPersistence) —
+// faster warm starts and multi-tab support without a blocking post-init call.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+})
 export const rtdb = getDatabase(app)
 export const storage = storageBucket ? getStorage(app, `gs://${storageBucket}`) : getStorage(app)
-
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Firestore persistence unavailable: multiple tabs open')
-  } else if (err.code === 'unimplemented') {
-    console.warn('Firestore persistence not supported in this browser')
-  }
-})
 
 export default app

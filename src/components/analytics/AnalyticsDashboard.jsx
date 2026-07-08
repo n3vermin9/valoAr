@@ -13,7 +13,7 @@ function StatRow({ label, value, hint }) {
         <p className={typoHeadlineClass}>{label}</p>
         {hint ? <p className={`${typoSubheadClass} mt-0.5`}>{hint}</p> : null}
       </div>
-      <p className="text-[17px] font-semibold tabular-nums text-[var(--ios-blue)] shrink-0">{value}</p>
+      <p className="text-[17px] font-medium tabular-nums text-[var(--ios-blue)] shrink-0">{value}</p>
     </div>
   )
 }
