@@ -453,7 +453,6 @@ export default function Discover() {
     userId: user?.uid,
     onViewProfile: handleViewProfileFromMap,
     onOpenChat: (chatId) => navigate(`/chats/${chatId}`),
-    onExitMap: () => setView('cards'),
     chromeHidden: !!viewProfile,
   }
 

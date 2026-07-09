@@ -26,6 +26,7 @@ import {
   STORY_TTL_MS,
   STORY_PRIVACY,
   filterStoriesForViewer,
+  toTimestampMs,
 } from '../utils/storyHelpers'
 
 function mapStories(docs, now = Date.now()) {
@@ -219,6 +220,13 @@ export async function postStory(
     privacy = STORY_PRIVACY.FRIENDS,
     meetupId,
     meetupChatId,
+    meetupPlaceId,
+    meetupPlaceLat,
+    meetupPlaceLng,
+    meetupPlaceEmoji,
+    meetupMaxMembers,
+    meetupParticipantIds,
+    meetupParticipantGenders,
     meetupExpiresAt,
     meetupStartAt,
     storyKind,
@@ -247,6 +255,17 @@ export async function postStory(
     payload.storyKind = storyKind || 'meetup'
     payload.meetupId = meetupId
     if (meetupChatId) payload.meetupChatId = meetupChatId
+    if (meetupPlaceId) payload.meetupPlaceId = meetupPlaceId
+    if (typeof meetupPlaceLat === 'number') payload.meetupPlaceLat = meetupPlaceLat
+    if (typeof meetupPlaceLng === 'number') payload.meetupPlaceLng = meetupPlaceLng
+    if (meetupPlaceEmoji) payload.meetupPlaceEmoji = meetupPlaceEmoji
+    if (meetupMaxMembers) payload.meetupMaxMembers = meetupMaxMembers
+    if (Array.isArray(meetupParticipantIds) && meetupParticipantIds.length) {
+      payload.meetupParticipantIds = meetupParticipantIds
+    }
+    if (meetupParticipantGenders && typeof meetupParticipantGenders === 'object') {
+      payload.meetupParticipantGenders = meetupParticipantGenders
+    }
     if (meetupExpiresAt) payload.meetupExpiresAt = meetupExpiresAt
     if (meetupStartAt) payload.meetupStartAt = meetupStartAt
   }
@@ -264,6 +283,13 @@ export async function postMeetupStory(
     title,
     placeName,
     subplaceName = '',
+    placeId,
+    placeLat,
+    placeLng,
+    placeEmoji,
+    maxMembers,
+    participantIds = [],
+    participantGenders = {},
     description = '',
     startAt,
     expiresAt,
@@ -296,6 +322,13 @@ export async function postMeetupStory(
     privacy,
     meetupId,
     meetupChatId: chatId,
+    meetupPlaceId: placeId,
+    meetupPlaceLat: placeLat,
+    meetupPlaceLng: placeLng,
+    meetupPlaceEmoji: placeEmoji,
+    meetupMaxMembers: maxMembers,
+    meetupParticipantIds: participantIds,
+    meetupParticipantGenders: participantGenders,
     meetupExpiresAt: expiresAt,
     meetupStartAt: startAt,
     storyKind: 'meetup',
@@ -443,6 +476,28 @@ export async function replyToStory(
   )
 }
 
+export async function deleteMeetupAnnouncementStories(userId, meetupId) {
+  if (!userId || !meetupId) return
+
+  const storiesRef = collection(db, 'users', userId, 'stories')
+  const snap = await getDocs(storiesRef)
+  const batch = writeBatch(db)
+  let deleted = false
+
+  for (const d of snap.docs) {
+    const story = d.data()
+    if (story.storyKind !== 'meetup' || story.meetupId !== meetupId) continue
+    const viewsSnap = await getDocs(collection(db, 'users', userId, 'stories', d.id, 'views'))
+    viewsSnap.docs.forEach((v) => batch.delete(v.ref))
+    batch.delete(d.ref)
+    deleted = true
+  }
+
+  if (!deleted) return
+  await batch.commit()
+  await syncPublicStoryAuthor(userId)
+}
+
 export async function deleteExpiredStories(userId) {
   const storiesRef = collection(db, 'users', userId, 'stories')
   const snap = await getDocs(storiesRef)
@@ -450,13 +505,19 @@ export async function deleteExpiredStories(userId) {
   const batch = writeBatch(db)
 
   for (const d of snap.docs) {
-    const story = d.data()
+    const story = { id: d.id, ...d.data() }
     const created = story.createdAt?.toMillis?.() ?? story.createdAt ?? 0
-    if (created && now - created >= STORY_TTL_MS) {
-      const viewsSnap = await getDocs(collection(db, 'users', userId, 'stories', d.id, 'views'))
-      viewsSnap.docs.forEach((v) => batch.delete(v.ref))
-      batch.delete(d.ref)
-    }
+    const expiredByTtl = created && now - created >= STORY_TTL_MS
+    const expiredMeetup =
+      story.storyKind === 'meetup' &&
+      story.meetupId &&
+      toTimestampMs(story.meetupExpiresAt) > 0 &&
+      toTimestampMs(story.meetupExpiresAt) <= now
+    if (!expiredByTtl && !expiredMeetup) continue
+
+    const viewsSnap = await getDocs(collection(db, 'users', userId, 'stories', d.id, 'views'))
+    viewsSnap.docs.forEach((v) => batch.delete(v.ref))
+    batch.delete(d.ref)
   }
 
   await batch.commit()

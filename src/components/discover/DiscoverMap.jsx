@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -44,6 +45,7 @@ import {
   typoHeadlineClass,
   typoSubheadClass,
   fieldLabelClass,
+  pageSwitchMotion,
 } from '../../utils/designSystem'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
@@ -159,6 +161,13 @@ function MapInteractionCloser({ onClose, disabled }) {
 const mapCardAnchorClass = 'absolute z-[1050] pointer-events-none left-1/2 -translate-x-1/2'
 const mapCardAnchorStyle = { top: 'calc(50% + 30px)' }
 
+const mapCardMotion = {
+  initial: { opacity: 0, scale: 0.94, y: 14 },
+  animate: { opacity: 1, scale: 1, y: 0 },
+  exit: { opacity: 0, scale: 0.96, y: 10, transition: pageSwitchMotion.exit.transition },
+  transition: { type: 'spring', stiffness: 420, damping: 34, mass: 0.85 },
+}
+
 function createUserIcon(photoUrl) {
   const safeUrl = photoUrl.replace(/"/g, '&quot;')
   return L.divIcon({
@@ -221,7 +230,11 @@ function UserCard({ pin, onClose, onViewProfile }) {
   const photo = pin.photo || profile?.photos?.[0] || null
 
   return (
-    <div className={mapCardAnchorClass} style={mapCardAnchorStyle}>
+    <motion.div
+      className={mapCardAnchorClass}
+      style={mapCardAnchorStyle}
+      {...mapCardMotion}
+    >
       <div className="discover-map-place-card relative pointer-events-auto overflow-hidden">
         {/* Photo header */}
         <div className="relative h-32 bg-[var(--ios-fill-tertiary)]">
@@ -269,7 +282,7 @@ function UserCard({ pin, onClose, onViewProfile }) {
           </Button>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -283,7 +296,11 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
   }, [place.id])
 
   return (
-    <div className={mapCardAnchorClass} style={mapCardAnchorStyle}>
+    <motion.div
+      className={mapCardAnchorClass}
+      style={mapCardAnchorStyle}
+      {...mapCardMotion}
+    >
       <div className="discover-map-place-card relative pointer-events-auto p-4 max-h-[60vh] overflow-y-auto">
         <div className="flex items-start gap-3">
           <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-2xl shrink-0">
@@ -389,7 +406,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
           </Button>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -416,6 +433,12 @@ function MeetupManager({
       setSelectedMyMeetup(null)
     }
   }, [expanded])
+
+  useEffect(() => {
+    if (selectedMyMeetup && !myMeetups.some((meetup) => meetup.id === selectedMyMeetup.id)) {
+      setSelectedMyMeetup(null)
+    }
+  }, [myMeetups, selectedMyMeetup])
 
   const handleExpand = () => {
     onBeforeExpand?.()
@@ -650,7 +673,6 @@ export default function DiscoverMap({
   userId,
   onViewProfile,
   onOpenChat,
-  onExitMap,
   chromeHidden = false,
 }) {
   const [center, setCenter] = useState(mapSession.located ? mapSession.viewCenter : null)
@@ -664,7 +686,10 @@ export default function DiscoverMap({
   const [selectedPlace, setSelectedPlace] = useState(null)
   const [selectedUserPin, setSelectedUserPin] = useState(null)
   const [flyTarget, setFlyTarget] = useState(null)
-  const [cardReady, setCardReady] = useState(false)
+  const [visibleCardKey, setVisibleCardKey] = useState(null)
+  const visibleCardKeyRef = useRef(null)
+  const selectedUserPinRef = useRef(null)
+  const selectedPlaceRef = useRef(null)
   const [editorPlace, setEditorPlace] = useState(null)
   const [addingPlace, setAddingPlace] = useState(false)
   const [meetups, setMeetups] = useState([])
@@ -686,23 +711,38 @@ export default function DiscoverMap({
     meetupManagerExpanded ||
     chromeHidden
 
+  visibleCardKeyRef.current = visibleCardKey
+  selectedUserPinRef.current = selectedUserPin
+  selectedPlaceRef.current = selectedPlace
+
   const dismissMapSelection = useCallback(() => {
-    setSelectedPlace(null)
-    setSelectedUserPin(null)
-    setCardReady(false)
+    setVisibleCardKey(null)
     setMeetupManagerExpanded(false)
   }, [])
 
+  const handleMapCardExitComplete = useCallback(() => {
+    if (visibleCardKeyRef.current === null) {
+      setSelectedPlace(null)
+      setSelectedUserPin(null)
+    }
+  }, [])
+
   const handleFlyEnd = useCallback(() => {
-    setCardReady(true)
+    if (selectedUserPinRef.current) {
+      setVisibleCardKey(`user:${selectedUserPinRef.current.id}`)
+    } else if (selectedPlaceRef.current) {
+      setVisibleCardKey(`place:${selectedPlaceRef.current.id}`)
+    }
   }, [])
 
   const handleOpenProfile = useCallback(
     (userProfile) => {
-      dismissMapSelection()
+      setVisibleCardKey(null)
+      setSelectedPlace(null)
+      setSelectedUserPin(null)
       onViewProfile?.(userProfile)
     },
-    [dismissMapSelection, onViewProfile]
+    [onViewProfile]
   )
 
   const updateSettings = (patch) => {
@@ -750,7 +790,10 @@ export default function DiscoverMap({
     if (!selectedPlace || selectedPlace.isLocal) return
     const fresh = places.find((p) => p.id === selectedPlace.id)
     if (fresh && fresh !== selectedPlace) setSelectedPlace(fresh)
-    else if (!fresh) setSelectedPlace(null)
+    else if (!fresh) {
+      setSelectedPlace(null)
+      setVisibleCardKey(null)
+    }
   }, [places, selectedPlace])
 
   const displayPlaces = useMemo(() => {
@@ -805,7 +848,7 @@ export default function DiscoverMap({
 
   const handleUserPinClick = (pin) => {
     setSelectedPlace(null)
-    setCardReady(false)
+    setVisibleCardKey(null)
     setSelectedUserPin(pin)
     setFlyTarget({ lat: pin.position[0], lng: pin.position[1], ts: Date.now() })
   }
@@ -813,7 +856,7 @@ export default function DiscoverMap({
   const handlePlaceClick = (place) => {
     setAddingPlace(false)
     setSelectedUserPin(null)
-    setCardReady(false)
+    setVisibleCardKey(null)
     setSelectedPlace(place)
     setFlyTarget({ lat: place.lat, lng: place.lng, ts: Date.now() })
   }
@@ -827,7 +870,7 @@ export default function DiscoverMap({
     if (!addingPlace) return
     setAddingPlace(false)
     setSelectedPlace(null)
-    setCardReady(false)
+    setVisibleCardKey(null)
     setEditorPlace({ lat: coords[0], lng: coords[1], name: '', emoji: '📍', type: 'other', subplaces: [] })
   }
 
@@ -853,6 +896,7 @@ export default function DiscoverMap({
       toast.success('Place deleted')
       setEditorPlace(null)
       setSelectedPlace(null)
+      setVisibleCardKey(null)
     } catch {
       toast.error('Failed to delete place')
     }
@@ -915,7 +959,7 @@ export default function DiscoverMap({
         <MapRecenter center={center} />
         <MapFlyTo target={flyTarget} />
         <MapFlyEndNotifier flyKey={flyTarget?.ts} onEnd={handleFlyEnd} />
-        <MapInteractionCloser onClose={dismissMapSelection} disabled={!cardReady} />
+        <MapInteractionCloser onClose={dismissMapSelection} disabled={!visibleCardKey} />
         <MapStatePersistor />
         <MapClickHandler
           addingPlace={addingPlace}
@@ -953,9 +997,9 @@ export default function DiscoverMap({
       </MapContainer>
 
       {!chromeHidden && (
-        <div className="absolute top-3 left-3 right-3 z-[1100] flex items-start gap-2 pointer-events-none">
+        <div className="absolute top-3 left-3 right-3 z-[1100] pointer-events-none">
           {!meetupDraft && !editorPlace && !showSettings && !addingPlace && (
-            <div className="flex-1 min-w-0 pointer-events-auto">
+            <div className="pointer-events-auto">
               <MeetupManager
                 myMeetups={myMeetups}
                 availableMeetups={availableMeetups}
@@ -967,17 +1011,6 @@ export default function DiscoverMap({
                 onBeforeExpand={dismissMapSelection}
               />
             </div>
-          )}
-
-          {!meetupManagerExpanded && (
-            <button
-              type="button"
-              onClick={onExitMap}
-              className="pointer-events-auto shrink-0 h-12 w-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md text-[var(--ios-label)] flex items-center justify-center"
-              aria-label="Exit map mode"
-            >
-              <IconX size={20} stroke={2} />
-            </button>
           )}
         </div>
       )}
@@ -1006,31 +1039,34 @@ export default function DiscoverMap({
         </div>
       )}
 
-      {cardReady && selectedUserPin && !selectedPlace && !editorPlace && !meetupDraft && !chromeHidden && (
-        <UserCard
-          pin={selectedUserPin}
-          onClose={() => {
-            setSelectedUserPin(null)
-            setCardReady(false)
-          }}
-          onViewProfile={handleOpenProfile}
-        />
-      )}
-
-      {cardReady && selectedPlace && !editorPlace && !meetupDraft && !chromeHidden && (
-        <PlaceCard
-          place={selectedPlace}
-          isAdmin={isAdmin}
-          meetups={meetups}
-          userId={userId}
-          onClose={() => setSelectedPlace(null)}
-          onEdit={(place) => {
-            setSelectedPlace(null)
-            setEditorPlace(place)
-          }}
-          onCreateMeetup={handleCreateMeetup}
-          onJoinMeetup={handleJoinMeetup}
-        />
+      {!editorPlace && !meetupDraft && !chromeHidden && (
+        <AnimatePresence mode="wait" onExitComplete={handleMapCardExitComplete}>
+          {visibleCardKey?.startsWith('user:') && selectedUserPin && (
+            <UserCard
+              key={visibleCardKey}
+              pin={selectedUserPin}
+              onClose={() => setVisibleCardKey(null)}
+              onViewProfile={handleOpenProfile}
+            />
+          )}
+          {visibleCardKey?.startsWith('place:') && selectedPlace && (
+            <PlaceCard
+              key={visibleCardKey}
+              place={selectedPlace}
+              isAdmin={isAdmin}
+              meetups={meetups}
+              userId={userId}
+              onClose={() => setVisibleCardKey(null)}
+              onEdit={(place) => {
+                setVisibleCardKey(null)
+                setSelectedPlace(null)
+                setEditorPlace(place)
+              }}
+              onCreateMeetup={handleCreateMeetup}
+              onJoinMeetup={handleJoinMeetup}
+            />
+          )}
+        </AnimatePresence>
       )}
 
       {!overlayOpen && !chromeHidden && (
@@ -1041,6 +1077,7 @@ export default function DiscoverMap({
               onClick={() => {
                 setAddingPlace(true)
                 setSelectedPlace(null)
+                setVisibleCardKey(null)
               }}
               className={photoOverlayButtonClass}
               aria-label="Add place"
@@ -1122,10 +1159,12 @@ export default function DiscoverMap({
         subplace={meetupDraft?.subplace}
         userId={userId}
         username={profile?.username}
+        creatorGender={profile?.gender}
         onClose={() => setMeetupDraft(null)}
         onCreated={(meetup) => {
           setMeetupDraft(null)
           setSelectedPlace(null)
+          setVisibleCardKey(null)
           onOpenChat?.(meetup.chatId)
         }}
       />

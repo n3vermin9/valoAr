@@ -64,7 +64,12 @@ export function storyCreatedMs(story) {
 export function isStoryActive(story, now = Date.now()) {
   const created = storyCreatedMs(story)
   if (!created) return false
-  return now - created < STORY_TTL_MS
+  if (now - created >= STORY_TTL_MS) return false
+  if (isMeetupStory(story)) {
+    const meetupExpiresAt = toTimestampMs(story.meetupExpiresAt)
+    if (meetupExpiresAt && meetupExpiresAt <= now) return false
+  }
+  return true
 }
 
 export function getStoryColorClass(colorId) {
@@ -115,13 +120,24 @@ export function formatMeetupCountdown(expiresAtMs, now = Date.now()) {
   return `${seconds}s left`
 }
 
+export function formatMeetupStoryTimer(expiresAtMs, now = Date.now()) {
+  const diff = expiresAtMs - now
+  if (!expiresAtMs || diff <= 0) return 'Ended'
+  const totalSeconds = Math.floor(diff / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+}
+
 export function isMeetupStory(story) {
   return story?.storyKind === 'meetup' && Boolean(story?.meetupId)
 }
 
 export function parseMeetupStoryContent(story, meetupData = null) {
   if (meetupData) {
-    const locationLabel = meetupData.subplaceName
+    const venue = meetupData.subplaceName
       ? `${meetupData.placeName} · ${meetupData.subplaceName}`
       : meetupData.placeName || ''
     const startMs = toTimestampMs(meetupData.startAt)
@@ -136,7 +152,7 @@ export function parseMeetupStoryContent(story, meetupData = null) {
       : ''
     return {
       title: meetupData.title || 'Meetup',
-      location: locationLabel,
+      venue,
       time: startLabel,
       description: (meetupData.description || '').trim(),
     }
@@ -145,12 +161,88 @@ export function parseMeetupStoryContent(story, meetupData = null) {
   const lines = (story?.text || '').split('\n')
   const titleLine = lines[0]?.trim() || ''
   const title = titleLine.startsWith('📍 ') ? titleLine.slice(2) : titleLine || 'Meetup'
-  const location = lines[1]?.trim() || ''
+  const venue = lines[1]?.trim() || ''
   const timeLine = lines[2]?.trim() || ''
   const time = timeLine.startsWith('🕐 ') ? timeLine.slice(2) : timeLine
   const description = lines.slice(3).join('\n').trim()
 
-  return { title, location, time, description }
+  return { title, venue, time, description }
+}
+
+export function getMeetupMapCoords(story, meetupData = null) {
+  const lat = meetupData?.placeLat ?? story?.meetupPlaceLat
+  const lng = meetupData?.placeLng ?? story?.meetupPlaceLng
+  if (typeof lat === 'number' && typeof lng === 'number') return { lat, lng }
+  return null
+}
+
+const MEETUP_MAP_TILE_SIZE = 256
+const MEETUP_MAP_TILE_URL =
+  'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
+const preloadedMeetupTiles = new Set()
+
+function meetupTileUrl(zoom, x, y) {
+  return MEETUP_MAP_TILE_URL.replace('{z}', String(zoom))
+    .replace('{x}', String(x))
+    .replace('{y}', String(y))
+}
+
+export function getMeetupMapTiles(lat, lng, zoom = 16) {
+  const n = 2 ** zoom
+  const xFloat = ((lng + 180) / 360) * n
+  const latRad = (lat * Math.PI) / 180
+  const yFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n
+  const centerTileX = Math.floor(xFloat)
+  const centerTileY = Math.floor(yFloat)
+  const pinGridX = MEETUP_MAP_TILE_SIZE + (xFloat - centerTileX) * MEETUP_MAP_TILE_SIZE
+  const pinGridY = MEETUP_MAP_TILE_SIZE + (yFloat - centerTileY) * MEETUP_MAP_TILE_SIZE
+
+  const tiles = []
+  for (let row = -1; row <= 1; row++) {
+    for (let col = -1; col <= 1; col++) {
+      const x = centerTileX + col
+      const y = centerTileY + row
+      tiles.push({
+        key: `${x}-${y}`,
+        url: meetupTileUrl(zoom, x, y),
+      })
+    }
+  }
+
+  return {
+    tiles,
+    pinGridX,
+    pinGridY,
+    gridSize: MEETUP_MAP_TILE_SIZE * 3,
+  }
+}
+
+export function preloadMeetupMapTiles(lat, lng, zoom = 16) {
+  const { tiles } = getMeetupMapTiles(lat, lng, zoom)
+  tiles.forEach((tile) => {
+    if (preloadedMeetupTiles.has(tile.url)) return
+    preloadedMeetupTiles.add(tile.url)
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = tile.url
+  })
+}
+
+/** @deprecated use getMeetupMapTiles */
+export function getMeetupTilePreview(lat, lng, zoom = 15) {
+  const n = 2 ** zoom
+  const xFloat = ((lng + 180) / 360) * n
+  const latRad = (lat * Math.PI) / 180
+  const yFloat = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n
+  const tileX = Math.floor(xFloat)
+  const tileY = Math.floor(yFloat)
+  const pinX = (xFloat - tileX) * 100
+  const pinY = (yFloat - tileY) * 100
+  return {
+    url: meetupTileUrl(zoom, tileX, tileY),
+    pinX,
+    pinY,
+  }
 }
 
 export function formatStoryTime(ms) {

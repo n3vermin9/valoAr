@@ -61,7 +61,16 @@ function formatShort(ms) {
   })
 }
 
-export default function CreateMeetupModal({ isOpen, place, subplace, userId, username, onClose, onCreated }) {
+export default function CreateMeetupModal({
+  isOpen,
+  place,
+  subplace,
+  userId,
+  username,
+  creatorGender = '',
+  onClose,
+  onCreated,
+}) {
   const presets = useMemo(buildTimePresets, [isOpen])
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -121,6 +130,8 @@ export default function CreateMeetupModal({ isOpen, place, subplace, userId, use
       const meetup = await createMeetup({
         placeId: place.id,
         placeName: place.name,
+        placeLat: place.lat,
+        placeLng: place.lng,
         subplaceName: selectedSub?.name || '',
         creatorId: userId,
         creatorUsername: username,
@@ -147,6 +158,13 @@ export default function CreateMeetupModal({ isOpen, place, subplace, userId, use
       await postMeetupStory(userId, {
         meetupId: createdMeetup.id,
         chatId: createdMeetup.chatId,
+        placeId: place.id,
+        placeLat: place.lat,
+        placeLng: place.lng,
+        placeEmoji: place.emoji,
+        maxMembers: createdMeetup.maxMembers,
+        participantIds: createdMeetup.participants || [userId],
+        participantGenders: creatorGender ? { [userId]: creatorGender } : {},
         title: createdMeetup.title,
         placeName: createdMeetup.placeName,
         subplaceName: createdMeetup.subplaceName,

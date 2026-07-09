@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { createMeetupGroupChat, leaveGroupChat, deleteGroupChat } from './groupChatService'
+import { deleteMeetupAnnouncementStories } from './storyService'
 
 const MEETUP_COOLDOWN_MS = 60 * 1000
 const MEETUP_CHAT_GRACE_MS = 12 * 60 * 60 * 1000
@@ -31,6 +32,11 @@ function toMs(value) {
 }
 
 export function isMeetupActive(meetup, now = Date.now()) {
+  if (meetup?.cancelled) return false
+  const expiresAt = toMs(meetup?.expiresAt)
+  const endAt = toMs(meetup?.endAt)
+  if (expiresAt && endAt && Math.abs(expiresAt - endAt) < 5000 && endAt <= now) return false
+  if (expiresAt) return expiresAt > now
   return meetupExpiryMs(meetup) > now
 }
 
@@ -100,27 +106,36 @@ export function subscribeMeetupsForPlace(placeId, callback, onError) {
 }
 
 async function assertCanCreate(userId) {
-  const userSnap = await getDoc(doc(db, 'users', userId))
+  const userRef = doc(db, 'users', userId)
+  const userSnap = await getDoc(userRef)
   const userData = userSnap.exists() ? userSnap.data() : {}
-
-  const lastMeetupAt = toMs(userData.lastMeetupAt)
-  if (lastMeetupAt && Date.now() - lastMeetupAt < MEETUP_COOLDOWN_MS) {
-    const secondsLeft = Math.ceil((MEETUP_COOLDOWN_MS - (Date.now() - lastMeetupAt)) / 1000)
-    throw new Error(`Please wait ${secondsLeft}s before creating another meetup`)
-  }
 
   const activeMeetupId = userData.activeMeetupId
   if (activeMeetupId) {
     const activeSnap = await getDoc(doc(db, 'meetups', activeMeetupId))
-    if (activeSnap.exists() && isMeetupActive(activeSnap.data())) {
+    if (!activeSnap.exists() || !isMeetupActive(activeSnap.data())) {
+      await updateDoc(userRef, { activeMeetupId: deleteField() })
+    } else {
       throw new Error('You already have an active meetup. End it before creating a new one.')
     }
+  }
+
+  const lastMeetupAt = toMs(userData.lastMeetupAt)
+  if (
+    userData.activeMeetupId &&
+    lastMeetupAt &&
+    Date.now() - lastMeetupAt < MEETUP_COOLDOWN_MS
+  ) {
+    const secondsLeft = Math.ceil((MEETUP_COOLDOWN_MS - (Date.now() - lastMeetupAt)) / 1000)
+    throw new Error(`Please wait ${secondsLeft}s before creating another meetup`)
   }
 }
 
 export async function createMeetup({
   placeId,
   placeName,
+  placeLat,
+  placeLng,
   subplaceName = '',
   creatorId,
   creatorUsername = 'User',
@@ -155,6 +170,8 @@ export async function createMeetup({
   const meetupData = {
     placeId,
     placeName: placeName || '',
+    placeLat: typeof placeLat === 'number' ? placeLat : null,
+    placeLng: typeof placeLng === 'number' ? placeLng : null,
     subplaceName: subplaceName || '',
     creatorId,
     creatorUsername,
@@ -196,12 +213,16 @@ export async function cancelMeetup(meetupId, userId) {
   if (meetup.creatorId === userId) {
     const now = Date.now()
     await runTransaction(db, async (transaction) => {
-      transaction.update(meetupRef, { endAt: now, expiresAt: now })
-      transaction.update(doc(db, 'users', userId), { activeMeetupId: deleteField() })
+      transaction.update(meetupRef, { endAt: now, expiresAt: now, cancelled: true })
+      transaction.update(doc(db, 'users', userId), {
+        activeMeetupId: deleteField(),
+        lastMeetupAt: deleteField(),
+      })
     })
     if (chatId) {
       await deleteGroupChat(chatId, userId)
     }
+    await deleteMeetupAnnouncementStories(userId, meetupId).catch(() => {})
     return { chatId, hostCancelled: true }
   }
 

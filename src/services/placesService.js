@@ -4,6 +4,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   writeBatch,
@@ -50,6 +51,19 @@ export async function updateMapPlace(placeId, data) {
 
 export async function deleteMapPlace(placeId) {
   return deleteDoc(doc(db, 'mapPlaces', placeId))
+}
+
+const placeCache = new Map()
+
+export async function fetchMapPlace(placeId) {
+  if (!placeId) return null
+  if (placeCache.has(placeId)) return placeCache.get(placeId)
+
+  const snap = await getDoc(doc(db, 'mapPlaces', placeId))
+  if (!snap.exists()) return null
+  const place = { id: snap.id, ...snap.data() }
+  placeCache.set(placeId, place)
+  return place
 }
 
 export async function seedMapPlaces(places, userId) {

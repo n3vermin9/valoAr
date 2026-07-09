@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -24,15 +24,18 @@ import {
   subscribeStoryWatchers,
 } from '../../services/storyService'
 import { joinMeetup, subscribeMeetup, fetchMeetup, isMeetupActive, meetupExpiryMs } from '../../services/meetupService'
+import { fetchMapPlace } from '../../services/placesService'
 import {
   STORY_DURATION_MS,
   getStoryColorClass,
   storyCreatedMs,
   formatStoryTime,
   formatStoryViewTime,
-  formatMeetupCountdown,
+  formatMeetupStoryTimer,
   isMeetupStory,
   parseMeetupStoryContent,
+  getMeetupMapCoords,
+  preloadMeetupMapTiles,
   toTimestampMs,
   buildStoryShareText,
   MAX_STORY_REPLY_LENGTH,
@@ -40,7 +43,7 @@ import {
   storySlideVariants,
   storyUserSlideTransition,
 } from '../../utils/storyHelpers'
-import { fetchUser, fetchDeletedUser } from '../../services/userService'
+import { fetchUser, fetchDeletedUser, fetchUsersMap } from '../../services/userService'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 import {
   storyGlassButtonClass,
@@ -57,6 +60,7 @@ import {
   typoTitle3Class,
   typoBodyClass,
   typoSubheadClass,
+  typoCaptionClass,
 } from '../../utils/designSystem'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Modal from '../ui/Modal'
@@ -66,6 +70,8 @@ import EmojiPickerPopover from '../ui/EmojiPickerPopover'
 import { PublicProfileView } from '../profile/ProfileView'
 import MessageReactions, { ReactionPicker } from '../chat/MessageReactions'
 import UsernameLabel from '../ui/UsernameLabel'
+import MeetupStoryMapPreview from './MeetupStoryMapPreview'
+import MeetupParticipantRing from './MeetupParticipantRing'
 import { sad } from '../../assets'
 
 function getTapZone(clientX) {
@@ -130,6 +136,130 @@ function resolveStoryNav(queue, nav) {
 
 const STORY_FOOTER_ROW_H = 'h-11'
 
+function MeetupStoryCard({
+  story,
+  meetupData,
+  meetupChatId,
+  meetupTimeLeft,
+  mapCoords,
+  mapCoordsPending,
+  meetupMaxMembers,
+  meetupParticipants,
+  participantProfiles,
+  isOwn,
+  showJoin,
+  isJoined,
+  meetupStillActive,
+  meetupIsFull,
+  onJoinClick,
+  onOpenChat,
+  className = '',
+}) {
+  const { title, venue, time, description } = parseMeetupStoryContent(story, meetupData)
+  const placePinName = meetupData?.placeName || venue.split(' · ')[0] || venue
+  const placePinEmoji = story?.meetupPlaceEmoji || '📍'
+
+  const action = !isOwn ? (
+    showJoin ? (
+      <button
+        type="button"
+        onClick={onJoinClick}
+        className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
+      >
+        <IconCalendarPlus size={18} stroke={2} />
+        Join
+      </button>
+    ) : isJoined && meetupStillActive && meetupChatId ? (
+      <button
+        type="button"
+        onClick={onOpenChat}
+        className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
+      >
+        <IconUsers size={18} stroke={2} />
+        Open meetup chat
+      </button>
+    ) : meetupIsFull && meetupStillActive ? (
+      <p className="text-center text-sm text-white/60 py-2">This meetup is full</p>
+    ) : !meetupStillActive ? (
+      <p className="text-center text-sm text-white/60 py-2">This meetup has ended</p>
+    ) : null
+  ) : isOwn && meetupStillActive && meetupChatId ? (
+    <button
+      type="button"
+      onClick={onOpenChat}
+      className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
+    >
+      <IconUsers size={18} stroke={2} />
+      Open meetup chat
+    </button>
+  ) : null
+
+  return (
+    <div
+      className={`relative mx-auto w-full max-w-[380px] overflow-visible ${className}`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="absolute -top-6 left-0 right-0 z-10 flex items-center justify-between gap-3 pointer-events-none">
+        {meetupTimeLeft ? (
+          <span className={`${storyGlassPillClass} tabular-nums text-sm shadow-lg shrink-0 pointer-events-auto`}>
+            <IconClockHour4 size={16} stroke={2} />
+            <span>{meetupTimeLeft}</span>
+          </span>
+        ) : (
+          <span />
+        )}
+        <MeetupParticipantRing
+          maxMembers={meetupMaxMembers}
+          participants={meetupParticipants}
+          participantProfiles={participantProfiles}
+          className="pointer-events-auto shrink-0 -mr-3 -mt-0.5"
+        />
+      </div>
+
+      <div className="relative rounded-[var(--ios-radius-xl)] border border-white/20 bg-black/25 px-6 pb-6 pt-9 shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+
+        <div className="space-y-3.5 text-center">
+          <h2 className={`${typoTitle3Class} text-white text-[22px]`}>{title}</h2>
+
+          {mapCoords ? (
+            <MeetupStoryMapPreview
+              lat={mapCoords.lat}
+              lng={mapCoords.lng}
+              placeName={placePinName}
+              emoji={placePinEmoji}
+            />
+          ) : (
+            <div
+              className="relative h-[9.5rem] w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15 bg-[#d9d2c6]"
+              aria-hidden
+            >
+              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/10 via-white/5 to-white/10" />
+              {mapCoordsPending ? (
+                <p className="absolute inset-x-0 bottom-3 text-center text-[11px] font-medium uppercase tracking-wide text-black/45">
+                  Loading map…
+                </p>
+              ) : null}
+            </div>
+          )}
+
+          {time ? (
+            <p className={`${typoSubheadClass} text-white/75 text-center w-full`}>{time}</p>
+          ) : null}
+
+          {description ? (
+            <p className={`${typoBodyClass} text-white/85 whitespace-pre-wrap break-words text-left`}>
+              {description}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mt-6 min-h-[52px] flex items-center">{action}</div>
+      </div>
+    </div>
+  )
+}
+
 function StoryReactionButton({
   showReactionPicker,
   onTogglePicker,
@@ -183,101 +313,6 @@ function StoryReactionButton({
   )
 }
 
-function MeetupStoryCard({
-  story,
-  meetupData,
-  meetupChatId,
-  meetupTimeLeft,
-  isOwn,
-  showJoin,
-  isJoined,
-  meetupStillActive,
-  meetupIsFull,
-  onJoinClick,
-  onOpenChat,
-  className = '',
-}) {
-  const { title, location, time, description } = parseMeetupStoryContent(story, meetupData)
-
-  return (
-    <div
-      className={`relative w-full max-w-[320px] mx-auto ${className}`}
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {meetupTimeLeft ? (
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap">
-          <span className={`${storyGlassPillClass} tabular-nums text-sm shadow-lg`}>
-            <IconClockHour4 size={16} stroke={2} />
-            <span>{meetupTimeLeft}</span>
-            {meetupData ? (
-              <span className="text-white/70">
-                · {meetupData.participants?.length || 0}/{meetupData.maxMembers}
-              </span>
-            ) : null}
-          </span>
-        </div>
-      ) : null}
-
-      <div className="rounded-[var(--ios-radius-xl)] border border-white/20 bg-black/25 backdrop-blur-2xl px-5 pt-8 pb-5 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
-        <div className="text-center space-y-1.5">
-          <h2 className={`${typoTitle3Class} text-white`}>{title}</h2>
-          {location ? (
-            <p className={`${typoSubheadClass} text-white/75`}>{location}</p>
-          ) : null}
-          {time ? (
-            <p className={`${typoSubheadClass} text-white/65`}>{time}</p>
-          ) : null}
-          {description ? (
-            <p className={`${typoBodyClass} text-white/85 mt-3 whitespace-pre-wrap break-words`}>
-              {description}
-            </p>
-          ) : null}
-        </div>
-
-        {!isOwn ? (
-          <div className="mt-6">
-            {showJoin ? (
-              <button
-                type="button"
-                onClick={onJoinClick}
-                className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
-              >
-                <IconCalendarPlus size={18} stroke={2} />
-                Join
-              </button>
-            ) : isJoined && meetupStillActive && meetupChatId ? (
-              <button
-                type="button"
-                onClick={onOpenChat}
-                className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
-              >
-                <IconUsers size={18} stroke={2} />
-                Open meetup chat
-              </button>
-            ) : meetupIsFull && meetupStillActive ? (
-              <p className="text-center text-sm text-white/60 py-2">This meetup is full</p>
-            ) : !meetupStillActive ? (
-              <p className="text-center text-sm text-white/60 py-2">This meetup has ended</p>
-            ) : null}
-          </div>
-        ) : isOwn && meetupStillActive && meetupChatId ? (
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={onOpenChat}
-              className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
-            >
-              <IconUsers size={18} stroke={2} />
-              Open meetup chat
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
 export default function StoryViewer({
   queue = [],
   startIndex = 0,
@@ -313,7 +348,9 @@ export default function StoryViewer({
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [showReplyEmoji, setShowReplyEmoji] = useState(false)
   const [meetupData, setMeetupData] = useState(null)
-  const [meetupTimeLeft, setMeetupTimeLeft] = useState('')
+  const [fetchedPlaceCoords, setFetchedPlaceCoords] = useState(null)
+  const [participantProfiles, setParticipantProfiles] = useState({})
+  const [countdownTick, setCountdownTick] = useState(0)
   const [confirmJoinMeetup, setConfirmJoinMeetup] = useState(false)
   const [joiningMeetup, setJoiningMeetup] = useState(false)
   const [isPresent, setIsPresent] = useState(true)
@@ -334,6 +371,7 @@ export default function StoryViewer({
   const recordedViewsRef = useRef(new Set())
   const replyInputRef = useRef(null)
   const replyInFlightRef = useRef(false)
+  const meetupStoryHandledRef = useRef(null)
   const navigate = useNavigate()
   queueRef.current = sessionQueue
   navRef.current = nav
@@ -424,24 +462,52 @@ export default function StoryViewer({
   }
 
   const isMeetupAnnouncement = isMeetupStory(story)
+  const meetupLoaded = Boolean(meetupData)
   const meetupChatId = meetupData?.chatId || story?.meetupChatId || null
   const meetupExpiresAtMs = meetupData
     ? meetupExpiryMs(meetupData)
     : toTimestampMs(story?.meetupExpiresAt)
-  const meetupStillActive = meetupData
+  const meetupStillActive = meetupLoaded
     ? isMeetupActive(meetupData)
-    : meetupExpiresAtMs > Date.now()
+    : meetupExpiresAtMs > 0
+      ? meetupExpiresAtMs > Date.now()
+      : true
   const isJoinedMeetup = isOwn || Boolean(meetupData?.participants?.includes(viewerId))
   const meetupIsFull =
-    meetupData &&
+    meetupLoaded &&
     (meetupData.participants?.length || 0) >= (meetupData.maxMembers || 0)
   const showMeetupJoin =
     isMeetupAnnouncement &&
     !isOwn &&
     viewerId &&
-    meetupStillActive &&
     !isJoinedMeetup &&
-    !meetupIsFull
+    meetupStillActive &&
+    (meetupLoaded ? !meetupIsFull : true)
+  const meetupTimeLeft =
+    !isMeetupAnnouncement || !meetupExpiresAtMs
+      ? ''
+      : formatMeetupStoryTimer(meetupExpiresAtMs)
+  const mapCoords = getMeetupMapCoords(story, meetupData) || fetchedPlaceCoords
+  const mapCoordsPending =
+    isMeetupAnnouncement &&
+    !mapCoords &&
+    Boolean(story?.meetupPlaceId || meetupData?.placeId || story?.meetupPlaceLat)
+  const meetupMaxMembers = meetupData?.maxMembers || story?.meetupMaxMembers || 10
+  const meetupParticipants = meetupData?.participants ?? story?.meetupParticipantIds ?? []
+  const effectiveParticipantProfiles = useMemo(() => {
+    const merged = { ...participantProfiles }
+    const storyGenders = story?.meetupParticipantGenders || {}
+
+    meetupParticipants.forEach((id) => {
+      if (storyGenders[id]) {
+        merged[id] = { ...(merged[id] || {}), gender: storyGenders[id] }
+      } else if (!merged[id]?.gender && users[id]?.gender) {
+        merged[id] = { ...(merged[id] || {}), gender: users[id].gender }
+      }
+    })
+
+    return merged
+  }, [participantProfiles, story?.meetupParticipantGenders, meetupParticipants, users])
 
   const interactionBlocked =
     replyFocused ||
@@ -468,7 +534,19 @@ export default function StoryViewer({
       img.decoding = 'async'
       img.src = nextStory.imageUrl
     }
-  }, [storyIndex, stories, entry?.userId, users])
+    if (isMeetupStory(story)) {
+      const coords = getMeetupMapCoords(story, null)
+      if (coords) {
+        preloadMeetupMapTiles(coords.lat, coords.lng)
+      } else if (story.meetupPlaceId) {
+        fetchMapPlace(story.meetupPlaceId).then((place) => {
+          if (place?.lat != null && place?.lng != null) {
+            preloadMeetupMapTiles(place.lat, place.lng)
+          }
+        })
+      }
+    }
+  }, [storyIndex, stories, entry?.userId, users, story])
 
   const footerReserve = canReply
     ? 'calc(var(--ios-safe-bottom) + 128px)'
@@ -561,7 +639,7 @@ export default function StoryViewer({
     setOptimisticReaction(null)
   }, [story?.id])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isMeetupAnnouncement || !story?.meetupId) {
       setMeetupData(null)
       return
@@ -569,31 +647,147 @@ export default function StoryViewer({
 
     let cancelled = false
     fetchMeetup(story.meetupId).then((data) => {
-      if (!cancelled && data) setMeetupData((prev) => prev || data)
+      if (!cancelled && data) {
+        setMeetupData((prev) => prev || data)
+        if (data.participants?.length) {
+          fetchUsersMap(data.participants).then((profiles) => {
+            if (!cancelled) setParticipantProfiles(profiles)
+          })
+        }
+      }
     })
 
-    const unsub = subscribeMeetup(story.meetupId, setMeetupData)
+    const unsub = subscribeMeetup(story.meetupId, (data) => {
+      setMeetupData(data)
+      if (data?.participants?.length) {
+        fetchUsersMap(data.participants).then((profiles) => {
+          if (!cancelled) setParticipantProfiles(profiles)
+        })
+      }
+    })
     return () => {
       cancelled = true
       unsub()
     }
   }, [isMeetupAnnouncement, story?.meetupId])
 
-  useEffect(() => {
-    if (!isMeetupAnnouncement || !meetupExpiresAtMs) {
-      setMeetupTimeLeft('')
+  useLayoutEffect(() => {
+    const ids = meetupData?.participants ?? story?.meetupParticipantIds ?? []
+    const storyGenders = story?.meetupParticipantGenders || {}
+
+    if (Object.keys(storyGenders).length > 0) {
+      setParticipantProfiles((prev) => {
+        const next = { ...prev }
+        Object.entries(storyGenders).forEach(([id, gender]) => {
+          next[id] = { ...(next[id] || {}), gender }
+        })
+        return next
+      })
+    }
+
+    if (!ids.length) return
+
+    let cancelled = false
+    fetchUsersMap(ids).then((profiles) => {
+      if (!cancelled) setParticipantProfiles((prev) => ({ ...prev, ...profiles }))
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    meetupData?.participants?.join(','),
+    story?.meetupParticipantIds?.join(','),
+    story?.id,
+  ])
+
+  useLayoutEffect(() => {
+    if (!isMeetupAnnouncement) {
+      setFetchedPlaceCoords(null)
       return
     }
 
-    const update = () => setMeetupTimeLeft(formatMeetupCountdown(meetupExpiresAtMs))
-    update()
-    const timer = window.setInterval(update, 1000)
+    const coords = getMeetupMapCoords(story, meetupData)
+    if (coords) {
+      preloadMeetupMapTiles(coords.lat, coords.lng)
+      return
+    }
+
+    const placeId = story?.meetupPlaceId || meetupData?.placeId
+    if (!placeId) return
+
+    let cancelled = false
+    fetchMapPlace(placeId).then((place) => {
+      if (cancelled || place?.lat == null || place?.lng == null) return
+      const nextCoords = { lat: place.lat, lng: place.lng }
+      setFetchedPlaceCoords(nextCoords)
+      preloadMeetupMapTiles(nextCoords.lat, nextCoords.lng)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isMeetupAnnouncement,
+    story?.id,
+    story?.meetupPlaceId,
+    story?.meetupPlaceLat,
+    story?.meetupPlaceLng,
+    meetupData?.placeId,
+    meetupData?.placeLat,
+    meetupData?.placeLng,
+  ])
+
+  useEffect(() => {
+    if (!isMeetupAnnouncement || !meetupExpiresAtMs) return
+    const timer = window.setInterval(() => setCountdownTick((tick) => tick + 1), 1000)
     return () => window.clearInterval(timer)
   }, [isMeetupAnnouncement, meetupExpiresAtMs])
 
   useEffect(() => {
     setConfirmJoinMeetup(false)
+    meetupStoryHandledRef.current = null
   }, [story?.id])
+
+  useEffect(() => {
+    if (!isMeetupAnnouncement || !story?.id) return
+
+    const expiredByStory = meetupExpiresAtMs > 0 && meetupExpiresAtMs <= Date.now()
+    const expiredByMeetup = meetupLoaded && meetupData && !isMeetupActive(meetupData)
+    if (!expiredByStory && !expiredByMeetup) return
+
+    const handleKey = `${story.id}:${expiredByMeetup ? 'live' : 'story'}`
+    if (meetupStoryHandledRef.current === handleKey) return
+    meetupStoryHandledRef.current = handleKey
+
+    const removeStory = async () => {
+      if (isOwn) {
+        try {
+          await deleteStory(viewerId, story.id)
+        } catch {
+          // Feed sync will still hide ended meetup stories.
+        }
+        setSessionQueue((prev) =>
+          prev.map((entry) => ({
+            ...entry,
+            stories: entry.stories.filter((s) => s.id !== story.id),
+          }))
+        )
+      }
+      goNextStory()
+    }
+
+    removeStory()
+  }, [
+    isMeetupAnnouncement,
+    story?.id,
+    meetupExpiresAtMs,
+    meetupLoaded,
+    meetupData,
+    isOwn,
+    viewerId,
+    goNextStory,
+  ])
 
   useEffect(() => {
     if (!showReactionPicker) return
@@ -1010,6 +1204,11 @@ export default function StoryViewer({
               meetupData={meetupData}
               meetupChatId={meetupChatId}
               meetupTimeLeft={meetupTimeLeft}
+              mapCoords={mapCoords}
+              mapCoordsPending={mapCoordsPending}
+              meetupMaxMembers={meetupMaxMembers}
+              meetupParticipants={meetupParticipants}
+              participantProfiles={effectiveParticipantProfiles}
               isOwn={isOwn}
               showJoin={showMeetupJoin}
               isJoined={isJoinedMeetup}
