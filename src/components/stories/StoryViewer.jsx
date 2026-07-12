@@ -24,6 +24,8 @@ import {
   subscribeStoryWatchers,
 } from '../../services/storyService'
 import { joinMeetup, subscribeMeetup, fetchMeetup, isMeetupActive, meetupExpiryMs } from '../../services/meetupService'
+import { canDirectMessage } from '../../utils/directMessages'
+import { useAuth } from '../../contexts/AuthContext'
 import { fetchMapPlace } from '../../services/placesService'
 import {
   STORY_DURATION_MS,
@@ -326,6 +328,7 @@ export default function StoryViewer({
   onNavigateToProfile: _onNavigateToProfile,
   openOrigin = null,
 }) {
+  const { profile: viewerProfile } = useAuth()
   const [sessionQueue, setSessionQueue] = useState(() => cloneQueue(queue))
   const [nav, setNav] = useState({ userIndex: startIndex, storyIndex: initialStoryIndex })
   const [progress, setProgress] = useState(0)
@@ -451,7 +454,10 @@ export default function StoryViewer({
   const owner = users[ownerId]
   const isOwn = viewerId === ownerId
   const isFriend = friendIds.includes(ownerId)
-  const canReply = !isOwn && (isFriend || owner?.allowDirectMessages === true)
+  const canReply =
+    !isOwn &&
+    (isFriend ||
+      canDirectMessage({ myProfile: viewerProfile, otherProfile: owner, otherId: ownerId }))
   const viewCount = watchers.length
 
   let effectiveReactions = storyReactions

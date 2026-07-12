@@ -366,10 +366,17 @@ export async function acceptLike(userId, fromUserId) {
 }
 
 export async function declineLike(userId, fromUserId) {
-  await deleteDoc(doc(db, 'users', userId, 'likesReceived', fromUserId))
-  await updateDoc(doc(db, 'users', userId), {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, 'users', userId, 'likesReceived', fromUserId))
+  batch.update(doc(db, 'users', userId), {
     [`swipes.${fromUserId}`]: 'pass',
   })
+  batch.update(doc(db, 'users', fromUserId), {
+    [`swipes.${userId}`]: deleteField(),
+  })
+  await batch.commit()
+  invalidateUser(userId)
+  invalidateUser(fromUserId)
 }
 
 export function getOutgoingRequestIds(userProfile) {
@@ -415,6 +422,87 @@ export function subscribeOutgoingRequest(requesterId, targetId, callback, onErro
       callback(false)
     }
   )
+}
+
+export function subscribeActiveOutgoingRequestIds(userId, callback, onError) {
+  if (!userId) {
+    callback([])
+    return () => {}
+  }
+
+  let userData = null
+  const targetUnsubs = new Map()
+  const activeByTarget = new Map()
+
+  const publish = (targets) => {
+    callback(targets.filter((targetId) => activeByTarget.get(targetId)))
+  }
+
+  const syncTargetListeners = () => {
+    if (!userData) {
+      for (const unsub of targetUnsubs.values()) unsub()
+      targetUnsubs.clear()
+      activeByTarget.clear()
+      callback([])
+      return
+    }
+
+    const matches = new Set(userData.matches || [])
+    const targets = Object.entries(userData.swipes || {})
+      .filter(([id, action]) => action === 'like' && !matches.has(id))
+      .map(([id]) => id)
+    const targetSet = new Set(targets)
+
+    for (const [targetId, unsub] of targetUnsubs) {
+      if (!targetSet.has(targetId)) {
+        unsub()
+        targetUnsubs.delete(targetId)
+        activeByTarget.delete(targetId)
+      }
+    }
+
+    if (targets.length === 0) {
+      callback([])
+      return
+    }
+
+    for (const targetId of targets) {
+      if (targetUnsubs.has(targetId)) continue
+      activeByTarget.set(targetId, false)
+      const unsub = onSnapshot(
+        doc(db, 'users', targetId, 'likesReceived', userId),
+        (snap) => {
+          activeByTarget.set(targetId, snap.exists())
+          publish(targets)
+        },
+        (err) => {
+          onError?.(err)
+          activeByTarget.set(targetId, false)
+          publish(targets)
+        }
+      )
+      targetUnsubs.set(targetId, unsub)
+    }
+
+    publish(targets)
+  }
+
+  const userUnsub = onSnapshot(
+    doc(db, 'users', userId),
+    (snap) => {
+      userData = snap.exists() ? snap.data() : null
+      syncTargetListeners()
+    },
+    (err) => {
+      onError?.(err)
+      callback([])
+    }
+  )
+
+  return () => {
+    userUnsub()
+    for (const unsub of targetUnsubs.values()) unsub()
+  }
 }
 
 export async function markLikeAsRead(userId, fromUserId) {

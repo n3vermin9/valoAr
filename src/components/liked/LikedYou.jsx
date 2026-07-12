@@ -10,12 +10,12 @@ import {
   markLikeAsRead,
   fetchUser,
   fetchDeletedUser,
-  getOutgoingRequestIds,
   cancelFriendRequest,
   patchProfileAfterMatch,
+  subscribeActiveOutgoingRequestIds,
 } from '../../services/userService'
 import UsernameLabel from '../ui/UsernameLabel'
-import { subscribeInbox, markInboxRead } from '../../services/inboxService'
+import { subscribeInbox, markInboxRead, markAllInboxRead } from '../../services/inboxService'
 import { subscribeUserStories } from '../../services/storyService'
 import { getStoryColorClass } from '../../utils/storyHelpers'
 import { sad, star } from '../../assets'
@@ -29,6 +29,7 @@ import VerifiedBadge from '../ui/VerifiedBadge'
 import IosEmoji from '../ui/IosEmoji'
 import ChatStoryViewer from '../stories/ChatStoryViewer'
 import StoryUnavailableViewer from '../stories/StoryUnavailableViewer'
+import { chatBubblePadClass, chatMessageTextClass, typoSubheadClass } from '../../utils/designSystem'
 
 function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
   const cardClass = unavailable
@@ -75,28 +76,37 @@ export default function LikedYou() {
   const [viewProfile, setViewProfile] = useState(null)
   const [storyViewerTarget, setStoryViewerTarget] = useState(null)
 
-  const outgoingIds = useMemo(() => getOutgoingRequestIds(profile), [profile])
+  const [outgoingIds, setOutgoingIds] = useState([])
   const knownLikesRef = useRef(new Set())
   const likesInitializedRef = useRef(false)
-  const [sessionUnreadIds, setSessionUnreadIds] = useState(() => new Set())
+  const inboxReadMarkedRef = useRef(false)
 
   const { unreadLikes, readLikes } = useMemo(() => {
     const unread = []
     const read = []
     for (const like of likes) {
-      const fromId = like.fromUserId || like.id
-      if (sessionUnreadIds.has(fromId)) unread.push(like)
+      if (!like.read) unread.push(like)
       else read.push(like)
     }
     return { unreadLikes: unread, readLikes: read }
-  }, [likes, sessionUnreadIds])
+  }, [likes])
 
   const unreadInbox = useMemo(() => inboxItems.filter((item) => !item.read), [inboxItems])
 
   useEffect(() => {
+    if (!user?.uid) {
+      setOutgoingIds([])
+      return
+    }
+    return subscribeActiveOutgoingRequestIds(user.uid, setOutgoingIds, (err) =>
+      reportBackgroundError('Failed to subscribe to sent requests', err)
+    )
+  }, [user?.uid])
+
+  useEffect(() => {
     knownLikesRef.current = new Set()
     likesInitializedRef.current = false
-    setSessionUnreadIds(new Set())
+    inboxReadMarkedRef.current = false
   }, [user?.uid])
 
   useEffect(() => {
@@ -104,13 +114,6 @@ export default function LikedYou() {
 
     const unsub = subscribeLikesReceived(user.uid, async (receivedLikes) => {
       setLikes(receivedLikes)
-      setSessionUnreadIds((prev) => {
-        const next = new Set(prev)
-        receivedLikes.forEach((like) => {
-          if (!like.read) next.add(like.fromUserId || like.id)
-        })
-        return next
-      })
 
       const profileMap = {}
       await Promise.all(
@@ -154,6 +157,23 @@ export default function LikedYou() {
     if (!user?.uid) return
     return subscribeInbox(user.uid, setInboxItems)
   }, [user?.uid])
+
+  useEffect(() => {
+    if (!user?.uid) return
+
+    const hasUnread = inboxItems.some((item) => !item.read)
+    if (!hasUnread) {
+      inboxReadMarkedRef.current = false
+      return
+    }
+    if (inboxReadMarkedRef.current) return
+
+    inboxReadMarkedRef.current = true
+    markAllInboxRead(user.uid).catch((err) => {
+      inboxReadMarkedRef.current = false
+      reportBackgroundError('Failed to mark inbox as read', err)
+    })
+  }, [user?.uid, inboxItems])
 
   useEffect(() => {
     if (!user?.uid) return
@@ -259,6 +279,8 @@ export default function LikedYou() {
 
   const handleCancelRequest = async (targetId) => {
     const previousProfile = profile
+    const previousOutgoingIds = outgoingIds
+    setOutgoingIds((prev) => prev.filter((id) => id !== targetId))
     setProfile((prev) => {
       if (!prev?.swipes) return prev
       const swipes = { ...prev.swipes }
@@ -270,6 +292,7 @@ export default function LikedYou() {
       toast.success('Request cancelled')
     } catch {
       setProfile(previousProfile)
+      setOutgoingIds(previousOutgoingIds)
       toast.error('Failed to cancel request')
     }
   }
@@ -300,8 +323,8 @@ export default function LikedYou() {
             {formatLastSeen(like.timestamp)}
           </span>
         )}
-        <div className="p-4 bg-white/5 rounded-full border border-white/10">
-          <div className="flex items-center gap-3">
+        <div className="rounded-[var(--ios-radius-lg)] border border-[var(--ios-separator)] bg-[var(--ios-fill-tertiary)] overflow-hidden">
+          <div className="flex items-center gap-3 p-4">
             <button
               onClick={() => setViewProfile(fromId)}
               className="flex items-center gap-4 flex-1 min-w-0 text-left"
@@ -316,7 +339,7 @@ export default function LikedYou() {
                   {p.username}
                   <VerifiedBadge username={p.username} size={14} />
                 </p>
-                <p className="text-sm text-white/50">
+                <p className={`${typoSubheadClass} text-[var(--ios-label-secondary)]`}>
                   {isDeleted ? 'Account deleted' : `${p.age} years old`}
                 </p>
               </div>
@@ -342,9 +365,13 @@ export default function LikedYou() {
           </div>
 
           {like.message && (
-            <div className="mt-3 flex justify-start">
-              <div className="bg-blue-500/20 px-4 py-2 rounded-2xl rounded-bl-sm max-w-[80%]">
-                <p className="text-sm">{like.message}</p>
+            <div className="px-4 pb-4">
+              <div
+                className={`inline-block max-w-full ${chatBubblePadClass} bg-white/10 rounded-[var(--chat-bubble-radius)] rounded-bl-[0.3rem]`}
+              >
+                <p className={`${chatMessageTextClass} text-[var(--ios-label)] whitespace-pre-wrap`}>
+                  {like.message}
+                </p>
               </div>
             </div>
           )}

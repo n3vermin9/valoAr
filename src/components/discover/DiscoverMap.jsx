@@ -673,6 +673,7 @@ export default function DiscoverMap({
   userId,
   onViewProfile,
   onOpenChat,
+  onExitMap,
   chromeHidden = false,
 }) {
   const [center, setCenter] = useState(mapSession.located ? mapSession.viewCenter : null)
@@ -997,9 +998,9 @@ export default function DiscoverMap({
       </MapContainer>
 
       {!chromeHidden && (
-        <div className="absolute top-3 left-3 right-3 z-[1100] pointer-events-none">
-          {!meetupDraft && !editorPlace && !showSettings && !addingPlace && (
-            <div className="pointer-events-auto">
+        <div className="absolute top-3 left-3 right-3 z-[1100] flex items-start gap-2 pointer-events-none">
+          {!meetupDraft && !editorPlace && !showSettings && !addingPlace ? (
+            <div className="flex-1 min-w-0 pointer-events-auto">
               <MeetupManager
                 myMeetups={myMeetups}
                 availableMeetups={availableMeetups}
@@ -1011,6 +1012,19 @@ export default function DiscoverMap({
                 onBeforeExpand={dismissMapSelection}
               />
             </div>
+          ) : (
+            <div className="flex-1 min-w-0" />
+          )}
+
+          {!meetupManagerExpanded && onExitMap && (
+            <button
+              type="button"
+              onClick={onExitMap}
+              className="pointer-events-auto shrink-0 h-12 w-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md text-[var(--ios-label)] flex items-center justify-center"
+              aria-label="Exit map mode"
+            >
+              <IconX size={20} stroke={2} />
+            </button>
           )}
         </div>
       )}

@@ -23,6 +23,7 @@ import { db, rtdb } from '../firebase/config'
 import { getMatchId, getSavedMessagesChatId, formatMessagePreview } from '../utils/helpers'
 import { isGroupChat, getDirectOtherId, getOtherParticipantIds, canAdmin, isGroupMemberMuted } from '../utils/groupChat'
 import { getChatMuteMode, CHAT_MUTE_OFF, CHAT_MUTE_ALL } from '../utils/chatMute'
+import { canDirectMessage, getDirectMessageBlockReason } from '../utils/directMessages'
 import { leaveGroupChat } from './groupChatService'
 import { invalidateUser } from './userCache'
 
@@ -33,6 +34,30 @@ function getRecipientIds(chatData, matchId, senderId) {
   }
   const otherId = getDirectOtherId(chatData, senderId) || matchId.split('_').find((id) => id !== senderId)
   return otherId ? [otherId] : []
+}
+
+async function assertCanSendDirectMessage(chatData, matchId, senderId) {
+  if (chatData?.isSavedMessages || isGroupChat(chatData)) return
+
+  const otherId = getDirectOtherId(chatData, senderId) || matchId.split('_').find((id) => id !== senderId)
+  if (!otherId) return
+
+  const [senderSnap, otherSnap] = await Promise.all([
+    getDoc(doc(db, 'users', senderId)),
+    getDoc(doc(db, 'users', otherId)),
+  ])
+
+  const myProfile = senderSnap.exists() ? { id: senderId, ...senderSnap.data() } : null
+  const otherProfile = otherSnap.exists() ? { id: otherId, ...otherSnap.data() } : null
+
+  if (canDirectMessage({ myProfile, otherProfile, otherId })) return
+
+  const reason = getDirectMessageBlockReason({
+    myProfile,
+    otherProfile,
+    otherUsername: otherProfile?.username || 'this user',
+  })
+  throw new Error(reason?.message || 'You can no longer message this user')
 }
 
 export function getChatSortTime(chat, userId) {
@@ -336,12 +361,11 @@ export async function sendMessage(
 
   const isSaved = chatData?.isSavedMessages === true
 
-  if (!isSaved && chatData?.unfriended === true) {
-    throw new Error('You can no longer message this user')
-  }
   if (!isSaved && chatData?.opponentRemoved === true) {
     throw new Error('This account has been deleted')
   }
+
+  await assertCanSendDirectMessage(chatData, matchId, senderId)
 
   if (!isGroupChat(chatData)) {
     const otherId = getDirectOtherId(chatData, senderId) || matchId.split('_').find((id) => id !== senderId)

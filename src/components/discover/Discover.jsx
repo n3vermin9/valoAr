@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconSearch, IconX } from '@tabler/icons-react'
+import { IconSearch } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   getDiscoverFeed,
@@ -85,6 +85,23 @@ export default function Discover() {
       setPullY(0)
     }
   }, [profile?.id, refreshing, newProfiles, recentProfiles])
+
+  const reloadSectionFeed = useCallback(
+    async (targetSection) => {
+      if (!profile?.id) return
+      try {
+        const feed = await getDiscoverFeed(profile)
+        setNewProfiles(feed.newProfiles)
+        setRecentProfiles(feed.recentProfiles)
+        setLoadError(null)
+        if (targetSection === 'new') setNewIndex(0)
+        else setRecentIndex(0)
+      } catch {
+        toast.error('Could not refresh profiles')
+      }
+    },
+    [profile]
+  )
 
   useEffect(() => {
     pullYRef.current = pullY
@@ -182,8 +199,17 @@ export default function Discover() {
 
   const handleSectionChange = (next) => {
     if (next === section) return
+
+    const targetList = next === 'new' ? newProfiles : recentProfiles
+    const targetIndex = next === 'new' ? newIndex : recentIndex
+    const isEmpty = targetList.slice(targetIndex).length === 0
+
     setSection(next)
     feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
+
+    if (isEmpty) {
+      void reloadSectionFeed(next)
+    }
   }
 
   const handleSwipe = (targetProfile, action, message = null) => {
@@ -432,19 +458,7 @@ export default function Discover() {
     return () => setMapModeOverlayOpen(false)
   }, [view])
 
-  const mapCloseButton = (
-    <button
-      type="button"
-      onClick={() => setView('cards')}
-      className="p-2 hover:bg-white/10 rounded-full transition-colors"
-      aria-label="Exit map"
-    >
-      <IconX size={20} stroke={2} />
-    </button>
-  )
-
-  const discoverTrailing =
-    view === 'cards' ? discoverSearchButton : viewProfile ? null : mapCloseButton
+  const discoverTrailing = view === 'cards' ? discoverSearchButton : null
 
   const discoverMapProps = {
     profiles: mapProfiles,
@@ -453,6 +467,7 @@ export default function Discover() {
     userId: user?.uid,
     onViewProfile: handleViewProfileFromMap,
     onOpenChat: (chatId) => navigate(`/chats/${chatId}`),
+    onExitMap: () => setView('cards'),
     chromeHidden: !!viewProfile,
   }
 

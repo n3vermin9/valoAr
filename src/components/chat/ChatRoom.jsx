@@ -42,6 +42,7 @@ import {
   fetchUsersMap,
 } from '../../services/userService'
 import { compressImage, uploadChatImage, uploadChatAudio, getChatStatusLabel, isSavedMessagesChat, buildReplyPayload, normalizeUsername, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime, reportBackgroundError } from '../../utils/helpers'
+import { canDirectMessage, getDirectMessageBlockReason } from '../../utils/directMessages'
 import {
   navGlassMenuClass,
   contextMenuMotion,
@@ -205,7 +206,22 @@ export default function ChatRoom() {
   const otherId = isSavedMessages || isGroup ? null : matchId?.split('_').find((id) => id !== user?.uid)
   const iBlockedThem = !isSavedMessages && profile?.blocked?.includes(otherId)
   const theyBlockedMe = !isSavedMessages && chatMeta?.blockedBy?.includes(otherId) && !iBlockedThem
-  const unfriended = !isSavedMessages && chatMeta?.unfriended === true
+  const areFriends = !isSavedMessages && !isGroup && Boolean(otherId && profile?.matches?.includes(otherId))
+  const directMessagesAllowed =
+    isSavedMessages ||
+    isGroup ||
+    areFriends ||
+    (otherUserLoaded &&
+      canDirectMessage({ myProfile: profile, otherProfile: otherUser, otherId }))
+  const directMessageBlockReason =
+    !isSavedMessages && !isGroup && otherUserLoaded && !directMessagesAllowed
+      ? getDirectMessageBlockReason({
+          myProfile: profile,
+          otherProfile: otherUser,
+          otherId,
+          otherUsername: otherDisplayName,
+        })
+      : null
   const opponentRemoved =
     !isSavedMessages &&
     isRemovedChatOpponent(chatMeta, otherId, otherUser, otherUserLoaded)
@@ -214,7 +230,8 @@ export default function ChatRoom() {
     : otherUser?.username || 'User'
   const chatFrozen =
     !isSavedMessages &&
-    ((!isGroup && (iBlockedThem || theyBlockedMe || unfriended || opponentRemoved)) ||
+    ((!isGroup &&
+      (iBlockedThem || theyBlockedMe || opponentRemoved || (otherUserLoaded && !directMessagesAllowed))) ||
       (isGroup && isGroupMemberMuted(chatMeta, user?.uid)))
   const isMuted = isChatMuteActive(chatMeta, user.uid)
   const groupName = isGroup ? getGroupDisplayName(chatMeta) : null
@@ -1357,9 +1374,18 @@ export default function ChatRoom() {
               </div>
             )}
 
-            {!deleteTarget && !iBlockedThem && !theyBlockedMe && unfriended && !opponentRemoved && (
-              <div className="px-4 py-4 text-center">
-                <p className="text-white/60 text-sm">You are no longer friends — messaging is disabled</p>
+            {!deleteTarget && !iBlockedThem && !theyBlockedMe && directMessageBlockReason && !opponentRemoved && (
+              <div className="px-4 py-4 text-center space-y-3">
+                <p className="text-white/60 text-sm">{directMessageBlockReason.message}</p>
+                {directMessageBlockReason.showSettingsLink && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/profile', { state: { openSettings: true } })}
+                    className="text-sm font-medium text-[var(--ios-blue)]"
+                  >
+                    Open message settings
+                  </button>
+                )}
               </div>
             )}
 

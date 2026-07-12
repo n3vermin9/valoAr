@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconEdit, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette, IconChartBar } from '@tabler/icons-react'
@@ -10,7 +10,8 @@ import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { getMatchId } from '../../utils/helpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoCaptionClass, typoBodyClass, typoSubheadClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoCaptionClass, typoBodyClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
+import { canDirectMessage } from '../../utils/directMessages'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
@@ -40,6 +41,7 @@ import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/
 export default function ProfileView() {
   const { user, profile, logout, removeAccount, refreshProfile, setProfile } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [editing, setEditing] = useState(false)
   const [showBlocked, setShowBlocked] = useState(false)
   const [showMatches, setShowMatches] = useState(false)
@@ -67,6 +69,12 @@ export default function ProfileView() {
     setUseMilitaryTime(profile?.useMilitaryTime !== false)
   }, [profile?.useMilitaryTime])
 
+  useEffect(() => {
+    if (!location.state?.openSettings) return
+    setShowSettings(true)
+    navigate('/profile', { replace: true, state: null })
+  }, [location.state?.openSettings, navigate])
+
   if (!profile) return <LoadingSpinner />
 
   if (editing) return <EditProfile onCancel={() => setEditing(false)} />
@@ -90,17 +98,18 @@ export default function ProfileView() {
     window.location.href = '/login'
   }
 
-  const handleToggleDirectMessages = async () => {
+  const handleMessageAudienceChange = async (audience) => {
     if (!user?.uid || savingSettings) return
-    const next = !allowDirectMessages
-    setAllowDirectMessages(next)
+    const nextOpen = audience === 'everybody'
+    if (nextOpen === allowDirectMessages) return
+    setAllowDirectMessages(nextOpen)
     setSavingSettings(true)
     try {
-      await updateUserSettings(user.uid, { allowDirectMessages: next })
-      setProfile((prev) => (prev ? { ...prev, allowDirectMessages: next } : prev))
-      toast.success(next ? 'Anyone can message you' : 'Messages require a friend request')
+      await updateUserSettings(user.uid, { allowDirectMessages: nextOpen })
+      setProfile((prev) => (prev ? { ...prev, allowDirectMessages: nextOpen } : prev))
+      toast.success(nextOpen ? 'Anyone can message you' : 'Only friends can message you')
     } catch {
-      setAllowDirectMessages(!next)
+      setAllowDirectMessages(!nextOpen)
       toast.error('Failed to update setting')
     } finally {
       setSavingSettings(false)
@@ -244,12 +253,32 @@ export default function ProfileView() {
 
           <div className="flex-1 overflow-y-auto pb-8 space-y-6">
             <SettingsSection title="Privacy">
-              <SettingSwitch
-                label="Open to messages"
-                checked={allowDirectMessages}
-                disabled={savingSettings}
-                onChange={handleToggleDirectMessages}
-              />
+              <div className="px-4 py-4 border-b border-white/10">
+                <p className={typoHeadlineClass}>Who can message you</p>
+                <p className={`${typoSubheadClass} mt-1 mb-3`}>
+                  When you are not friends yet. Both people need to allow everyone to chat.
+                </p>
+                <div className={segmentedControlClass}>
+                  {[
+                    { id: 'friends', label: 'Friends only' },
+                    { id: 'everybody', label: 'Everybody' },
+                  ].map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      disabled={savingSettings}
+                      onClick={() => handleMessageAudienceChange(option.id)}
+                      className={
+                        (allowDirectMessages ? 'everybody' : 'friends') === option.id
+                          ? segmentedItemActiveClass
+                          : segmentedItemClass
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <SettingSwitch
                 label="Show friend count"
                 checked={showFriendCount}
@@ -536,8 +565,10 @@ export function PublicProfileView({
     me?.matches?.includes(userId) ||
     me?.swipes?.[userId] === 'matched' ||
     profile?.matches?.includes(user?.uid)
-  const allowsDirectMessages = profile?.allowDirectMessages === true
-  const showMessage = isMatched || hasActiveChat || allowsDirectMessages
+  const showMessage =
+    isMatched ||
+    hasActiveChat ||
+    canDirectMessage({ myProfile: me, otherProfile: profile, otherId: userId })
   const hasIncomingRequest = !!incomingRequest
   const showAcceptRequest = !isMatched && hasIncomingRequest
   const showSendRequest = !isMatched && !hasIncomingRequest
