@@ -88,7 +88,13 @@ export function subscribeStoriesFeed(viewerId, friendIds = [], callback, onError
 
   const getCoreIds = () => new Set([viewerId, ...activeFriendIds])
 
-  const emit = () => {
+  let snapshotReady = false
+
+  const emit = ({ force = false } = {}) => {
+    // Avoid the initial empty callback before any story snapshots arrive —
+    // that was flashing Discover's "Add a story" CTA.
+    if (!snapshotReady && !force) return
+
     const coreIds = getCoreIds()
     const feed = [...coreIds]
       .map((userId) => ({
@@ -105,7 +111,8 @@ export function subscribeStoriesFeed(viewerId, friendIds = [], callback, onError
       userId,
       (stories) => {
         cache.set(userId, stories)
-        emit()
+        snapshotReady = true
+        emit({ force: true })
       },
       onError
     )
@@ -309,6 +316,7 @@ export async function postMeetupStory(
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   })
 
   const lines = [

@@ -25,7 +25,7 @@ import PhotoHeroView, {
   PhotoHeroFixedTopRight,
   PhotoHeroPlaceholder,
 } from '../ui/PhotoHeroView'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { ProfileSkeleton } from '../ui/Skeleton'
 import CopyableUsername from '../ui/CopyableUsername'
 import ChevronBack from '../ui/ChevronBack'
 import { SubpageHeaderBar } from '../layout/SubpageShell'
@@ -75,7 +75,7 @@ export default function ProfileView() {
     navigate('/profile', { replace: true, state: null })
   }, [location.state?.openSettings, navigate])
 
-  if (!profile) return <LoadingSpinner />
+  if (!profile) return <ProfileSkeleton />
 
   if (editing) return <EditProfile onCancel={() => setEditing(false)} />
 
@@ -514,9 +514,7 @@ export function PublicProfileView({
     return (
       <div className="h-full min-h-0 flex flex-col">
         {onClose ? <PhotoHeroFixedBack onBack={onClose} /> : null}
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
+        <ProfileSkeleton />
       </div>
     )
   }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getMeetupMapTiles, preloadMeetupMapTiles } from '../../utils/storyHelpers'
+import { Skeleton } from '../ui/Skeleton'
 
 export default function MeetupStoryMapPreview({
   lat,
@@ -30,7 +31,7 @@ export default function MeetupStoryMapPreview({
       aria-hidden
     >
       {!ready ? (
-        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/10 via-white/5 to-white/10" />
+        <Skeleton className="absolute inset-0 z-[1] !rounded-none h-full w-full" rounded="sm" />
       ) : null}
 
       <div

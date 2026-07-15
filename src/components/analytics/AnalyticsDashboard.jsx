@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { fetchAppAnalytics } from '../../services/analyticsService'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { FormSkeleton } from '../ui/Skeleton'
 import { SubpageHeaderBar } from '../layout/SubpageShell'
 import { SettingsSection } from '../ui/SettingsUI'
 import { typoSubheadClass, typoHeadlineClass } from '../../utils/designSystem'
@@ -47,9 +47,7 @@ export default function AnalyticsDashboard({ onBack }) {
 
       <div className="flex-1 overflow-y-auto pb-8">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <LoadingSpinner />
-          </div>
+          <FormSkeleton className="pt-6" />
         ) : error ? (
           <div className="px-6 py-12 text-center">
             <p className="text-white/60 mb-4">{error}</p>

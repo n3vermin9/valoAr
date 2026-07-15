@@ -90,13 +90,23 @@ export function scatterUsersAroundCenter(center, profiles = [], friendIds = []) 
 
 const MAP_SETTINGS_KEY = 'discoverMapSettings'
 
-export const DEFAULT_MAP_SETTINGS = { display: 'both', show: 'everyone', theme: 'voyager' }
+export const DEFAULT_MAP_SETTINGS = { display: 'both', show: 'everyone', theme: 'dark' }
+
+const LEGACY_THEME_MAP = {
+  voyager: 'labeled',
+  light_all: 'light',
+  dark_all: 'dark',
+}
 
 export function loadMapSettings() {
   try {
     const raw = localStorage.getItem(MAP_SETTINGS_KEY)
     if (!raw) return DEFAULT_MAP_SETTINGS
-    return { ...DEFAULT_MAP_SETTINGS, ...JSON.parse(raw) }
+    const parsed = { ...DEFAULT_MAP_SETTINGS, ...JSON.parse(raw) }
+    if (LEGACY_THEME_MAP[parsed.theme]) {
+      parsed.theme = LEGACY_THEME_MAP[parsed.theme]
+    }
+    return parsed
   } catch {
     return DEFAULT_MAP_SETTINGS
   }

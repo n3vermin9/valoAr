@@ -11,10 +11,15 @@ export const SYSTEM_EVENTS = {
   CREATED: 'created',
   JOINED: 'joined',
   LEFT: 'left',
+  MEETUP_INFO: 'meetup_info',
 }
 
 export function isSystemMessage(message) {
   return message?.type === 'system' || Boolean(message?.systemEvent)
+}
+
+export function isMeetupInfoMessage(message) {
+  return message?.systemEvent === SYSTEM_EVENTS.MEETUP_INFO || message?.type === 'meetup_info'
 }
 
 export function formatSystemMessageText(event, { actorUsername = '', isMeetup = false } = {}) {
@@ -24,6 +29,7 @@ export function formatSystemMessageText(event, { actorUsername = '', isMeetup = 
   }
   if (event === SYSTEM_EVENTS.JOINED) return `${name} joined`
   if (event === SYSTEM_EVENTS.LEFT) return `${name} left`
+  if (event === SYSTEM_EVENTS.MEETUP_INFO) return 'Meetup details'
   return ''
 }
 
@@ -79,6 +85,40 @@ export async function postSystemMessage(
       read: true,
       messageId: msgRef.id,
       type: 'system',
+    },
+  })
+  await batch.commit()
+  return msgRef.id
+}
+
+/** Create a pinned meetup summary message (no unread / lastMessage bump). */
+export async function postAndPinMeetupInfo(chatId, creatorId, meetup) {
+  if (!chatId || !meetup) return null
+
+  const venue = meetup.subplaceName
+    ? `${meetup.placeName || 'Place'} · ${meetup.subplaceName}`
+    : meetup.placeName || ''
+  const title = meetup.title || 'Meetup'
+  const body = venue ? `${title} · ${venue}` : title
+
+  const chatRef = doc(db, 'chats', chatId)
+  const msgRef = doc(collection(db, 'chats', chatId, 'messages'))
+  const batch = writeBatch(db)
+  batch.set(msgRef, {
+    type: 'system',
+    systemEvent: SYSTEM_EVENTS.MEETUP_INFO,
+    senderId: 'system',
+    actorId: creatorId || null,
+    text: body,
+    meetupId: meetup.id || null,
+    createdAt: serverTimestamp(),
+    read: true,
+  })
+  batch.update(chatRef, {
+    pinnedMessage: {
+      messageId: msgRef.id,
+      pinnedBy: creatorId || 'system',
+      pinnedAt: Date.now(),
     },
   })
   await batch.commit()

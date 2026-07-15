@@ -1,7 +1,7 @@
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getGroupMemberRole, isGroupOwner } from '../../../utils/groupChat'
 import { typoSubheadClass } from '../../../utils/designSystem'
-import LoadingSpinner from '../../ui/LoadingSpinner'
+import { FormSkeleton } from '../../ui/Skeleton'
 import { useGroupSettingsChat } from './useGroupSettingsChat'
 import GroupSettingsShell from './GroupSettingsShell'
 import { SettingsSection } from '../../ui/SettingsUI'
@@ -16,8 +16,8 @@ export default function GroupSettingsAdmins() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full overflow-y-auto">
+        <FormSkeleton />
       </div>
     )
   }

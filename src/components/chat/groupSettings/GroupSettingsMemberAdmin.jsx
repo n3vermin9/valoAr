@@ -16,7 +16,7 @@ import {
 import CachedAvatar from '../../ui/CachedAvatar'
 import UsernameLabel from '../../ui/UsernameLabel'
 import GroupRoleBadge from '../GroupRoleBadge'
-import LoadingSpinner from '../../ui/LoadingSpinner'
+import { FormSkeleton } from '../../ui/Skeleton'
 import TextField from '../../ui/TextField'
 import Button from '../../ui/Button'
 import { sad } from '../../../assets'
@@ -156,8 +156,8 @@ export default function GroupSettingsMemberAdmin() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full overflow-y-auto">
+        <FormSkeleton />
       </div>
     )
   }

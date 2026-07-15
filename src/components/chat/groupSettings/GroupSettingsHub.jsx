@@ -6,7 +6,7 @@ import { leaveGroupChat, deleteGroupChat } from '../../../services/groupChatServ
 import { cancelMeetup } from '../../../services/meetupService'
 import { getGroupDisplayName, getGroupMemberRole } from '../../../utils/groupChat'
 import GroupAvatar from '../GroupAvatar'
-import LoadingSpinner from '../../ui/LoadingSpinner'
+import { FormSkeleton } from '../../ui/Skeleton'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import PhotoGallery from '../../ui/PhotoGallery'
 import { useGroupSettingsChat } from './useGroupSettingsChat'
@@ -136,8 +136,8 @@ export default function GroupSettingsHub() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full overflow-y-auto">
+        <FormSkeleton />
       </div>
     )
   }

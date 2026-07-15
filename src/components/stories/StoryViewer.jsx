@@ -10,9 +10,6 @@ import {
   IconSend,
   IconHeart,
   IconMoodSmile,
-  IconClockHour4,
-  IconCalendarPlus,
-  IconUsers,
 } from '@tabler/icons-react'
 import toast from 'react-hot-toast'
 import {
@@ -35,7 +32,6 @@ import {
   formatStoryViewTime,
   formatMeetupStoryTimer,
   isMeetupStory,
-  parseMeetupStoryContent,
   getMeetupMapCoords,
   preloadMeetupMapTiles,
   toTimestampMs,
@@ -58,22 +54,17 @@ import {
   storyProgressFillClass,
   storyPausedBadgeClass,
   navGlassMenuClass,
-  btnFilledClass,
-  typoTitle3Class,
-  typoBodyClass,
-  typoSubheadClass,
   typoCaptionClass,
 } from '../../utils/designSystem'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Modal from '../ui/Modal'
 import IosEmoji from '../ui/IosEmoji'
+import MeetupStoryCard from './MeetupStoryCard'
 import IosEmojiField from '../ui/IosEmojiField'
 import EmojiPickerPopover from '../ui/EmojiPickerPopover'
 import { PublicProfileView } from '../profile/ProfileView'
 import MessageReactions, { ReactionPicker } from '../chat/MessageReactions'
 import UsernameLabel from '../ui/UsernameLabel'
-import MeetupStoryMapPreview from './MeetupStoryMapPreview'
-import MeetupParticipantRing from './MeetupParticipantRing'
 import { sad } from '../../assets'
 
 function getTapZone(clientX) {
@@ -137,147 +128,6 @@ function resolveStoryNav(queue, nav) {
 }
 
 const STORY_FOOTER_ROW_H = 'h-11'
-
-function MeetupStoryCard({
-  story,
-  meetupData,
-  meetupChatId,
-  meetupTimeLeft,
-  mapCoords,
-  mapCoordsPending,
-  meetupMaxMembers,
-  meetupParticipants,
-  participantProfiles,
-  isOwn,
-  showJoin,
-  isJoined,
-  meetupStillActive,
-  meetupIsFull,
-  onJoinClick,
-  onOpenChat,
-  className = '',
-}) {
-  const { title, venue, time, description } = parseMeetupStoryContent(story, meetupData)
-  const placePinName = meetupData?.placeName || venue.split(' · ')[0] || venue
-  const placePinEmoji = story?.meetupPlaceEmoji || '📍'
-  const placePhotoUrl = (story?.meetupPlacePhotoUrl || meetupData?.placePhotoUrl || '').trim()
-  const [photoFailed, setPhotoFailed] = useState(false)
-
-  useEffect(() => {
-    setPhotoFailed(false)
-  }, [placePhotoUrl])
-
-  const showPlacePhoto = Boolean(placePhotoUrl) && !photoFailed
-
-  const action = !isOwn ? (
-    showJoin ? (
-      <button
-        type="button"
-        onClick={onJoinClick}
-        className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
-      >
-        <IconCalendarPlus size={18} stroke={2} />
-        Join
-      </button>
-    ) : isJoined && meetupStillActive && meetupChatId ? (
-      <button
-        type="button"
-        onClick={onOpenChat}
-        className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
-      >
-        <IconUsers size={18} stroke={2} />
-        Open meetup chat
-      </button>
-    ) : meetupIsFull && meetupStillActive ? (
-      <p className="text-center text-sm text-white/60 py-2">This meetup is full</p>
-    ) : !meetupStillActive ? (
-      <p className="text-center text-sm text-white/60 py-2">This meetup has ended</p>
-    ) : null
-  ) : isOwn && meetupStillActive && meetupChatId ? (
-    <button
-      type="button"
-      onClick={onOpenChat}
-      className={`${btnFilledClass} w-full justify-center gap-2 py-3 text-[17px] font-semibold`}
-    >
-      <IconUsers size={18} stroke={2} />
-      Open meetup chat
-    </button>
-  ) : null
-
-  return (
-    <div
-      className={`relative mx-auto w-full max-w-[380px] overflow-visible ${className}`}
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="absolute -top-6 left-0 right-0 z-10 flex items-center justify-between gap-3 pointer-events-none">
-        {meetupTimeLeft ? (
-          <span className={`${storyGlassPillClass} tabular-nums text-sm shadow-lg shrink-0 pointer-events-auto`}>
-            <IconClockHour4 size={16} stroke={2} />
-            <span>{meetupTimeLeft}</span>
-          </span>
-        ) : (
-          <span />
-        )}
-        <MeetupParticipantRing
-          maxMembers={meetupMaxMembers}
-          participants={meetupParticipants}
-          participantProfiles={participantProfiles}
-          className="pointer-events-auto shrink-0 -mr-3 -mt-0.5"
-        />
-      </div>
-
-      <div className="relative rounded-[var(--ios-radius-xl)] border border-white/20 bg-black/25 px-6 pb-6 pt-9 shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-
-        <div className="space-y-3.5 text-center">
-          <h2 className={`${typoTitle3Class} text-white text-[22px]`}>{title}</h2>
-
-          {showPlacePhoto ? (
-            <div className="relative h-[9.5rem] w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15 bg-black/30">
-              <img
-                src={placePhotoUrl}
-                alt=""
-                className="h-full w-full object-cover"
-                onError={() => setPhotoFailed(true)}
-              />
-            </div>
-          ) : mapCoords ? (
-            <MeetupStoryMapPreview
-              lat={mapCoords.lat}
-              lng={mapCoords.lng}
-              placeName={placePinName}
-              emoji={placePinEmoji}
-            />
-          ) : (
-            <div
-              className="relative h-[9.5rem] w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15 bg-[#d9d2c6]"
-              aria-hidden
-            >
-              <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/10 via-white/5 to-white/10" />
-              {mapCoordsPending ? (
-                <p className="absolute inset-x-0 bottom-3 text-center text-[11px] font-medium uppercase tracking-wide text-black/45">
-                  Loading map…
-                </p>
-              ) : null}
-            </div>
-          )}
-
-          {time ? (
-            <p className={`${typoSubheadClass} text-white/75 text-center w-full`}>{time}</p>
-          ) : null}
-
-          {description ? (
-            <p className={`${typoBodyClass} text-white/85 whitespace-pre-wrap break-words text-left`}>
-              {description}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="mt-6 min-h-[52px] flex items-center">{action}</div>
-      </div>
-    </div>
-  )
-}
 
 function StoryReactionButton({
   showReactionPicker,

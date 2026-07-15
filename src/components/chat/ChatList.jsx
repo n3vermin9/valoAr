@@ -30,16 +30,21 @@ import UsernameLabel from '../ui/UsernameLabel'
 import IosEmojiText from '../ui/IosEmojiText'
 import PageShell from '../layout/PageShell'
 import EmptyState from '../ui/EmptyState'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { ListSkeleton } from '../ui/Skeleton'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import { getChatsListSnapshot, setChatsListSnapshot } from '../../services/chatsListCache'
 import { logo } from '../../assets'
+
+/** Ignore empty live lists briefly so cached chats don't flash away. */
+const EMPTY_CHATS_TRUST_MS = 2000
 
 export default function ChatList() {
   const { user, profile, refreshProfile } = useAuth()
   const navigate = useNavigate()
-  const [chats, setChats] = useState([])
-  const [users, setUsers] = useState({})
-  const [loading, setLoading] = useState(true)
+  const snapshot = user?.uid ? getChatsListSnapshot(user.uid) : null
+  const [chats, setChats] = useState(() => snapshot?.chats || [])
+  const [users, setUsers] = useState(() => snapshot?.users || {})
+  const [loading, setLoading] = useState(() => !snapshot)
   const [selectedChatId, setSelectedChatId] = useState(null)
   const [menuPos, setMenuPos] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
@@ -49,17 +54,61 @@ export default function ChatList() {
   const [muteModalChatId, setMuteModalChatId] = useState(null)
   const listRef = useRef(null)
   const rowRefs = useRef({})
+  const chatsRef = useRef(chats)
+  const usersRef = useRef(users)
+  const mountAtRef = useRef(Date.now())
+  const hadCachedChatsRef = useRef((snapshot?.chats || []).length > 0)
 
   const militaryTime = usesMilitaryTime(profile)
 
   useEffect(() => {
+    chatsRef.current = chats
+  }, [chats])
+
+  useEffect(() => {
+    usersRef.current = users
+  }, [users])
+
+  useEffect(() => {
     if (!user?.uid) return
 
-    let usersRequest = 0
+    const cached = getChatsListSnapshot(user.uid)
+    mountAtRef.current = Date.now()
+    hadCachedChatsRef.current = (cached?.chats || []).length > 0
+    if (cached) {
+      setChats(cached.chats)
+      setUsers(cached.users)
+      setLoading(false)
+    } else {
+      setChats([])
+      setUsers({})
+      setLoading(true)
+    }
 
-    return subscribeChats(user.uid, (chatList) => {
+    let usersRequest = 0
+    const trustEmptyTimer = window.setTimeout(() => {
+      setLoading(false)
+      setChatsListSnapshot(user.uid, {
+        chats: chatsRef.current,
+        users: usersRef.current,
+      })
+    }, EMPTY_CHATS_TRUST_MS)
+
+    const unsub = subscribeChats(user.uid, (chatList) => {
+      const age = Date.now() - mountAtRef.current
+      const showingChats = chatsRef.current.length > 0 || hadCachedChatsRef.current
+
+      if (chatList.length === 0 && showingChats && age < EMPTY_CHATS_TRUST_MS) {
+        setLoading(false)
+        return
+      }
+
       setChats(chatList)
       setLoading(false)
+      setChatsListSnapshot(user.uid, {
+        chats: chatList,
+        users: usersRef.current,
+      })
 
       const otherIds = [
         ...new Set(
@@ -74,7 +123,11 @@ export default function ChatList() {
 
       const snapshots = getProfileSnapshots(otherIds)
       if (Object.keys(snapshots).length) {
-        setUsers((prev) => ({ ...snapshots, ...prev }))
+        setUsers((prev) => {
+          const next = { ...snapshots, ...prev }
+          setChatsListSnapshot(user.uid, { chats: chatList, users: next })
+          return next
+        })
         preloadAvatarImages(
           Object.values(snapshots).map((u) => u.photos?.[0]),
           112
@@ -85,13 +138,25 @@ export default function ChatList() {
       fetchUsersMap(otherIds).then((userMap) => {
         if (requestId !== usersRequest) return
         if (!Object.keys(userMap).length) return
-        setUsers((prev) => ({ ...prev, ...userMap }))
+        setUsers((prev) => {
+          const next = { ...prev, ...userMap }
+          setChatsListSnapshot(user.uid, {
+            chats: chatsRef.current,
+            users: next,
+          })
+          return next
+        })
         preloadAvatarImages(
           Object.values(userMap).map((u) => u.photos?.[0]),
           112
         ).catch(() => {})
       })
     })
+
+    return () => {
+      unsub()
+      window.clearTimeout(trustEmptyTimer)
+    }
   }, [user?.uid])
 
   useEffect(() => {
@@ -176,8 +241,8 @@ export default function ChatList() {
     const wasPinned = selectedIsPinned
     const previousChats = chats
     closeMenu()
-    setChats((prev) =>
-      prev.map((c) => {
+    setChats((prev) => {
+      const next = prev.map((c) => {
         if (c.id !== chatId) return c
         const pinnedBy = c.pinnedBy || []
         return {
@@ -185,9 +250,12 @@ export default function ChatList() {
           pinnedBy: wasPinned ? pinnedBy.filter((id) => id !== user.uid) : [...pinnedBy, user.uid],
         }
       })
-    )
+      setChatsListSnapshot(user.uid, { chats: next, users: usersRef.current })
+      return next
+    })
     togglePinChat(chatId, user.uid).catch(() => {
       setChats(previousChats)
+      setChatsListSnapshot(user.uid, { chats: previousChats, users: usersRef.current })
       toast.error('Failed to update pin')
     })
   }
@@ -309,14 +377,6 @@ export default function ChatList() {
     document.body
   )
 
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    )
-  }
-
   return (
     <PageShell
       title="Chats"
@@ -332,7 +392,9 @@ export default function ChatList() {
         </button>
       }
     >
-      {chats.length === 0 ? (
+      {loading && chats.length === 0 ? (
+        <ListSkeleton />
+      ) : chats.length === 0 ? (
         <EmptyState message="No friends yet. Start discovering people!" className="flex-1" />
       ) : (
         <div ref={listRef} className="mt-2 overflow-y-auto relative z-10">

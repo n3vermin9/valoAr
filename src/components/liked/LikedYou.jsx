@@ -21,7 +21,7 @@ import { getStoryColorClass } from '../../utils/storyHelpers'
 import { sad, star } from '../../assets'
 import { APP_NAME, formatLastSeen, reportBackgroundError } from '../../utils/helpers'
 import EmptyState from '../ui/EmptyState'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { ListSkeleton } from '../ui/Skeleton'
 import Modal from '../ui/Modal'
 import { PublicProfileView } from '../profile/ProfileView'
 import PageShell from '../layout/PageShell'
@@ -30,6 +30,9 @@ import IosEmoji from '../ui/IosEmoji'
 import ChatStoryViewer from '../stories/ChatStoryViewer'
 import StoryUnavailableViewer from '../stories/StoryUnavailableViewer'
 import { chatBubblePadClass, chatMessageTextClass, typoSubheadClass } from '../../utils/designSystem'
+import { getInboxPageSnapshot, setInboxPageSnapshot } from '../../services/inboxPageCache'
+
+const EMPTY_INBOX_TRUST_MS = 2000
 
 function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
   const cardClass = unavailable
@@ -65,21 +68,63 @@ function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
 export default function LikedYou() {
   const navigate = useNavigate()
   const { user, profile, setProfile } = useAuth()
+  const snapshot = user?.uid ? getInboxPageSnapshot(user.uid) : null
   const [section, setSection] = useState('inbox')
-  const [likes, setLikes] = useState([])
-  const [profiles, setProfiles] = useState({})
-  const [inboxItems, setInboxItems] = useState([])
-  const [inboxProfiles, setInboxProfiles] = useState({})
-  const [outgoingProfiles, setOutgoingProfiles] = useState({})
+  const [likes, setLikes] = useState(() => snapshot?.likes || [])
+  const [profiles, setProfiles] = useState(() => snapshot?.profiles || {})
+  const [inboxItems, setInboxItems] = useState(() => snapshot?.inboxItems || [])
+  const [inboxProfiles, setInboxProfiles] = useState(() => snapshot?.inboxProfiles || {})
+  const [outgoingProfiles, setOutgoingProfiles] = useState(() => snapshot?.outgoingProfiles || {})
   const [ownStories, setOwnStories] = useState({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !snapshot)
   const [viewProfile, setViewProfile] = useState(null)
   const [storyViewerTarget, setStoryViewerTarget] = useState(null)
 
-  const [outgoingIds, setOutgoingIds] = useState([])
+  const [outgoingIds, setOutgoingIds] = useState(() => snapshot?.outgoingIds || [])
   const knownLikesRef = useRef(new Set())
   const likesInitializedRef = useRef(false)
   const inboxReadMarkedRef = useRef(false)
+  const likesRef = useRef(likes)
+  const profilesRef = useRef(profiles)
+  const inboxItemsRef = useRef(inboxItems)
+  const inboxProfilesRef = useRef(inboxProfiles)
+  const outgoingIdsRef = useRef(outgoingIds)
+  const outgoingProfilesRef = useRef(outgoingProfiles)
+  const mountAtRef = useRef(Date.now())
+  const hadCachedContentRef = useRef(
+    (snapshot?.likes || []).length > 0 || (snapshot?.inboxItems || []).length > 0
+  )
+
+  useEffect(() => {
+    likesRef.current = likes
+  }, [likes])
+  useEffect(() => {
+    profilesRef.current = profiles
+  }, [profiles])
+  useEffect(() => {
+    inboxItemsRef.current = inboxItems
+  }, [inboxItems])
+  useEffect(() => {
+    inboxProfilesRef.current = inboxProfiles
+  }, [inboxProfiles])
+  useEffect(() => {
+    outgoingIdsRef.current = outgoingIds
+  }, [outgoingIds])
+  useEffect(() => {
+    outgoingProfilesRef.current = outgoingProfiles
+  }, [outgoingProfiles])
+
+  const persistInboxSnapshot = () => {
+    if (!user?.uid) return
+    setInboxPageSnapshot(user.uid, {
+      likes: likesRef.current,
+      profiles: profilesRef.current,
+      inboxItems: inboxItemsRef.current,
+      inboxProfiles: inboxProfilesRef.current,
+      outgoingIds: outgoingIdsRef.current,
+      outgoingProfiles: outgoingProfilesRef.current,
+    })
+  }
 
   const { unreadLikes, readLikes } = useMemo(() => {
     const unread = []
@@ -98,8 +143,14 @@ export default function LikedYou() {
       setOutgoingIds([])
       return
     }
-    return subscribeActiveOutgoingRequestIds(user.uid, setOutgoingIds, (err) =>
-      reportBackgroundError('Failed to subscribe to sent requests', err)
+    return subscribeActiveOutgoingRequestIds(
+      user.uid,
+      (ids) => {
+        setOutgoingIds(ids)
+        outgoingIdsRef.current = ids
+        persistInboxSnapshot()
+      },
+      (err) => reportBackgroundError('Failed to subscribe to sent requests', err)
     )
   }, [user?.uid])
 
@@ -107,12 +158,43 @@ export default function LikedYou() {
     knownLikesRef.current = new Set()
     likesInitializedRef.current = false
     inboxReadMarkedRef.current = false
+    const cached = user?.uid ? getInboxPageSnapshot(user.uid) : null
+    mountAtRef.current = Date.now()
+    hadCachedContentRef.current =
+      (cached?.likes || []).length > 0 || (cached?.inboxItems || []).length > 0
+    if (cached) {
+      setLikes(cached.likes)
+      setProfiles(cached.profiles)
+      setInboxItems(cached.inboxItems)
+      setInboxProfiles(cached.inboxProfiles)
+      setOutgoingIds(cached.outgoingIds)
+      setOutgoingProfiles(cached.outgoingProfiles)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
   }, [user?.uid])
 
   useEffect(() => {
     if (!user?.uid) return
 
+    const trustEmptyTimer = window.setTimeout(() => {
+      setLoading(false)
+      persistInboxSnapshot()
+    }, EMPTY_INBOX_TRUST_MS)
+
     const unsub = subscribeLikesReceived(user.uid, async (receivedLikes) => {
+      const age = Date.now() - mountAtRef.current
+      const showingCached =
+        likesRef.current.length > 0 ||
+        inboxItemsRef.current.length > 0 ||
+        hadCachedContentRef.current
+
+      if (receivedLikes.length === 0 && showingCached && age < EMPTY_INBOX_TRUST_MS) {
+        setLoading(false)
+        return
+      }
+
       setLikes(receivedLikes)
 
       const profileMap = {}
@@ -124,6 +206,9 @@ export default function LikedYou() {
       )
       setProfiles(profileMap)
       setLoading(false)
+      likesRef.current = receivedLikes
+      profilesRef.current = profileMap
+      persistInboxSnapshot()
 
       if (!likesInitializedRef.current) {
         receivedLikes.forEach((like) => knownLikesRef.current.add(like.fromUserId || like.id))
@@ -150,12 +235,19 @@ export default function LikedYou() {
       Notification.requestPermission()
     }
 
-    return unsub
+    return () => {
+      unsub()
+      window.clearTimeout(trustEmptyTimer)
+    }
   }, [user?.uid])
 
   useEffect(() => {
     if (!user?.uid) return
-    return subscribeInbox(user.uid, setInboxItems)
+    return subscribeInbox(user.uid, (items) => {
+      setInboxItems(items)
+      inboxItemsRef.current = items
+      persistInboxSnapshot()
+    })
   }, [user?.uid])
 
   useEffect(() => {
@@ -196,7 +288,11 @@ export default function LikedYou() {
           profileMap[id] = (await fetchUser(id)) || (await fetchDeletedUser(id))
         })
       )
-      if (!cancelled) setInboxProfiles(profileMap)
+      if (!cancelled) {
+        setInboxProfiles(profileMap)
+        inboxProfilesRef.current = profileMap
+        persistInboxSnapshot()
+      }
     })()
 
     return () => {
@@ -218,7 +314,11 @@ export default function LikedYou() {
           profileMap[id] = (await fetchUser(id)) || (await fetchDeletedUser(id))
         })
       )
-      if (!cancelled) setOutgoingProfiles(profileMap)
+      if (!cancelled) {
+        setOutgoingProfiles(profileMap)
+        outgoingProfilesRef.current = profileMap
+        persistInboxSnapshot()
+      }
     })()
 
     return () => {
@@ -250,6 +350,7 @@ export default function LikedYou() {
     try {
       await acceptLike(user.uid, fromUserId)
       toast.success("You're now friends!")
+      persistInboxSnapshot()
     } catch {
       setLikes(previousLikes)
       setProfiles(previousProfiles)
@@ -270,6 +371,7 @@ export default function LikedYou() {
     try {
       await declineLike(user.uid, fromUserId)
       toast.success('Declined')
+      persistInboxSnapshot()
     } catch {
       setLikes(previousLikes)
       setProfiles(previousProfiles)
@@ -290,6 +392,7 @@ export default function LikedYou() {
     try {
       await cancelFriendRequest(user.uid, targetId)
       toast.success('Request cancelled')
+      persistInboxSnapshot()
     } catch {
       setProfile(previousProfile)
       setOutgoingIds(previousOutgoingIds)
@@ -297,18 +400,19 @@ export default function LikedYou() {
     }
   }
 
-  if (loading) {
+  const requestActionBtnClass =
+    'h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/15 border border-white/10 transition-colors'
+
+  const hasCachedOrLoadedContent =
+    !loading || likes.length > 0 || inboxItems.length > 0 || outgoingIds.length > 0
+
+  if (!hasCachedOrLoadedContent) {
     return (
       <PageShell title="Inbox">
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
+        <ListSkeleton rows={5} />
       </PageShell>
     )
   }
-
-  const requestActionBtnClass =
-    'h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/15 border border-white/10 transition-colors'
 
   const renderRequest = (like) => {
     const fromId = like.fromUserId || like.id

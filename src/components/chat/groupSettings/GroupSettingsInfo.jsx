@@ -6,7 +6,7 @@ import { updateGroupInfo } from '../../../services/groupChatService'
 import { normalizeUsername } from '../../../utils/helpers'
 import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../../utils/inputHelpers'
 import { useGroupUsernameCheck } from '../../../hooks/useGroupUsernameCheck'
-import LoadingSpinner from '../../ui/LoadingSpinner'
+import { FormSkeleton } from '../../ui/Skeleton'
 import EditSaveBar from '../../ui/EditSaveBar'
 import PhotoUrlSection from '../../profile/PhotoUrlSection'
 import PhotoGallery from '../../ui/PhotoGallery'
@@ -235,8 +235,8 @@ export default function GroupSettingsInfo() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-black">
-        <LoadingSpinner />
+      <div className="h-full overflow-y-auto bg-black">
+        <FormSkeleton />
       </div>
     )
   }

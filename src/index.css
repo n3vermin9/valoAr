@@ -113,6 +113,30 @@ video {
   }
 }
 
+@keyframes skeleton-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.38;
+  }
+}
+
+.skeleton-block {
+  background: color-mix(in srgb, var(--ios-label) 16%, transparent);
+  animation: skeleton-blink 2.2s ease-in-out infinite;
+}
+
+.loading-blink {
+  animation: skeleton-blink 2.2s ease-in-out infinite;
+}
+
+.loading-blink-surface {
+  background: color-mix(in srgb, var(--ios-label) 16%, transparent);
+  animation: skeleton-blink 2.2s ease-in-out infinite;
+}
+
 .message-bubble-flash {
   animation: message-flash-highlight 1s ease-out forwards;
 }

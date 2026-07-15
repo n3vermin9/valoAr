@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, unblockUser, subscribeToUser } from '../../services/userService'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { ListSkeleton } from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
 import UsernameLabel from '../ui/UsernameLabel'
 import CachedAvatar from '../ui/CachedAvatar'
@@ -40,7 +40,7 @@ export default function BlockedList() {
     <div className="pb-4">
       <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-4`}>Blocked Users</h2>
       {loading ? (
-        <LoadingSpinner />
+        <ListSkeleton rows={4} className="px-[var(--ios-page-x-lg)]" />
       ) : blockedUsers.length === 0 ? (
         <EmptyState message="No blocked users" />
       ) : (

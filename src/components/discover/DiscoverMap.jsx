@@ -51,25 +51,34 @@ import Button from '../ui/Button'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import MapPlaceEditor from './MapPlaceEditor'
 import CreateMeetupModal from './CreateMeetupModal'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { PageSkeleton } from '../ui/Skeleton'
+import { optimizeAvatarUrl } from '../../services/avatarImageCache'
+import { formatAppDateTime, getLowQualityImageSrc } from '../../utils/helpers'
 import { sad } from '../../assets'
 
 function formatMeetupTime(ms) {
-  if (!ms) return ''
-  return new Date(ms).toLocaleString(undefined, {
+  return formatAppDateTime(ms, {
+    militaryTime: true,
     weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
+    month: false,
+    day: false,
   })
 }
 
 const DEFAULT_CENTER = [43.3178, 45.6949]
 const PLACE_ZOOM = 16
+const MAP_MAX_ZOOM = 17
+const USER_PINS_MIN_ZOOM = 12
+const VIEWPORT_PAD_RATIO = 0.35
+/** Tiny map-pin avatars — enough for a circle, cheap to decode/composite. */
+const MAP_AVATAR_PX = 28
+const MAP_AVATAR_QUALITY = 0.28
 
+// Prefer nolabels tiles (lighter PNGs). “Streets” keeps labels when needed.
 const MAP_THEMES = [
-  { id: 'dark', label: 'Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
-  { id: 'light', label: 'Light', url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' },
-  { id: 'voyager', label: 'Voyager', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png' },
+  { id: 'dark', label: 'Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png' },
+  { id: 'light', label: 'Light', url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png' },
+  { id: 'labeled', label: 'Streets', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
 ]
 
 const mapSession = {
@@ -80,10 +89,16 @@ const mapSession = {
   zoom: 14,
 }
 
+function boundsContainLatLng(bounds, lat, lng, padRatio = 0) {
+  if (!bounds) return true
+  const padded = padRatio > 0 ? bounds.pad(padRatio) : bounds
+  return padded.contains([lat, lng])
+}
+
 function MapRecenter({ center }) {
   const map = useMap()
   useEffect(() => {
-    if (center) map.setView(center, map.getZoom(), { animate: true })
+    if (center) map.setView(center, map.getZoom(), { animate: false })
   }, [center, map])
   return null
 }
@@ -108,8 +123,33 @@ function MapFlyTo({ target }) {
     const centerPixel = L.point(markerPixel.x, markerPixel.y - desiredY + mapSize.y / 2)
     const centerLatLng = map.unproject(centerPixel, zoom)
 
-    map.flyTo(centerLatLng, zoom, { duration: 0.6, easeLinearity: 0.5 })
+    map.flyTo(centerLatLng, zoom, { duration: 0.35, easeLinearity: 0.35 })
   }, [target, map])
+  return null
+}
+
+function MapViewport({ onChange }) {
+  const map = useMap()
+  const lastRef = useRef({ bounds: null, zoom: null })
+
+  const publish = useCallback(() => {
+    const bounds = map.getBounds()
+    const zoom = map.getZoom()
+    const prev = lastRef.current
+    if (prev.zoom === zoom && prev.bounds && bounds.equals(prev.bounds)) return
+    const next = { bounds, zoom }
+    lastRef.current = next
+    onChange(next)
+  }, [map, onChange])
+
+  useEffect(() => {
+    publish()
+  }, [publish])
+
+  useMapEvents({
+    moveend: publish,
+    zoomend: publish,
+  })
   return null
 }
 
@@ -163,7 +203,7 @@ function MapFlyEndNotifier({ flyKey, onEnd }) {
     }
     map.on('moveend', finish)
     // flyTo to the current view may skip moveend — still open the card.
-    const fallback = window.setTimeout(finish, 650)
+    const fallback = window.setTimeout(finish, 400)
     return () => {
       map.off('moveend', finish)
       window.clearTimeout(fallback)
@@ -198,39 +238,130 @@ const mapCardMotion = {
   transition: { type: 'spring', stiffness: 420, damping: 34, mass: 0.85 },
 }
 
-function createUserIcon(photoUrl) {
-  const safeUrl = photoUrl.replace(/"/g, '&quot;')
-  return L.divIcon({
+// Icon caches — reuse the same L.divIcon so Leaflet doesn't remount DOM on pan/zoom.
+// Selection is toggled via CSS class on the existing element (see PlaceMarker / UserMarker).
+const _userIconCache = new Map()
+function createUserIcon(photoUrl, isFriend = false) {
+  const key = `${photoUrl || ''}|${isFriend ? 1 : 0}`
+  if (_userIconCache.has(key)) return _userIconCache.get(key)
+  const safeUrl = String(photoUrl || sad).replace(/"/g, '&quot;')
+  const icon = L.divIcon({
     className: 'discover-map-user-marker',
-    html: `<div class="discover-map-user-pin"><img src="${safeUrl}" alt="" /></div>`,
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
+    html: `<div class="discover-map-user-pin${isFriend ? ' is-friend' : ''}"><img src="${safeUrl}" alt="" decoding="async" draggable="false" /></div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
   })
+  _userIconCache.set(key, icon)
+  return icon
 }
 
-function createPlaceIcon(emoji, name = '', selected = false, meetupCount = 0) {
-  const safeName = String(name || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/"/g, '&quot;')
+const _placeIconCache = new Map()
+function createPlaceIcon(emoji, meetupCount = 0) {
+  const key = `${emoji}|${meetupCount}`
+  if (_placeIconCache.has(key)) return _placeIconCache.get(key)
   const countBadge =
     meetupCount > 0
       ? `<span class="discover-map-place-count">${meetupCount > 9 ? '9+' : meetupCount}</span>`
       : ''
-  return L.divIcon({
+  const icon = L.divIcon({
     className: 'discover-map-place-marker',
-    html: `<div class="discover-map-place-anchor"><div class="discover-map-place-pin${selected ? ' is-selected' : ''}"><span class="discover-map-place-pin-emoji" aria-hidden="true">${emoji}</span><span class="discover-map-place-pin-title">${safeName}</span>${countBadge}</div></div>`,
-    iconSize: [220, 44],
-    iconAnchor: [110, 22],
+    html: `<div class="discover-map-place-anchor"><div class="discover-map-place-pin"><span class="discover-map-place-pin-emoji" aria-hidden="true">${emoji}</span>${countBadge}</div></div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   })
+  _placeIconCache.set(key, icon)
+  return icon
 }
 
 const youMarkerIcon = L.divIcon({
   className: 'discover-map-you-marker',
   html: '<div class="discover-map-you-pin"></div>',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
 })
+
+function PlaceMarker({ place, selected, meetupCount, onClick }) {
+  const markerRef = useRef(null)
+  const icon = useMemo(
+    () => createPlaceIcon(place.emoji, meetupCount),
+    [place.emoji, meetupCount]
+  )
+
+  useEffect(() => {
+    const el = markerRef.current?.getElement?.()
+    const pin = el?.querySelector?.('.discover-map-place-pin')
+    if (pin) pin.classList.toggle('is-selected', selected)
+  }, [selected, icon])
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={[place.lat, place.lng]}
+      icon={icon}
+      eventHandlers={{
+        click: (e) => {
+          if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent)
+          onClick(place)
+        },
+      }}
+    />
+  )
+}
+
+function UserMarker({ pin, selected, onClick }) {
+  const markerRef = useRef(null)
+  const rawPhoto = pin.photo || pin.profile?.photos?.[0] || ''
+  const [thumbSrc, setThumbSrc] = useState(() =>
+    rawPhoto ? optimizeAvatarUrl(rawPhoto, MAP_AVATAR_PX) : sad
+  )
+
+  useEffect(() => {
+    if (!rawPhoto) {
+      setThumbSrc(sad)
+      return undefined
+    }
+
+    const optimized = optimizeAvatarUrl(rawPhoto, MAP_AVATAR_PX)
+    setThumbSrc(optimized)
+
+    let cancelled = false
+    getLowQualityImageSrc(optimized, {
+      maxWidth: MAP_AVATAR_PX,
+      quality: MAP_AVATAR_QUALITY,
+    }).then((src) => {
+      if (!cancelled && src) setThumbSrc(src)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [rawPhoto])
+
+  const icon = useMemo(
+    () => createUserIcon(thumbSrc, pin.isFriend),
+    [thumbSrc, pin.isFriend]
+  )
+
+  useEffect(() => {
+    const el = markerRef.current?.getElement?.()
+    const pinEl = el?.querySelector?.('.discover-map-user-pin')
+    if (pinEl) pinEl.classList.toggle('is-selected', selected)
+  }, [selected, icon])
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={pin.position}
+      icon={icon}
+      eventHandlers={{
+        click: (e) => {
+          if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent)
+          onClick(pin)
+        },
+      }}
+    />
+  )
+}
 
 function SegmentedField({ label, value, options, onChange }) {
   return (
@@ -599,19 +730,37 @@ function MeetupManager({
 
   return (
     <div className="relative w-full pointer-events-auto">
-      <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        layout
+        role={!expanded ? 'button' : undefined}
+        tabIndex={!expanded ? 0 : undefined}
+        onClick={!expanded ? handleExpand : undefined}
+        onKeyDown={
+          !expanded
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleExpand()
+                }
+              }
+            : undefined
+        }
+        initial={false}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{
+          layout: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+          opacity: { duration: 0.12 },
+          scale: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+        }}
+        className={
+          expanded
+            ? `${panelChromeClass} p-3`
+            : 'w-full h-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md px-4 py-0 flex items-center justify-between gap-3'
+        }
+        aria-label={!expanded ? 'Open meetups manager' : undefined}
+      >
         {!expanded ? (
-          <motion.button
-            key="meetups-collapsed"
-            type="button"
-            onClick={handleExpand}
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full h-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md px-4 py-0 flex items-center justify-between gap-3"
-            aria-label="Open meetups manager"
-          >
+          <>
             <div className="flex items-center gap-2 min-w-0">
               <IconCalendarPlus size={18} stroke={2} className="text-[var(--ios-blue)] shrink-0" />
               <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups</p>
@@ -624,16 +773,9 @@ function MeetupManager({
                 {availCount}
               </span>
             </div>
-          </motion.button>
+          </>
         ) : (
-          <motion.div
-            key="meetups-expanded"
-            initial={{ opacity: 0, y: -8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className={`${panelChromeClass} p-3`}
-          >
+          <>
             <div className={`${headerSlotClass} mb-2`}>
               <AnimatePresence mode="wait" initial={false}>
                 {showSearchBar ? (
@@ -785,9 +927,9 @@ function MeetupManager({
               </div>
             </div>
           )}
-          </motion.div>
+          </>
         )}
-      </AnimatePresence>
+      </motion.div>
 
       <ConfirmDialog
         isOpen={Boolean(joinTarget)}
@@ -816,6 +958,9 @@ export default function DiscoverMap({
   onOpenChat,
   onExitMap,
   chromeHidden = false,
+  focusPlaceId = null,
+  focusCoords = null,
+  onFocusPlaceConsumed,
 }) {
   const [center, setCenter] = useState(mapSession.located ? mapSession.viewCenter : null)
   const [userCenter, setUserCenter] = useState(mapSession.located ? mapSession.userCenter : null)
@@ -840,6 +985,7 @@ export default function DiscoverMap({
   const [availableMeetups, setAvailableMeetups] = useState([])
   const [placeMeetupCounts, setPlaceMeetupCounts] = useState({})
   const [meetupManagerExpanded, setMeetupManagerExpanded] = useState(false)
+  const [viewport, setViewport] = useState({ bounds: null, zoom: mapSession.zoom })
 
   const isAdmin = isDurovAdmin(profile)
   const theme = MAP_THEMES.find((t) => t.id === settings.theme) || MAP_THEMES[0]
@@ -1019,10 +1165,38 @@ export default function DiscoverMap({
   const showUsers = settings.display !== 'places'
   const showPlaces = settings.display !== 'users'
 
-  const visibleUserPins = useMemo(
-    () => (settings.show === 'friends' ? userPins.filter((pin) => pin.isFriend) : userPins),
-    [userPins, settings.show]
-  )
+  const visibleUserPins = useMemo(() => {
+    const filtered = settings.show === 'friends' ? userPins.filter((pin) => pin.isFriend) : userPins
+    if (!viewport.bounds) return filtered
+    return filtered.filter((pin) =>
+      boundsContainLatLng(viewport.bounds, pin.position[0], pin.position[1], VIEWPORT_PAD_RATIO)
+    )
+  }, [userPins, settings.show, viewport.bounds])
+
+  const visiblePlaces = useMemo(() => {
+    if (!viewport.bounds) return displayPlaces
+    return displayPlaces.filter((place) =>
+      boundsContainLatLng(viewport.bounds, place.lat, place.lng, VIEWPORT_PAD_RATIO)
+    )
+  }, [displayPlaces, viewport.bounds])
+
+  const renderUserPins = showUsers && viewport.zoom >= USER_PINS_MIN_ZOOM
+  // Keep the selected user/place rendered even if briefly outside padded bounds.
+  const markersUsers = useMemo(() => {
+    if (!renderUserPins) {
+      return selectedUserPin ? [selectedUserPin] : []
+    }
+    if (!selectedUserPin) return visibleUserPins
+    if (visibleUserPins.some((pin) => pin.id === selectedUserPin.id)) return visibleUserPins
+    return [...visibleUserPins, selectedUserPin]
+  }, [renderUserPins, visibleUserPins, selectedUserPin])
+
+  const markersPlaces = useMemo(() => {
+    if (!showPlaces) return selectedPlace ? [selectedPlace] : []
+    if (!selectedPlace) return visiblePlaces
+    if (visiblePlaces.some((place) => place.id === selectedPlace.id)) return visiblePlaces
+    return [...visiblePlaces, selectedPlace]
+  }, [showPlaces, visiblePlaces, selectedPlace])
 
   const handleRecenter = () => {
     if (userCenter) setCenter([...userCenter])
@@ -1061,6 +1235,28 @@ export default function DiscoverMap({
     setMeetupManagerExpanded(false)
     handlePlaceClick(place)
   }
+
+  useEffect(() => {
+    if (!focusPlaceId && !focusCoords) return
+    if (!placesReady) return
+
+    const place =
+      (focusPlaceId && places.find((p) => p.id === focusPlaceId)) ||
+      (focusCoords
+        ? {
+            id: focusPlaceId || `focus-${focusCoords.lat}-${focusCoords.lng}`,
+            name: 'Meetup spot',
+            emoji: '📍',
+            type: 'other',
+            lat: focusCoords.lat,
+            lng: focusCoords.lng,
+            isLocal: true,
+          }
+        : null)
+
+    if (place) handlePlaceClick(place)
+    onFocusPlaceConsumed?.()
+  }, [focusPlaceId, focusCoords, placesReady, places])
 
   const handleMapTapForPlace = (coords) => {
     if (!addingPlace) return
@@ -1127,27 +1323,32 @@ export default function DiscoverMap({
 
   if (loading || !center) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-0">
-        <LoadingSpinner />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <PageSkeleton />
       </div>
     )
   }
 
   return (
-    <div className={`flex-1 min-h-0 relative discover-map-container${addingPlace ? ' discover-map-placing' : ''}`}>
+    <div
+      className={`flex-1 min-h-0 relative discover-map-container discover-map-theme-${theme.id}${
+        addingPlace ? ' discover-map-placing' : ''
+      }`}
+    >
       <MapContainer
         center={center}
         zoom={mapSession.zoom}
         minZoom={11}
-        maxZoom={18}
+        maxZoom={MAP_MAX_ZOOM}
         zoomControl={false}
         attributionControl={false}
         zoomSnap={0.25}
         zoomDelta={0.5}
-        wheelPxPerZoomLevel={120}
+        wheelPxPerZoomLevel={60}
         zoomAnimation
-        fadeAnimation
-        markerZoomAnimation={false}
+        zoomAnimationThreshold={4}
+        fadeAnimation={false}
+        markerZoomAnimation
         inertia
         inertiaDeceleration={2500}
         className="h-full w-full discover-map-leaflet"
@@ -1157,49 +1358,42 @@ export default function DiscoverMap({
         <MapFlyEndNotifier flyKey={flyTarget?.ts} onEnd={handleFlyEnd} />
         <MapInteractionCloser onClose={dismissMapSelection} disabled={!visibleCardKey} />
         <MapStatePersistor />
+        <MapViewport onChange={setViewport} />
         <MapClickHandler
           addingPlace={addingPlace}
           onAddTap={handleMapTapForPlace}
           onBackgroundClick={dismissMapSelection}
         />
-        <TileLayer key={theme.id} url={theme.url} />
+        <TileLayer
+          key={theme.id}
+          url={theme.url}
+          maxZoom={MAP_MAX_ZOOM}
+          maxNativeZoom={MAP_MAX_ZOOM}
+          updateWhenZooming={false}
+          updateWhenIdle
+          keepBuffer={1}
+        />
 
         {userCenter && <Marker position={userCenter} icon={youMarkerIcon} />}
 
-        {showUsers &&
-          visibleUserPins.map((pin) => (
-            <Marker
-              key={pin.id}
-              position={pin.position}
-              icon={createUserIcon(pin.photo || sad)}
-              eventHandlers={{
-                click: (e) => {
-                  if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent)
-                  handleUserPinClick(pin)
-                },
-              }}
-            />
-          ))}
+        {markersUsers.map((pin) => (
+          <UserMarker
+            key={pin.id}
+            pin={pin}
+            selected={selectedUserPin?.id === pin.id}
+            onClick={handleUserPinClick}
+          />
+        ))}
 
-        {showPlaces &&
-          displayPlaces.map((place) => (
-            <Marker
-              key={place.id}
-              position={[place.lat, place.lng]}
-              icon={createPlaceIcon(
-                place.emoji,
-                place.name,
-                selectedPlace?.id === place.id,
-                placeMeetupCounts[place.id] || 0
-              )}
-              eventHandlers={{
-                click: (e) => {
-                  if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent)
-                  handlePlaceClick(place)
-                },
-              }}
-            />
-          ))}
+        {markersPlaces.map((place) => (
+          <PlaceMarker
+            key={place.id}
+            place={place}
+            selected={selectedPlace?.id === place.id}
+            meetupCount={placeMeetupCounts[place.id] || 0}
+            onClick={handlePlaceClick}
+          />
+        ))}
       </MapContainer>
 
       {!chromeHidden && (

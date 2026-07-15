@@ -179,7 +179,33 @@ export function formatLastSeen(timestamp) {
 }
 
 export function usesMilitaryTime(profile) {
+  // 24h is default until the user opts into 12h in settings.
   return profile?.useMilitaryTime !== false
+}
+
+export function formatAppDateTime(
+  value,
+  {
+    militaryTime = true,
+    weekday = 'short',
+    month = 'short',
+    day = 'numeric',
+    includeDate = true,
+  } = {}
+) {
+  if (!value) return ''
+  const date = value?.toDate?.() ?? new Date(typeof value === 'number' ? value : value)
+  if (Number.isNaN(date.getTime())) return ''
+  const timeOpts = militaryTime
+    ? { hour: '2-digit', minute: '2-digit', hour12: false }
+    : { hour: 'numeric', minute: '2-digit', hour12: true }
+  if (!includeDate) return date.toLocaleTimeString(undefined, timeOpts)
+  return date.toLocaleString(undefined, {
+    ...(weekday ? { weekday } : {}),
+    ...(month ? { month } : {}),
+    ...(day ? { day } : {}),
+    ...timeOpts,
+  })
 }
 
 export function formatChatTime(timestamp, militaryTime = true) {
@@ -241,6 +267,54 @@ export function compressImage(file, maxSizeMB = 5) {
     reader.onload = (e) => resolve(e.target.result)
     reader.onerror = reject
     reader.readAsDataURL(file)
+  })
+}
+
+const lowQualityImageCache = new Map()
+
+/** Downscale a remote/data image for lightweight UI surfaces (chat cards, etc.). */
+export function getLowQualityImageSrc(url, { maxWidth = 420, quality = 0.52 } = {}) {
+  if (!url) return Promise.resolve('')
+  const cacheKey = `${url}|${maxWidth}|${quality}`
+  if (lowQualityImageCache.has(cacheKey)) {
+    return Promise.resolve(lowQualityImageCache.get(cacheKey))
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.decoding = 'async'
+    img.referrerPolicy = 'no-referrer'
+    // Allows canvas export when the host sends CORS headers.
+    img.crossOrigin = 'anonymous'
+
+    const finish = (src) => {
+      lowQualityImageCache.set(cacheKey, src)
+      resolve(src)
+    }
+
+    img.onload = () => {
+      try {
+        const naturalW = img.naturalWidth || maxWidth
+        const naturalH = img.naturalHeight || maxWidth
+        const scale = Math.min(1, maxWidth / naturalW)
+        const width = Math.max(1, Math.round(naturalW * scale))
+        const height = Math.max(1, Math.round(naturalH * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d', { alpha: false })
+        if (!ctx) {
+          finish(url)
+          return
+        }
+        ctx.drawImage(img, 0, 0, width, height)
+        finish(canvas.toDataURL('image/jpeg', quality))
+      } catch {
+        finish(url)
+      }
+    }
+    img.onerror = () => finish(url)
+    img.src = url
   })
 }
 

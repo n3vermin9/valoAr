@@ -6,7 +6,7 @@ import { resolveGroupJoinSlug, joinGroupByInviteCode } from '../../services/grou
 import { getGroupDisplayName, getGroupPhotoUrl, isGroupMember } from '../../utils/groupChat'
 import GroupAvatar from './GroupAvatar'
 import Button from '../ui/Button'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { PageSkeleton } from '../ui/Skeleton'
 import { typoTitle2Class } from '../../utils/designSystem'
 import PhotoGallery from '../ui/PhotoGallery'
 import PageShell from '../layout/PageShell'
@@ -61,8 +61,8 @@ export default function GroupJoinPage() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full">
+        <PageSkeleton />
       </div>
     )
   }
@@ -82,8 +82,8 @@ export default function GroupJoinPage() {
 
   if (isPublic) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full">
+        <PageSkeleton />
       </div>
     )
   }

@@ -36,7 +36,7 @@ export default function MessageActionOverlay({
   onMentionClick,
   onCancel,
   replyAuthorName,
-  militaryTime = false,
+  militaryTime = true,
   isGroupChat = false,
   senderName,
   senderRole,

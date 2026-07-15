@@ -1,9 +1,10 @@
 import { IconUsers } from '@tabler/icons-react'
 
-const RING_SIZE = 58
-const CENTER = RING_SIZE / 2
-const RING_RADIUS = 23
-const RING_STROKE = 6
+const SIZES = {
+  md: { ring: 58, radius: 23, stroke: 6, inset: 9, icon: 20 },
+  sm: { ring: 44, radius: 17, stroke: 5, inset: 7, icon: 15 },
+}
+
 const SEGMENT_GAP_DEG = 4
 
 function segmentTypeForUser(profile) {
@@ -27,15 +28,15 @@ function segmentGlow(type) {
   return 'rgba(72,72,74,0.45)'
 }
 
-function describeRingSegment(index, total) {
+function describeRingSegment(index, total, center, radius, stroke) {
   const sweep = 360 / total - SEGMENT_GAP_DEG
   const start = index * (360 / total) + SEGMENT_GAP_DEG / 2 - 90
-  const outerR = RING_RADIUS + RING_STROKE / 2
-  const innerR = RING_RADIUS - RING_STROKE / 2
+  const outerR = radius + stroke / 2
+  const innerR = radius - stroke / 2
 
-  const toXY = (angle, radius) => {
+  const toXY = (angle, r) => {
     const rad = (angle * Math.PI) / 180
-    return [CENTER + radius * Math.cos(rad), CENTER + radius * Math.sin(rad)]
+    return [center + r * Math.cos(rad), center + r * Math.sin(rad)]
   }
 
   const [x1, y1] = toXY(start, outerR)
@@ -51,8 +52,11 @@ export default function MeetupParticipantRing({
   maxMembers = 10,
   participants = [],
   participantProfiles = {},
+  size = 'md',
   className = '',
 }) {
+  const metrics = SIZES[size] || SIZES.md
+  const center = metrics.ring / 2
   const slotCount = Math.max(2, Math.min(10, Number(maxMembers) || 10))
   const segments = Array.from({ length: slotCount }, (_, index) => {
     const userId = participants[index]
@@ -63,22 +67,26 @@ export default function MeetupParticipantRing({
   return (
     <div
       className={`relative shrink-0 drop-shadow-[0_3px_10px_rgba(0,0,0,0.6)] ${className}`}
-      style={{ width: RING_SIZE, height: RING_SIZE }}
+      style={{ width: metrics.ring, height: metrics.ring }}
       aria-hidden
     >
-      <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}>
+      <svg
+        width={metrics.ring}
+        height={metrics.ring}
+        viewBox={`0 0 ${metrics.ring} ${metrics.ring}`}
+      >
         <circle
-          cx={CENTER}
-          cy={CENTER}
-          r={RING_RADIUS}
+          cx={center}
+          cy={center}
+          r={metrics.radius}
           fill="none"
           stroke="rgba(0,0,0,0.55)"
-          strokeWidth={RING_STROKE + 2}
+          strokeWidth={metrics.stroke + 2}
         />
         {segments.map((type, index) => (
           <path
             key={index}
-            d={describeRingSegment(index, slotCount)}
+            d={describeRingSegment(index, slotCount, center, metrics.radius, metrics.stroke)}
             fill={segmentColor(type)}
             stroke="rgba(255,255,255,0.35)"
             strokeWidth="0.75"
@@ -87,8 +95,11 @@ export default function MeetupParticipantRing({
         ))}
       </svg>
 
-      <div className="absolute inset-[9px] flex items-center justify-center rounded-full border-2 border-orange-500 bg-white shadow-[0_1px_8px_rgba(0,0,0,0.35)]">
-        <IconUsers size={20} stroke={2.25} className="text-orange-600" />
+      <div
+        className="absolute flex items-center justify-center rounded-full border-2 border-orange-500 bg-white shadow-[0_1px_8px_rgba(0,0,0,0.35)]"
+        style={{ inset: metrics.inset }}
+      >
+        <IconUsers size={metrics.icon} stroke={2.25} className="text-orange-600" />
       </div>
     </div>
   )

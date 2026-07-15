@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser } from '../../services/userService'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { ListSkeleton } from '../ui/Skeleton'
 import EmptyState from '../ui/EmptyState'
 import UsernameLabel from '../ui/UsernameLabel'
 import CachedAvatar from '../ui/CachedAvatar'
@@ -28,7 +28,7 @@ export default function MatchHistory({ onSelectFriend }) {
     <div className="pb-4">
       <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-4`}>Friends</h2>
       {loading ? (
-        <LoadingSpinner />
+        <ListSkeleton rows={4} className="px-[var(--ios-page-x-lg)]" />
       ) : matches.length === 0 ? (
         <EmptyState message="No friends yet" />
       ) : (

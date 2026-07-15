@@ -1,5 +1,5 @@
 .discover-map-container .leaflet-container {
-  background: var(--ios-bg-secondary);
+  background: #1c1c1e;
   font-family: var(--ios-font);
 }
 
@@ -7,14 +7,34 @@
   z-index: 0;
 }
 
-.discover-map-container .leaflet-marker-icon,
-.discover-map-container .leaflet-marker-shadow {
+/* Dark streetless tiles tend to crush to pure black — lift midtones slightly. */
+.discover-map-container.discover-map-theme-dark .leaflet-tile-pane {
+  filter: brightness(1.38) contrast(0.94) saturate(0.92);
+}
+
+.discover-map-container.discover-map-theme-labeled .leaflet-tile-pane {
+  filter: brightness(1.28) contrast(0.95) saturate(0.95);
+}
+
+/* Suppress tile cross-fade, but keep Leaflet's zoom transform smooth. */
+.discover-map-container .leaflet-tile {
   transition: none !important;
 }
 
-.discover-map-container .leaflet-zoom-anim .leaflet-marker-icon,
-.discover-map-container .leaflet-zoom-anim .leaflet-marker-shadow {
+.discover-map-container .leaflet-tile-container {
+  opacity: 1 !important;
   transition: none !important;
+}
+
+.discover-map-container .leaflet-zoom-anim .leaflet-zoom-animated {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: transform;
+}
+
+.discover-map-container .leaflet-marker-icon,
+.discover-map-container .leaflet-marker-shadow {
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .discover-map-user-marker,
@@ -25,13 +45,22 @@
 }
 
 .discover-map-user-pin {
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: 2px solid var(--ios-blue);
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
   background: var(--ios-bg-tertiary);
+  transform: translateZ(0);
+}
+
+.discover-map-user-pin.is-friend {
+  border-color: #34d399;
+}
+
+.discover-map-user-pin.is-selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ios-blue) 40%, transparent), 0 2px 12px rgba(0, 0, 0, 0.45);
 }
 
 .discover-map-user-pin img {
@@ -39,12 +68,13 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  image-rendering: auto;
+  /* Tiny source bitmaps — avoid expensive upscale sharpening */
+  transform: translateZ(0);
 }
 
 .discover-map-place-marker {
   overflow: visible !important;
-  background: transparent !important;
-  border: none !important;
 }
 
 .discover-map-place-anchor {
@@ -58,79 +88,41 @@
 
 .discover-map-place-pin {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   background: var(--ios-bg-secondary);
   border: 2px solid var(--ios-glass-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  padding: 0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-  white-space: nowrap;
-  overflow: visible;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   pointer-events: auto;
   cursor: pointer;
-  font-family: var(--ios-font);
-  transition:
-    width 0.2s ease,
-    padding 0.2s ease,
-    gap 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
 }
 
 .discover-map-place-pin-emoji {
-  flex-shrink: 0;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
 }
 
-.discover-map-place-pin-title {
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ios-label);
-  line-height: 1.2;
-  transition:
-    max-width 0.2s ease,
-    opacity 0.15s ease;
-}
-
-.discover-map-place-pin:hover,
 .discover-map-place-pin.is-selected {
-  width: auto;
-  min-width: 36px;
-  max-width: 13rem;
-  padding: 0 14px 0 10px;
-  gap: 8px;
   border-color: var(--ios-blue);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ios-blue) 35%, transparent), 0 2px 12px rgba(0, 0, 0, 0.4);
-}
-
-.discover-map-place-pin:hover .discover-map-place-pin-title,
-.discover-map-place-pin.is-selected .discover-map-place-pin-title {
-  max-width: 10rem;
-  opacity: 1;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ios-blue) 35%, transparent), 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
 .discover-map-place-count {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
+  top: -7px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
   border-radius: 999px;
   background: var(--ios-blue);
   color: #fff;
-  font-size: 11px;
-  line-height: 18px;
+  font-size: 10px;
+  line-height: 16px;
   text-align: center;
   font-weight: 600;
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -138,11 +130,11 @@
 }
 
 .discover-map-you-pin {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--ios-blue);
-  border: 3px solid white;
+  border: 2px solid white;
   box-shadow: 0 0 0 2px var(--ios-blue);
 }
 

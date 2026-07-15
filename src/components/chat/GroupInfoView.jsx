@@ -32,7 +32,7 @@ import {
 import GroupAvatar from './GroupAvatar'
 import MuteChatModal from './MuteChatModal'
 import GroupMemberRow from './GroupMemberRow'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { ProfileSkeleton } from '../ui/Skeleton'
 import Modal from '../ui/Modal'
 import { PublicProfileView } from '../profile/ProfileView'
 import PhotoGallery from '../ui/PhotoGallery'
@@ -166,9 +166,7 @@ export default function GroupInfoView() {
     return (
       <div className="h-full flex flex-col">
         <PhotoHeroFixedBack onBack={handleBack} />
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
+        <ProfileSkeleton />
       </div>
     )
   }

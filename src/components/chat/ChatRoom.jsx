@@ -57,6 +57,7 @@ import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
 import MessageBubble from './MessageBubble'
 import SystemMessage from './SystemMessage'
+import MeetupPinnedInfo from './MeetupPinnedInfo'
 import DeleteMessageOverlay from './DeleteMessageOverlay'
 import ImageViewer from './ImageViewer'
 import ChatInput from './ChatInput'
@@ -74,7 +75,8 @@ import { getProfileSnapshots } from '../../services/profileSnapshotCache'
 import { preloadAvatarImage } from '../../services/avatarImageCache'
 import { PublicProfileView } from '../profile/ProfileView'
 import ChatStoryViewer from '../stories/ChatStoryViewer'
-import LoadingSpinner from '../ui/LoadingSpinner'
+import { ChatRoomSkeleton } from '../ui/Skeleton'
+import { getChatRoomSnapshot, setChatRoomSnapshot } from '../../services/chatRoomCache'
 import {
   isGroupChat,
   getGroupDisplayName,
@@ -89,6 +91,7 @@ import {
 import { leaveGroupChat, joinGroupViaButton, joinGroupByInviteCode } from '../../services/groupChatService'
 import { cancelMeetup } from '../../services/meetupService'
 import { getMessageClusterMeta } from '../../utils/messageCluster'
+import { isMeetupInfoMessage } from '../../services/systemChatMessage'
 import { getStoryReplyDisplay } from '../../utils/storyHelpers'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
@@ -158,14 +161,15 @@ export default function ChatRoom() {
   const previewJoinSlug = location.state?.joinSlug || null
   const previewReturnTo = location.state?.previewReturnTo || '/discover'
   const { user, profile, refreshProfile } = useAuth()
-  const [messages, setMessages] = useState([])
+  const roomSnapshot = user?.uid && matchId ? getChatRoomSnapshot(user.uid, matchId) : null
+  const [messages, setMessages] = useState(() => roomSnapshot?.messages || [])
   const [otherUser, setOtherUser] = useState(null)
   const [otherUserLoaded, setOtherUserLoaded] = useState(false)
   const [trackedOtherId, setTrackedOtherId] = useState(null)
   const [trackedMatchId, setTrackedMatchId] = useState(matchId)
-  const [chatMeta, setChatMeta] = useState(null)
-  const [chatAvailable, setChatAvailable] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [chatMeta, setChatMeta] = useState(() => roomSnapshot?.chatMeta || null)
+  const [chatAvailable, setChatAvailable] = useState(() => Boolean(roomSnapshot?.chatMeta))
+  const [loading, setLoading] = useState(() => !roomSnapshot)
   const [isTyping, setIsTyping] = useState(false)
   const [typingUserIds, setTypingUserIds] = useState([])
   const [presence, setPresence] = useState(null)
@@ -187,7 +191,7 @@ export default function ChatRoom() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchMatchIndex, setSearchMatchIndex] = useState(0)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
-  const [memberProfiles, setMemberProfiles] = useState({})
+  const [memberProfiles, setMemberProfiles] = useState(() => roomSnapshot?.memberProfiles || {})
   const [showMuteModal, setShowMuteModal] = useState(false)
   const [previewJoining, setPreviewJoining] = useState(false)
   const messagesEndRef = useRef(null)
@@ -198,6 +202,12 @@ export default function ChatRoom() {
   const menuButtonRef = useRef(null)
   const chatWasVisibleRef = useRef(false)
   const markReadTimerRef = useRef(null)
+  const messagesRef = useRef(messages)
+  const chatMetaRef = useRef(chatMeta)
+  const otherUserRef = useRef(otherUser)
+  const memberProfilesRef = useRef(memberProfiles)
+  const mountAtRef = useRef(Date.now())
+  const hadCachedMessagesRef = useRef((roomSnapshot?.messages || []).length > 0)
 
   const isSavedMessages =
     isSavedMessagesChat(matchId, user?.uid) || chatMeta?.isSavedMessages === true
@@ -253,10 +263,13 @@ export default function ChatRoom() {
     () => (pinnedMeta?.messageId ? messages.find((m) => m.id === pinnedMeta.messageId) : null),
     [messages, pinnedMeta?.messageId]
   )
+  const [pinnedTargetInView, setPinnedTargetInView] = useState(false)
 
   if (otherId !== trackedOtherId) {
     setTrackedOtherId(otherId)
-    const initial = readCachedOtherUser(otherId)
+    const initial =
+      (roomSnapshot?.otherUser?.id === otherId ? roomSnapshot.otherUser : null) ||
+      readCachedOtherUser(otherId)
     setOtherUser(initial)
     setOtherUserLoaded(Boolean(initial))
     if (initial?.photos?.[0]) {
@@ -268,9 +281,14 @@ export default function ChatRoom() {
 
   if (matchId !== trackedMatchId) {
     setTrackedMatchId(matchId)
-    setChatAvailable(false)
-    setLoading(true)
-    setMessages([])
+    const nextSnapshot = user?.uid ? getChatRoomSnapshot(user.uid, matchId) : null
+    mountAtRef.current = Date.now()
+    hadCachedMessagesRef.current = (nextSnapshot?.messages || []).length > 0
+    setChatMeta(nextSnapshot?.chatMeta || null)
+    setChatAvailable(Boolean(nextSnapshot?.chatMeta))
+    setLoading(!nextSnapshot)
+    setMessages(nextSnapshot?.messages || [])
+    setMemberProfiles(nextSnapshot?.memberProfiles || {})
     setReplyTo(null)
     setShowSearch(false)
     setShowSearchResultsList(false)
@@ -278,6 +296,32 @@ export default function ChatRoom() {
     setSearchMatchIndex(0)
   }
   const militaryTime = usesMilitaryTime(profile)
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  useEffect(() => {
+    chatMetaRef.current = chatMeta
+  }, [chatMeta])
+
+  useEffect(() => {
+    otherUserRef.current = otherUser
+  }, [otherUser])
+
+  useEffect(() => {
+    memberProfilesRef.current = memberProfiles
+  }, [memberProfiles])
+
+  useEffect(() => {
+    if (!user?.uid || !matchId) return
+    setChatRoomSnapshot(user.uid, matchId, {
+      messages: messagesRef.current,
+      chatMeta: chatMetaRef.current,
+      otherUser: otherUserRef.current,
+      memberProfiles: memberProfilesRef.current,
+    })
+  }, [user?.uid, matchId, messages, chatMeta, otherUser, memberProfiles])
 
   useEffect(() => {
     chatWasVisibleRef.current = false
@@ -386,6 +430,15 @@ export default function ChatRoom() {
     }
 
     const unsub = subscribeMessages(matchId, (msgs) => {
+      const age = Date.now() - mountAtRef.current
+      const showingCached =
+        messagesRef.current.length > 0 || hadCachedMessagesRef.current
+
+      if (msgs.length === 0 && showingCached && age < 2000) {
+        setLoading(false)
+        return
+      }
+
       setMessages((prev) => {
         const pending = prev.filter((message) => message.pending)
         return mergeServerMessages(msgs, pending)
@@ -679,6 +732,10 @@ export default function ChatRoom() {
   }
 
   const visibleMessages = messages.filter((msg) => !removedMessageIds.has(msg.id))
+  const hasMeetupInfoMessage = useMemo(
+    () => visibleMessages.some((msg) => isMeetupInfoMessage(msg)),
+    [visibleMessages]
+  )
   const actionTargetIndex = deleteTarget
     ? visibleMessages.findIndex((msg) => msg.id === deleteTarget.message.id)
     : -1
@@ -850,6 +907,63 @@ export default function ChatRoom() {
       }, 1000)
     })
   }, [])
+
+  useEffect(() => {
+    if (!pinnedMessage?.id) {
+      setPinnedTargetInView(false)
+      return undefined
+    }
+
+    const root = messagesContainerRef.current
+    if (!root) return undefined
+
+    let observer = null
+    let cancelled = false
+    let settleTimer = null
+
+    const setInViewSmooth = (next) => {
+      clearTimeout(settleTimer)
+      settleTimer = setTimeout(() => {
+        if (!cancelled) setPinnedTargetInView(next)
+      }, next ? 120 : 180)
+    }
+
+    const attach = () => {
+      if (cancelled) return
+      const target = root.querySelector(`[data-message-id="${pinnedMessage.id}"]`)
+      if (!target) {
+        setInViewSmooth(false)
+        return
+      }
+
+      observer?.disconnect()
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          setInViewSmooth(Boolean(entry?.isIntersecting))
+        },
+        {
+          root,
+          // Treat as "in view" once any slice is in the readable message area.
+          rootMargin: '-12% 0px -28% 0px',
+          threshold: [0, 0.05, 0.2, 0.5],
+        }
+      )
+      observer.observe(target)
+    }
+
+    attach()
+    // Re-attach after layout settles (meetup cards / images).
+    const raf = requestAnimationFrame(attach)
+    const timer = setTimeout(attach, 250)
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+      clearTimeout(timer)
+      clearTimeout(settleTimer)
+      observer?.disconnect()
+    }
+  }, [pinnedMessage?.id, messages.length, matchId])
 
   const chatStatus = opponentRemoved
     ? { text: 'Account deleted', variant: 'offline' }
@@ -1136,10 +1250,10 @@ export default function ChatRoom() {
     document.body
   )
 
-  if (loading) {
+  if (loading && messages.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full">
+        <ChatRoomSkeleton />
       </div>
     )
   }
@@ -1165,44 +1279,109 @@ export default function ChatRoom() {
             deleteTarget ? '!pb-52 pointer-events-none' : ''
           }`}
         >
-          {pinnedMessage && (
-            <button
-              type="button"
-              onClick={() => scrollToMessage(pinnedMessage.id)}
-              className="sticky top-0 z-10 mb-3 w-full text-left rounded-[var(--ios-radius-lg)] border border-white/10 bg-[var(--ios-bg-secondary)] px-3 py-2.5 flex items-center gap-2"
-            >
-              <IconPin size={16} className="text-[var(--ios-blue)] shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-[var(--ios-blue)]">Pinned message</p>
-                <p className="text-sm text-white/85 truncate mt-0.5">
-                  {getStoryReplyDisplay(pinnedMessage).text ||
-                    (pinnedMessage.imageUrl ? 'Photo' : pinnedMessage.audioUrl ? 'Voice message' : 'Message')}
-                </p>
-              </div>
-              {canPinMessages && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleUnpinMessage()
+          <div className="sticky top-0 z-10 mb-3 flex justify-center pointer-events-none min-h-0">
+            {pinnedMessage ? (
+                <motion.button
+                  key={pinnedMessage.id}
+                  type="button"
+                  initial={false}
+                  animate={
+                    pinnedTargetInView
+                      ? {
+                          opacity: 0,
+                          y: -8,
+                          scale: 0.98,
+                          height: 0,
+                          paddingTop: 0,
+                          paddingBottom: 0,
+                          borderWidth: 0,
+                          marginBottom: 0,
+                        }
+                      : {
+                          opacity: 1,
+                          y: 0,
+                          scale: 1,
+                          height: 'auto',
+                          paddingTop: 10,
+                          paddingBottom: 10,
+                          borderWidth: 1,
+                          marginBottom: 0,
+                        }
+                  }
+                  transition={{
+                    duration: 0.22,
+                    ease: [0.22, 1, 0.36, 1],
+                    height: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      handleUnpinMessage()
-                    }
-                  }}
-                  className="shrink-0 self-center flex items-center justify-center p-1 text-white/45 hover:text-white/70"
-                  aria-label="Unpin message"
+                  onClick={() => scrollToMessage(pinnedMessage.id)}
+                  className={`w-[90%] text-left rounded-[var(--ios-radius-lg)] border border-white/10 bg-[var(--ios-bg-secondary)]/75 backdrop-blur-md px-3 py-2.5 flex items-center gap-2 shadow-[0_8px_20px_rgba(0,0,0,0.25)] overflow-hidden ${
+                    pinnedTargetInView ? 'pointer-events-none' : 'pointer-events-auto'
+                  }`}
+                  aria-hidden={pinnedTargetInView}
+                  tabIndex={pinnedTargetInView ? -1 : 0}
                 >
-                  <IconX size={16} />
-                </span>
-              )}
-            </button>
-          )}
+                  <IconPin size={16} className="text-[var(--ios-blue)] shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-[var(--ios-blue)]">
+                      {isMeetupInfoMessage(pinnedMessage) ? 'Pinned meetup' : 'Pinned message'}
+                    </p>
+                    <p className="text-sm text-white/85 truncate mt-0.5">
+                      {getStoryReplyDisplay(pinnedMessage).text ||
+                        (pinnedMessage.imageUrl
+                          ? 'Photo'
+                          : pinnedMessage.audioUrl
+                            ? 'Voice message'
+                            : 'Message')}
+                    </p>
+                  </div>
+                  {canPinMessages && !isMeetupInfoMessage(pinnedMessage) && (
+                    <span
+                      role="button"
+                      tabIndex={pinnedTargetInView ? -1 : 0}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleUnpinMessage()
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleUnpinMessage()
+                        }
+                      }}
+                      className="shrink-0 self-center flex items-center justify-center p-1 text-white/45 hover:text-white/70"
+                      aria-label="Unpin message"
+                    >
+                      <IconX size={16} />
+                    </span>
+                  )}
+                </motion.button>
+              ) : null}
+          </div>
+          {isMeetupChat && !hasMeetupInfoMessage ? (
+            <MeetupPinnedInfo
+              meetupId={chatMeta?.meetupId}
+              chat={chatMeta}
+              profile={profile}
+            />
+          ) : null}
           {visibleMessages.map((msg, index) => {
+            if (isMeetupInfoMessage(msg)) {
+              return (
+                <MeetupPinnedInfo
+                  key={msg.id}
+                  message={msg}
+                  meetupId={chatMeta?.meetupId || msg.meetupId}
+                  chat={chatMeta}
+                  profile={profile}
+                  actionHidden={deleteTarget?.message.id === msg.id}
+                  readOnly={isGroupPreview}
+                  onContextMenu={isGroupPreview ? undefined : handleSelectMessageAction}
+                  onLongPress={isGroupPreview ? undefined : handleSelectMessageAction}
+                  onReply={isGroupPreview ? undefined : handleReplyToMessage}
+                />
+              )
+            }
             if (msg.type === 'system' || msg.systemEvent) {
               return <SystemMessage key={msg.id} text={msg.text} />
             }
@@ -1460,9 +1639,10 @@ export default function ChatRoom() {
             originRect={deleteTarget.rect}
             isOwn={deleteTarget.message.senderId === user.uid}
             canDelete={
-              deleteTarget.message.senderId === user.uid || canDeleteOthersMessages
+              !isMeetupInfoMessage(deleteTarget.message) &&
+              (deleteTarget.message.senderId === user.uid || canDeleteOthersMessages)
             }
-            canPin={canPinMessages}
+            canPin={canPinMessages && !isMeetupInfoMessage(deleteTarget.message)}
             isPinned={pinnedMeta?.messageId === deleteTarget.message.id}
             onPin={handlePinMessage}
             onUnpin={handleUnpinMessage}

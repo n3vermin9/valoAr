@@ -135,7 +135,7 @@ export function isMeetupStory(story) {
   return story?.storyKind === 'meetup' && Boolean(story?.meetupId)
 }
 
-export function parseMeetupStoryContent(story, meetupData = null) {
+export function parseMeetupStoryContent(story, meetupData = null, { militaryTime = true } = {}) {
   if (meetupData) {
     const venue = meetupData.subplaceName
       ? `${meetupData.placeName} · ${meetupData.subplaceName}`
@@ -148,6 +148,7 @@ export function parseMeetupStoryContent(story, meetupData = null) {
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
+          hour12: !militaryTime,
         })
       : ''
     return {

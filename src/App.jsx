@@ -12,7 +12,7 @@ import GroupJoinPage from './components/chat/GroupJoinPage'
 import GroupInfoView from './components/chat/GroupInfoView'
 import CreateGroupPage from './components/chat/CreateGroupPage'
 import GroupSettingsRoutes from './components/chat/groupSettings/GroupSettingsRoutes'
-import LoadingSpinner from './components/ui/LoadingSpinner'
+import { PageSkeleton } from './components/ui/Skeleton'
 import Modal from './components/ui/Modal'
 import { subscribeChats, getUnreadCount } from './services/chatService'
 import { isChatFullyMuted } from './utils/chatMute'
@@ -112,8 +112,8 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="h-full">
+        <PageSkeleton />
       </div>
     )
   }

@@ -76,7 +76,7 @@ export default function MessageBubble({
   showSenderNameInBubble = false,
   tightBottom = false,
   highlighted = false,
-  militaryTime = false,
+  militaryTime = true,
   searchActive = false,
   searchQuery = '',
   activeSearchMatch = null,

@@ -30,7 +30,7 @@ export default function ChatSearchResultsList({
   activeMessageId,
   currentUserId,
   getSenderLabel,
-  militaryTime = false,
+  militaryTime = true,
   onSelect,
   onClose,
 }) {
