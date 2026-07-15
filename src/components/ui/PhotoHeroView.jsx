@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { IconX } from '@tabler/icons-react'
 import ChevronBack from './ChevronBack'
 import { chatRoomTopScrimClass, photoHeroFrameClass, photoHeroFullscreenFrameClass, photoHeroImageClass, photoOverlayButtonClass } from '../../utils/designSystem'
 
@@ -168,12 +169,15 @@ export default function PhotoHeroView({
         ) : null}
 
         {showBack ? (
-          <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
-            <ChevronBack
+          <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] right-[var(--ios-page-x-lg)] z-30">
+            <button
+              type="button"
               onClick={onBack}
-              buttonClassName={photoOverlayButtonClass}
-              className="w-6 h-6"
-            />
+              className={photoOverlayButtonClass}
+              aria-label="Close"
+            >
+              <IconX size={22} stroke={2} />
+            </button>
           </div>
         ) : null}
 

@@ -367,7 +367,7 @@ export default function LikedYou() {
           {like.message && (
             <div className="px-4 pb-4">
               <div
-                className={`inline-block max-w-full ${chatBubblePadClass} bg-white/10 rounded-[var(--chat-bubble-radius)] rounded-bl-[0.3rem]`}
+                className={`inline-block max-w-full ${chatBubblePadClass} bg-[var(--ios-bg-tertiary)] rounded-[var(--chat-bubble-radius)] rounded-bl-[0.3rem]`}
               >
                 <p className={`${chatMessageTextClass} text-[var(--ios-label)] whitespace-pre-wrap`}>
                   {like.message}

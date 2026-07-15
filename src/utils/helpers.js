@@ -66,6 +66,7 @@ function storageSetupError(error) {
 }
 
 export function formatMessagePreview(data = {}) {
+  if (data.type === 'system' || data.systemEvent) return data.text || ''
   if (data.storyReply && data.text) return `replied to story: ${data.text}`
   if (data.text) return data.text
   if (data.imageUrl) return '📷 Photo'
@@ -74,6 +75,7 @@ export function formatMessagePreview(data = {}) {
 }
 
 export function getMessagePreviewText(message = {}) {
+  if (message.type === 'system' || message.systemEvent) return message.text || ''
   if (message.text) return message.text
   if (message.imageUrl) return 'Photo'
   if (message.audioUrl) return 'Voice message'

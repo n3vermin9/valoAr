@@ -219,7 +219,7 @@ export default function MessageText({
               onMentionClick?.(part.value)
             }}
             onDoubleClick={(e) => e.stopPropagation()}
-            className={`no-tap-scale font-semibold underline underline-offset-2 decoration-white/40 hover:decoration-white/70 ${
+            className={`no-tap-scale font-semibold ${
               isOwn ? 'text-white hover:text-white/90' : 'text-blue-300 hover:text-blue-200'
             }`}
           >

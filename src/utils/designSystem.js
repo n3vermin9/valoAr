@@ -47,7 +47,7 @@ export const photoOverlayButtonClass =
 export const chatMessageTextClass = 'text-[16px] leading-[1.35] break-words min-w-0'
 export const chatBubblePadClass = 'px-3.5 py-2'
 export const chatComposerInputClass =
-  'ios-emoji-field flex-1 min-w-0 py-2 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-6 max-h-36'
+  'ios-emoji-field flex-1 min-w-0 py-2.5 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-[1.25] max-h-36'
 
 export const glassActionButtonClass = `${glassInputBarClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
@@ -140,16 +140,16 @@ export const textFieldClass =
   'ios-emoji-field w-full px-5 py-3 min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-glass-border)] text-[17px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none focus:border-[var(--ios-blue)] transition-colors'
 
 export const btnFilledClass =
-  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-medium bg-[var(--ios-blue)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
+  'inline-flex items-center justify-center h-11 px-5 rounded-full text-[15px] font-medium leading-none bg-[var(--ios-blue)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
 
 export const btnFilledDangerClass =
-  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-medium bg-[var(--ios-red)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
+  'inline-flex items-center justify-center h-11 px-5 rounded-full text-[15px] font-medium leading-none bg-[var(--ios-red)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
 
 export const btnBorderedClass =
-  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-6 py-3 rounded-full text-[17px] font-medium border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-input)] backdrop-blur-md hover:bg-white/[0.12] transition-colors disabled:opacity-50'
+  'inline-flex items-center justify-center h-11 px-5 rounded-full text-[15px] font-medium leading-none border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-input)] backdrop-blur-md hover:bg-white/[0.12] transition-colors disabled:opacity-50'
 
 export const btnPlainClass =
-  'inline-flex items-center justify-center min-h-[var(--ios-control-min)] px-4 py-2 rounded-full text-[17px] font-medium text-[var(--ios-blue)] hover:bg-white/[0.06] active:bg-white/[0.1] transition-colors disabled:opacity-50'
+  'inline-flex items-center justify-center h-10 px-4 rounded-full text-[15px] font-medium leading-none text-[var(--ios-blue)] hover:bg-white/[0.06] active:bg-white/[0.1] transition-colors disabled:opacity-50'
 
 export const iconButtonClass =
   'p-2 rounded-full text-[var(--ios-label)] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors'

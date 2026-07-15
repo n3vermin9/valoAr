@@ -353,9 +353,9 @@ export default function ChatInput({
             onOpenResults={onOpenSearchResults}
           />
         ) : (
-        <div className="flex items-center gap-2.5 h-12">
+        <div className="flex items-end gap-2.5">
           <motion.div
-            className="w-12 shrink-0"
+            className="h-12 w-12 shrink-0"
             initial={false}
             animate={{
               x: 0,
@@ -369,7 +369,7 @@ export default function ChatInput({
               className={`${actionButtonClass} text-white/70 hover:text-white`}
               disabled={recording || sendingVoice}
             >
-              <IconPhoto size={24} />
+              <IconPhoto size={22} />
             </button>
           </motion.div>
           <input
@@ -395,7 +395,7 @@ export default function ChatInput({
               transition={composerTransition}
             >
               <div
-                className={`${chatFloatingInputBarClass} flex w-full items-end gap-2 rounded-[32px] pl-2.5 pr-3.5 py-2 min-h-12`}
+                className={`${chatFloatingInputBarClass} flex w-full items-center gap-1.5 rounded-full pl-2 pr-3.5 min-h-12`}
               >
                 <button
                   type="button"
@@ -431,7 +431,7 @@ export default function ChatInput({
           </div>
 
           <motion.div
-            className="w-12 shrink-0"
+            className="h-12 w-12 shrink-0"
             initial={false}
             animate={{
               x: 0,
@@ -445,7 +445,7 @@ export default function ChatInput({
                 onClick={handleSend}
                 className={`${actionButtonClass} text-blue-400 hover:text-blue-300`}
               >
-                <IconSend size={22} />
+                <IconSend size={20} />
               </button>
             ) : (
               <button

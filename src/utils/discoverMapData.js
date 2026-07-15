@@ -90,7 +90,7 @@ export function scatterUsersAroundCenter(center, profiles = [], friendIds = []) 
 
 const MAP_SETTINGS_KEY = 'discoverMapSettings'
 
-export const DEFAULT_MAP_SETTINGS = { display: 'both', show: 'everyone', theme: 'dark' }
+export const DEFAULT_MAP_SETTINGS = { display: 'both', show: 'everyone', theme: 'voyager' }
 
 export function loadMapSettings() {
   try {

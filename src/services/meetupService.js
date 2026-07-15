@@ -15,6 +15,7 @@ import {
 import { db } from '../firebase/config'
 import { createMeetupGroupChat, leaveGroupChat, deleteGroupChat } from './groupChatService'
 import { deleteMeetupAnnouncementStories } from './storyService'
+import { postSystemMessage, SYSTEM_EVENTS } from './systemChatMessage'
 
 const MEETUP_COOLDOWN_MS = 60 * 1000
 const MEETUP_CHAT_GRACE_MS = 12 * 60 * 60 * 1000
@@ -280,7 +281,25 @@ export async function joinMeetup(meetupId, userId) {
 
   const meetup = snap.data()
   if (!isMeetupActive(meetup)) throw new Error('This meetup has ended')
+
+  const chatRef = doc(db, 'chats', meetup.chatId)
+  const chatSnap = await getDoc(chatRef)
+  if (!chatSnap.exists()) throw new Error('Meetup chat not found')
+  const chat = chatSnap.data()
+  if (chat.bannedUserIds?.includes(userId)) {
+    throw new Error('You are banned from this meetup')
+  }
+
   if (meetup.participants?.includes(userId)) {
+    // Repair chat membership if they were kicked from chat but meetup was stale, or vice versa.
+    if (!chat.participants?.includes(userId) || chat.hiddenFor?.includes(userId)) {
+      await updateDoc(chatRef, {
+        participants: arrayUnion(userId),
+        memberHistory: arrayUnion(userId),
+        [`unreadCount.${userId}`]: 0,
+        hiddenFor: arrayRemove(userId),
+      })
+    }
     return { chatId: meetup.chatId, alreadyJoined: true }
   }
   if ((meetup.participants?.length || 0) >= meetup.maxMembers) {
@@ -296,12 +315,18 @@ export async function joinMeetup(meetupId, userId) {
   }
 
   await updateDoc(meetupRef, { participants: arrayUnion(userId) })
-  await updateDoc(doc(db, 'chats', meetup.chatId), {
+  await updateDoc(chatRef, {
     participants: arrayUnion(userId),
     memberHistory: arrayUnion(userId),
     [`unreadCount.${userId}`]: 0,
     hiddenFor: arrayRemove(userId),
   })
+
+  await postSystemMessage(meetup.chatId, {
+    event: SYSTEM_EVENTS.JOINED,
+    actorId: userId,
+    isMeetup: true,
+  }).catch(() => {})
 
   return { chatId: meetup.chatId, alreadyJoined: false }
 }

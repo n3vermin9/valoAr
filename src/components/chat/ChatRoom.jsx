@@ -56,6 +56,7 @@ import {
 import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
 import MessageBubble from './MessageBubble'
+import SystemMessage from './SystemMessage'
 import DeleteMessageOverlay from './DeleteMessageOverlay'
 import ImageViewer from './ImageViewer'
 import ChatInput from './ChatInput'
@@ -1160,7 +1161,7 @@ export default function ChatRoom() {
         />
         <div
           ref={messagesContainerRef}
-          className={`absolute inset-0 overflow-y-auto px-[var(--ios-page-x-lg)] pt-[var(--chat-room-header-height)] pb-[var(--chat-room-composer-min-height)] ${
+          className={`absolute inset-0 overflow-y-auto px-[var(--chat-room-page-x)] pt-[var(--chat-room-header-height)] pb-[var(--chat-room-composer-min-height)] ${
             deleteTarget ? '!pb-52 pointer-events-none' : ''
           }`}
         >
@@ -1202,6 +1203,9 @@ export default function ChatRoom() {
             </button>
           )}
           {visibleMessages.map((msg, index) => {
+            if (msg.type === 'system' || msg.systemEvent) {
+              return <SystemMessage key={msg.id} text={msg.text} />
+            }
             const cluster = getMessageClusterMeta(visibleMessages, index, user.uid, isGroup)
             const senderProfile = isGroup ? memberProfiles[msg.senderId] : null
             return (
@@ -1285,7 +1289,7 @@ export default function ChatRoom() {
         </AnimatePresence>
 
         <GlassNavBar liquid className="absolute top-0 inset-x-0 z-20 !bg-transparent pointer-events-none">
-          <div className="pointer-events-auto flex items-center w-full gap-2.5 min-h-12">
+          <div className="pointer-events-auto flex items-center w-full gap-2.5 h-12">
             <div
               className={`shrink-0 overflow-hidden transition-[width] duration-300 ${
                 showSearch ? 'w-0 pointer-events-none' : 'w-12'

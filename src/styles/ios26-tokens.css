@@ -54,6 +54,7 @@
   --ios-safe-top: env(safe-area-inset-top, 0px);
   --chat-room-header-height: calc(var(--ios-safe-top) + 70px);
   --chat-room-composer-min-height: calc(92px + var(--ios-safe-bottom));
+  --chat-room-page-x: 10px;
 
   /* Chat UI — mobile-friendly sizing */
   --chat-message-text: 16px;

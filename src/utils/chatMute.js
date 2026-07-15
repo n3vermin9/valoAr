@@ -21,6 +21,7 @@ export function isChatFullyMuted(chat, userId) {
 }
 
 export function shouldSuppressChatNotification(chat, userId, message, username) {
+  if (message?.type === 'system' || message?.systemEvent) return true
   const mode = getChatMuteMode(chat, userId)
   if (mode === CHAT_MUTE_OFF) return false
   if (mode === CHAT_MUTE_ALL) return true

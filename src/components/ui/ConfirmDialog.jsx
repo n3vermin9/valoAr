@@ -15,11 +15,11 @@ export default function ConfirmDialog({
 }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} glass overlayClassName={overlayClassName}>
-      <div className="p-6">
-        <h3 className={`${typoTitle3Class} mb-2 text-left`}>{title}</h3>
-        <p className={`${typoSubheadClass} mb-6 text-left`}>{message}</p>
-        <div className="flex gap-3">
-          <Button variant="bordered" fullWidth onClick={onClose} disabled={loading}>
+      <div className="p-5">
+        <h3 className={`${typoTitle3Class} mb-1.5 text-left`}>{title}</h3>
+        <p className={`${typoSubheadClass} mb-5 text-left`}>{message}</p>
+        <div className="flex gap-2.5">
+          <Button variant="bordered" fullWidth onClick={onClose} disabled={loading} className="!px-3">
             Cancel
           </Button>
           <Button
@@ -27,6 +27,7 @@ export default function ConfirmDialog({
             fullWidth
             onClick={onConfirm}
             disabled={loading}
+            className="!px-3 whitespace-nowrap"
           >
             {loading ? 'Please wait...' : confirmLabel}
           </Button>

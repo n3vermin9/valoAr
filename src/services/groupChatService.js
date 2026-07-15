@@ -31,6 +31,7 @@ import {
 } from '../utils/groupChat'
 import { normalizeUsername, validateUsername } from '../utils/helpers'
 import { pushInboxNotification } from './inboxService'
+import { postSystemMessage, SYSTEM_EVENTS } from './systemChatMessage'
 
 function normalizeGroupName(name) {
   return name.trim().slice(0, 64)
@@ -38,6 +39,57 @@ function normalizeGroupName(name) {
 
 function normalizeGroupUsername(username) {
   return normalizeUsername(username)
+}
+
+/** Keep meetup docs / user activeMeetupId in sync when chat membership changes. */
+async function stripMemberFromMeetup(chatData, memberId) {
+  if (!chatData?.isMeetup || !chatData.meetupId || !memberId) return
+
+  const meetupId = chatData.meetupId
+  const meetupRef = doc(db, 'meetups', meetupId)
+  await updateDoc(meetupRef, { participants: arrayRemove(memberId) }).catch(() => {})
+
+  const userRef = doc(db, 'users', memberId)
+  const userSnap = await getDoc(userRef).catch(() => null)
+  if (userSnap?.exists() && userSnap.data()?.activeMeetupId === meetupId) {
+    await updateDoc(userRef, { activeMeetupId: deleteField() }).catch(() => {})
+  }
+
+  const hostId = chatData.createdBy
+  if (!hostId) return
+  try {
+    const storiesSnap = await getDocs(collection(db, 'users', hostId, 'stories'))
+    const batch = writeBatch(db)
+    let updates = 0
+    storiesSnap.docs.forEach((storyDoc) => {
+      const story = storyDoc.data()
+      if (story.storyKind !== 'meetup' || story.meetupId !== meetupId) return
+      const ids = story.meetupParticipantIds
+      if (!Array.isArray(ids) || !ids.includes(memberId)) return
+      const nextIds = ids.filter((id) => id !== memberId)
+      const nextGenders = { ...(story.meetupParticipantGenders || {}) }
+      delete nextGenders[memberId]
+      batch.update(storyDoc.ref, {
+        meetupParticipantIds: nextIds,
+        meetupParticipantGenders: nextGenders,
+      })
+      updates += 1
+    })
+    if (updates > 0) await batch.commit()
+  } catch {
+    // Story rings fall back to live meetup participants.
+  }
+}
+
+async function clearPendingJoinRequest(chatId, memberId) {
+  if (!chatId || !memberId) return
+  await deleteDoc(doc(db, 'chats', chatId, 'joinRequests', memberId)).catch(() => {})
+}
+
+function assertNotBanned(chatData, userId) {
+  if (chatData?.bannedUserIds?.includes(userId)) {
+    throw new Error(chatData.isMeetup ? 'You are banned from this meetup' : 'You are banned from this group')
+  }
 }
 
 export async function getGroupUsernameAvailability(username, chatId = null) {
@@ -164,6 +216,12 @@ export async function createGroupChat(
     await reserveGroupUsername(chatRef.id, normalizedUsername)
   }
 
+  await postSystemMessage(chatRef.id, {
+    event: SYSTEM_EVENTS.CREATED,
+    actorId: creatorId,
+    isMeetup: false,
+  }).catch(() => {})
+
   return { id: chatRef.id, ...chatData }
 }
 
@@ -211,6 +269,11 @@ export async function createMeetupGroupChat(
   }
 
   await setDoc(chatRef, chatData)
+  await postSystemMessage(chatRef.id, {
+    event: SYSTEM_EVENTS.CREATED,
+    actorId: creatorId,
+    isMeetup: true,
+  }).catch(() => {})
   return { id: chatRef.id, ...chatData }
 }
 
@@ -358,6 +421,7 @@ export async function approveGroupJoinRequest(chatId, adminId, requestUserId) {
   if (!canAdmin(data, adminId, 'addMembers') && !isGroupOwner(data, adminId)) {
     throw new Error('You do not have permission to approve join requests')
   }
+  assertNotBanned(data, requestUserId)
 
   const requestRef = doc(db, 'chats', chatId, 'joinRequests', requestUserId)
   const requestSnap = await getDoc(requestRef)
@@ -373,6 +437,13 @@ export async function approveGroupJoinRequest(chatId, adminId, requestUserId) {
   })
 
   await deleteDoc(requestRef)
+
+  await postSystemMessage(chatId, {
+    event: SYSTEM_EVENTS.JOINED,
+    actorId: requestUserId,
+    actorUsername: requestSnap.data()?.username || '',
+    isMeetup: data.isMeetup === true,
+  }).catch(() => {})
 
   await pushInboxNotification(requestUserId, {
     type: 'group_join_approved',
@@ -444,6 +515,13 @@ export async function joinGroupChat(chatId, userId, { username = '' } = {}) {
     hiddenFor: arrayRemove(userId),
   })
 
+  await postSystemMessage(chatId, {
+    event: SYSTEM_EVENTS.JOINED,
+    actorId: userId,
+    actorUsername: username,
+    isMeetup: data.isMeetup === true,
+  }).catch(() => {})
+
   const updated = await getDoc(chatRef)
   return { status: 'joined', chat: { id: updated.id, ...updated.data() } }
 }
@@ -476,11 +554,18 @@ export async function leaveGroupChat(chatId, userId) {
   const data = snap.data()
   if (!data.participants?.includes(userId)) return
 
+  await postSystemMessage(chatId, {
+    event: SYSTEM_EVENTS.LEFT,
+    actorId: userId,
+    isMeetup: data.isMeetup === true,
+  }).catch(() => {})
+
   const updates = {
     participants: arrayRemove(userId),
     admins: arrayRemove(userId),
     mutedBy: arrayRemove(userId),
     pinnedBy: arrayRemove(userId),
+    mutedMemberIds: arrayRemove(userId),
     hiddenFor: arrayUnion(userId),
     [`unreadCount.${userId}`]: deleteField(),
     [`adminSettings.${userId}`]: deleteField(),
@@ -488,6 +573,8 @@ export async function leaveGroupChat(chatId, userId) {
   }
 
   await updateDoc(chatRef, updates)
+  await stripMemberFromMeetup(data, userId)
+  await clearPendingJoinRequest(chatId, userId)
 
   const remaining = (data.participants || []).filter((id) => id !== userId)
   if (remaining.length === 0) {
@@ -835,11 +922,30 @@ export async function addGroupMember(chatId, actorId, memberId) {
   if (!snap.exists() || snap.data()?.type !== 'group') throw new Error('Group not found')
   if (!canAdmin(snap.data(), actorId, 'addMembers')) throw new Error('You do not have permission to add members')
 
+  const data = snap.data()
+  assertNotBanned(data, memberId)
+  const alreadyMember = data.participants?.includes(memberId)
+
   await updateDoc(chatRef, {
     participants: arrayUnion(memberId),
+    memberHistory: arrayUnion(memberId),
     [`unreadCount.${memberId}`]: 0,
     hiddenFor: arrayRemove(memberId),
   })
+
+  if (data.isMeetup && data.meetupId && !alreadyMember) {
+    await updateDoc(doc(db, 'meetups', data.meetupId), {
+      participants: arrayUnion(memberId),
+    }).catch(() => {})
+  }
+
+  if (!alreadyMember) {
+    await postSystemMessage(chatId, {
+      event: SYSTEM_EVENTS.JOINED,
+      actorId: memberId,
+      isMeetup: data.isMeetup === true,
+    }).catch(() => {})
+  }
 }
 
 export async function removeGroupMember(chatId, actorId, memberId) {
@@ -851,15 +957,26 @@ export async function removeGroupMember(chatId, actorId, memberId) {
   if (!canAdmin(data, actorId, 'removeMembers')) throw new Error('You do not have permission to remove members')
   if (memberId === data.createdBy) throw new Error('Cannot remove the group owner')
 
+  await postSystemMessage(chatId, {
+    event: SYSTEM_EVENTS.LEFT,
+    actorId: memberId,
+    isMeetup: data.isMeetup === true,
+  }).catch(() => {})
+
   await updateDoc(chatRef, {
     participants: arrayRemove(memberId),
     admins: arrayRemove(memberId),
+    mutedBy: arrayRemove(memberId),
+    pinnedBy: arrayRemove(memberId),
     hiddenFor: arrayUnion(memberId),
     mutedMemberIds: arrayRemove(memberId),
     [`unreadCount.${memberId}`]: deleteField(),
     [`adminSettings.${memberId}`]: deleteField(),
     [`adminTags.${memberId}`]: deleteField(),
   })
+
+  await stripMemberFromMeetup(data, memberId)
+  await clearPendingJoinRequest(chatId, memberId)
 }
 
 export async function muteGroupMember(chatId, actorId, memberId) {
@@ -905,6 +1022,8 @@ export async function banGroupMember(chatId, actorId, memberId) {
   await updateDoc(chatRef, {
     participants: arrayRemove(memberId),
     admins: arrayRemove(memberId),
+    mutedBy: arrayRemove(memberId),
+    pinnedBy: arrayRemove(memberId),
     hiddenFor: arrayUnion(memberId),
     bannedUserIds: arrayUnion(memberId),
     mutedMemberIds: arrayRemove(memberId),
@@ -912,6 +1031,9 @@ export async function banGroupMember(chatId, actorId, memberId) {
     [`adminSettings.${memberId}`]: deleteField(),
     [`adminTags.${memberId}`]: deleteField(),
   })
+
+  await stripMemberFromMeetup(data, memberId)
+  await clearPendingJoinRequest(chatId, memberId)
 }
 
 export async function regenerateInviteCode(chatId, userId) {

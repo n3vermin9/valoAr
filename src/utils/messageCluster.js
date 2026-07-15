@@ -1,3 +1,5 @@
+import { isSystemMessage } from '../services/systemChatMessage'
+
 export function getMessageClusterMeta(messages, index, currentUserId, isGroup) {
   if (!isGroup) {
     return {
@@ -8,7 +10,7 @@ export function getMessageClusterMeta(messages, index, currentUserId, isGroup) {
   }
 
   const msg = messages[index]
-  if (msg.senderId === currentUserId) {
+  if (isSystemMessage(msg) || msg.senderId === currentUserId) {
     return {
       showAvatar: false,
       showSenderNameInBubble: false,
@@ -18,8 +20,8 @@ export function getMessageClusterMeta(messages, index, currentUserId, isGroup) {
 
   const prev = messages[index - 1]
   const next = messages[index + 1]
-  const sameAsPrev = prev?.senderId === msg.senderId
-  const sameAsNext = next?.senderId === msg.senderId
+  const sameAsPrev = prev && !isSystemMessage(prev) && prev.senderId === msg.senderId
+  const sameAsNext = next && !isSystemMessage(next) && next.senderId === msg.senderId
 
   return {
     showAvatar: !sameAsNext,

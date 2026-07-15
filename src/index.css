@@ -39,7 +39,8 @@ video {
   font-family: var(--ios-font), var(--ios-emoji-font);
 }
 
-.ios-emoji-field:empty::before {
+.ios-emoji-field:empty::before,
+.ios-emoji-field.is-empty::before {
   content: attr(data-placeholder);
   color: var(--ios-label-tertiary, rgba(255, 255, 255, 0.4));
   pointer-events: none;

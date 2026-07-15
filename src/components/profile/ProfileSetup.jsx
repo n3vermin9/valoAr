@@ -10,6 +10,7 @@ import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../util
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
 import Modal from '../ui/Modal'
+import LoadingSpinner from '../ui/LoadingSpinner'
 import { pageTitleClass, typoSubheadClass, typoTitle3Class, fieldLabelClass, btnFilledClass } from '../../utils/designSystem'
 
 export default function ProfileSetup() {

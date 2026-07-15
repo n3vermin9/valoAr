@@ -1,30 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { IconCircleCheck } from '@tabler/icons-react'
+import {
+  IconCircleCheck,
+  IconUsers,
+  IconWorld,
+  IconMinus,
+  IconPlus,
+  IconChevronLeft,
+} from '@tabler/icons-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import TextField from '../ui/TextField'
-import AgeSlider from '../profile/AgeSlider'
 import { createMeetup } from '../../services/meetupService'
 import { postMeetupStory } from '../../services/storyService'
 import { STORY_PRIVACY } from '../../utils/storyHelpers'
-import {
-  typoTitle3Class,
-  typoHeadlineClass,
-  typoSubheadClass,
-  segmentedControlClass,
-  segmentedItemClass,
-  segmentedItemActiveClass,
-} from '../../utils/designSystem'
+import { typoTitle3Class, typoHeadlineClass, typoSubheadClass } from '../../utils/designSystem'
 
 const DEFAULT_DURATION_HOURS = 2
+const MEMBERS_CAP = 10
+const DEFAULT_MAX_MEMBERS = 2
 
 const CHIP =
-  'px-2.5 py-1 rounded-full text-[12px] border transition-colors'
+  'shrink-0 px-3 h-9 rounded-full text-[13px] border transition-colors'
 const CHIP_ON = 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
 const CHIP_OFF = 'border-white/10 bg-white/[0.06] text-[var(--ios-label-secondary)]'
-
-const compactLabel = 'text-[14px] text-[var(--ios-label-secondary)] mb-2 block'
 
 function atHour(daysAhead, hour) {
   const d = new Date()
@@ -72,13 +71,14 @@ export default function CreateMeetupModal({
   onCreated,
 }) {
   const presets = useMemo(buildTimePresets, [isOpen])
+  const [step, setStep] = useState('details')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [startMs, setStartMs] = useState(presets[0].value)
   const [presetId, setPresetId] = useState('in1')
   const [showCustom, setShowCustom] = useState(false)
   const [privacy, setPrivacy] = useState('public')
-  const [maxMembers, setMaxMembers] = useState(10)
+  const [maxMembers, setMaxMembers] = useState(DEFAULT_MAX_MEMBERS)
   const [selectedSubId, setSelectedSubId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [createdMeetup, setCreatedMeetup] = useState(null)
@@ -90,13 +90,14 @@ export default function CreateMeetupModal({
   useEffect(() => {
     if (!isOpen) return
     const fresh = buildTimePresets()
+    setStep('details')
     setTitle('')
     setDescription('')
     setStartMs(fresh[0].value)
     setPresetId('in1')
     setShowCustom(false)
     setPrivacy('public')
-    setMaxMembers(10)
+    setMaxMembers(DEFAULT_MAX_MEMBERS)
     setSelectedSubId(subplace?.id || null)
     setCreatedMeetup(null)
     setStoryAdded(false)
@@ -162,6 +163,7 @@ export default function CreateMeetupModal({
         placeLat: place.lat,
         placeLng: place.lng,
         placeEmoji: place.emoji,
+        placePhotoUrl: place.photoUrl,
         maxMembers: createdMeetup.maxMembers,
         participantIds: createdMeetup.participants || [userId],
         participantGenders: creatorGender ? { [userId]: creatorGender } : {},
@@ -189,16 +191,10 @@ export default function CreateMeetupModal({
 
   if (!place) return null
 
-  const activePlaceLabel = selectedSub ? `${place.name} · ${selectedSub.name}` : place.name
-
   if (createdMeetup) {
     return (
-      <Modal
-        isOpen={isOpen}
-        onClose={handleDone}
-        className="p-0 !overflow-hidden max-h-[min(78vh,750px)] flex flex-col"
-      >
-        <div className="px-5 pt-8 pb-6 flex flex-col items-center text-center">
+      <Modal isOpen={isOpen} onClose={handleDone} className="p-5">
+        <div className="flex flex-col items-center text-center pt-2 pb-1">
           <div className="w-14 h-14 rounded-full bg-[var(--ios-green)]/15 flex items-center justify-center mb-4">
             <IconCircleCheck size={32} stroke={2} className="text-[var(--ios-green)]" />
           </div>
@@ -211,7 +207,7 @@ export default function CreateMeetupModal({
           <p className={`${typoSubheadClass} mt-1`}>{formatShort(createdMeetup.startAt)}</p>
         </div>
 
-        <div className="shrink-0 px-5 py-4 border-t border-white/10 flex flex-col gap-3">
+        <div className="mt-5 flex flex-col gap-2">
           <Button
             variant="filled"
             fullWidth
@@ -228,132 +224,161 @@ export default function CreateMeetupModal({
     )
   }
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      className="p-0 !overflow-hidden max-h-[min(78vh,750px)] flex flex-col"
-    >
-      <div className="px-5 pt-5 pb-3 shrink-0 border-b border-white/10">
-        <h3 className={typoTitle3Class}>New meetup</h3>
-        <p className="text-[13px] text-[var(--ios-label-secondary)] truncate mt-1">{activePlaceLabel}</p>
-      </div>
+  const PrivacyIcon = privacy === 'public' ? IconWorld : IconUsers
+  const placeSubtitle = selectedSub ? `${place.name} · ${selectedSub.name}` : place.name
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-5">
-        {subplaces.length > 0 && (
-          <div>
-            <label className={compactLabel}>Spot</label>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedSubId(null)}
-                className={`${CHIP} ${!selectedSub ? CHIP_ON : CHIP_OFF}`}
-              >
-                {place.emoji} Whole place
-              </button>
-              {subplaces.map((sub) => (
-                <button
-                  key={sub.id}
-                  type="button"
-                  onClick={() => setSelectedSubId(sub.id)}
-                  className={`${CHIP} ${selectedSubId === sub.id ? CHIP_ON : CHIP_OFF}`}
-                >
-                  {sub.emoji} {sub.name}
-                </button>
-              ))}
-            </div>
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} className="p-5">
+      <div className="flex items-center gap-3 mb-4">
+        {step === 'when' ? (
+          <button
+            type="button"
+            onClick={() => setStep('details')}
+            className="w-11 h-11 rounded-full border border-white/10 bg-white/[0.06] flex items-center justify-center text-[var(--ios-label)] shrink-0"
+            aria-label="Back"
+          >
+            <IconChevronLeft size={22} stroke={2} />
+          </button>
+        ) : (
+          <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-xl shrink-0">
+            {place.emoji}
           </div>
         )}
-
-        <div>
-          <label className={compactLabel}>Title</label>
-          <TextField
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={`Meetup at ${place.name}`}
-            maxLength={60}
-            className="!min-h-[40px] !py-2 !text-[15px]"
-          />
+        <div className="min-w-0 flex-1">
+          <h3 className={typoTitle3Class}>{step === 'when' ? 'When?' : 'New meetup'}</h3>
+          <p className="text-[13px] text-[var(--ios-label-secondary)] truncate">
+            {step === 'when' ? title.trim() || `Meetup at ${place.name}` : placeSubtitle}
+          </p>
         </div>
+      </div>
 
-        <div>
-          <label className={compactLabel}>Description</label>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="What's the plan?"
-            maxLength={280}
-            className="w-full px-4 py-2 min-h-[40px] bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]"
-          />
-        </div>
+      {step === 'details' ? (
+        <>
+          <div className="space-y-4">
+            {subplaces.length > 0 ? (
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSubId(null)}
+                  className={`${CHIP} ${!selectedSub ? CHIP_ON : CHIP_OFF}`}
+                >
+                  Whole place
+                </button>
+                {subplaces.map((sub) => (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => setSelectedSubId(sub.id)}
+                    className={`${CHIP} ${selectedSubId === sub.id ? CHIP_ON : CHIP_OFF}`}
+                  >
+                    {sub.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
-        <div>
-          <div className="flex items-baseline justify-between gap-2 mb-2">
-            <label className={`${compactLabel} mb-0`}>When</label>
-            <span className="text-[12px] text-[var(--ios-blue)] truncate">{formatShort(startMs)}</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {presets.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handlePreset(preset)}
-                className={`${CHIP} ${presetId === preset.id ? CHIP_ON : CHIP_OFF}`}
-              >
-                {preset.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setShowCustom((v) => !v)}
-              className={`${CHIP} ${presetId === 'custom' ? CHIP_ON : CHIP_OFF}`}
-            >
-              Custom
-            </button>
-          </div>
-          {showCustom && (
-            <input
-              type="datetime-local"
-              value={toLocalInput(startMs)}
-              onChange={(e) => handleCustomChange(e.target.value)}
-              className="mt-2 w-full px-3 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-md)] border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[14px] text-[var(--ios-label)] [color-scheme:dark]"
+            <TextField
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={`Meetup at ${place.name}`}
+              maxLength={60}
+              autoFocus
             />
-          )}
-        </div>
 
-        <div>
-          <label className={compactLabel}>Privacy</label>
-          <div className={segmentedControlClass}>
-            {[
-              { id: 'public', label: 'Public' },
-              { id: 'friends', label: 'Friends only' },
-            ].map((option) => (
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional description"
+              maxLength={280}
+              className="w-full px-4 h-11 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]"
+            />
+
+            <div className="flex items-center justify-between gap-3">
               <button
-                key={option.id}
                 type="button"
-                onClick={() => setPrivacy(option.id)}
-                className={privacy === option.id ? segmentedItemActiveClass : segmentedItemClass}
+                onClick={() => setPrivacy((p) => (p === 'public' ? 'friends' : 'public'))}
+                className="inline-flex items-center gap-2 h-11 px-3.5 rounded-full border border-white/10 bg-white/[0.06] text-[14px] text-[var(--ios-label)]"
+                aria-label={`Privacy: ${privacy === 'public' ? 'Public' : 'Friends only'}. Click to switch.`}
               >
-                {option.label}
+                <PrivacyIcon size={16} stroke={2} className="text-[var(--ios-blue)]" />
+                {privacy === 'public' ? 'Public' : 'Friends'}
               </button>
-            ))}
+
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMaxMembers((n) => Math.max(2, n - 1))}
+                  className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.06] flex items-center justify-center text-[var(--ios-label)] disabled:opacity-40"
+                  disabled={maxMembers <= 2}
+                  aria-label="Fewer members"
+                >
+                  <IconMinus size={16} stroke={2} />
+                </button>
+                <span className="min-w-[2.5rem] text-center text-[14px] text-[var(--ios-label)] tabular-nums">
+                  {maxMembers}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMaxMembers((n) => Math.min(MEMBERS_CAP, n + 1))}
+                  className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.06] flex items-center justify-center text-[var(--ios-label)] disabled:opacity-40"
+                  disabled={maxMembers >= MEMBERS_CAP}
+                  aria-label="More members"
+                >
+                  <IconPlus size={16} stroke={2} />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <label className={compactLabel}>Max members</label>
-          <AgeSlider value={maxMembers} onChange={setMaxMembers} min={2} max={10} compact />
-        </div>
-      </div>
+          <div className="mt-5">
+            <Button variant="filled" fullWidth onClick={() => setStep('when')}>
+              Next
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-4">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+              {presets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handlePreset(preset)}
+                  className={`${CHIP} ${presetId === preset.id ? CHIP_ON : CHIP_OFF}`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustom(true)
+                  setPresetId('custom')
+                }}
+                className={`${CHIP} ${presetId === 'custom' ? CHIP_ON : CHIP_OFF}`}
+              >
+                Custom
+              </button>
+            </div>
+            <p className="text-[15px] text-[var(--ios-blue)] font-medium">{formatShort(startMs)}</p>
+            {showCustom || presetId === 'custom' ? (
+              <input
+                type="datetime-local"
+                value={toLocalInput(startMs)}
+                onChange={(e) => handleCustomChange(e.target.value)}
+                className="w-full px-3.5 h-11 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[14px] text-[var(--ios-label)] [color-scheme:dark]"
+              />
+            ) : null}
+          </div>
 
-      <div className="shrink-0 px-5 py-4 border-t border-white/10 flex gap-3">
-        <Button variant="bordered" className="flex-1 !min-h-[44px]" onClick={onClose} disabled={saving}>
-          Cancel
-        </Button>
-        <Button variant="filled" className="flex-[1.4] !min-h-[44px]" onClick={handleCreate} disabled={saving}>
-          {saving ? 'Creating…' : 'Create'}
-        </Button>
-      </div>
+          <div className="mt-5">
+            <Button variant="filled" fullWidth onClick={handleCreate} disabled={saving}>
+              {saving ? 'Creating…' : 'Create meetup'}
+            </Button>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }

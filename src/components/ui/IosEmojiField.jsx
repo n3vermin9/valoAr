@@ -52,6 +52,22 @@ export function domToValue(root, multiline = true) {
   return multiline ? value : value.replace(/\n/g, ' ')
 }
 
+function isVisuallyEmpty(value) {
+  // Ignore zero-width chars / lone newlines browsers leave in contentEditable.
+  return !String(value || '').replace(/[\u200b\n\r]/g, '')
+}
+
+function syncEmptyDom(el, nextValue) {
+  if (!el) return
+  const empty = isVisuallyEmpty(nextValue)
+  el.classList.toggle('is-empty', empty)
+  // Browsers leave a <br> or zero-width text after clearing contentEditable,
+  // which breaks :empty placeholder styling — wipe those remnants.
+  if (empty && el.innerHTML !== '') {
+    el.innerHTML = ''
+  }
+}
+
 const IosEmojiField = forwardRef(function IosEmojiField(
   {
     value = '',
@@ -87,6 +103,7 @@ const IosEmojiField = forwardRef(function IosEmojiField(
       el.innerHTML = valueToHtml(next, multiline)
     }
 
+    syncEmptyDom(el, next)
     onChange?.({ target: { value: next } })
     onInput?.({ target: { value: next } })
   }, [maxLength, multiline, onChange, onInput])
@@ -96,14 +113,19 @@ const IosEmojiField = forwardRef(function IosEmojiField(
     if (!el || composingRef.current) return
 
     const current = domToValue(el, multiline)
-    if (current === value) return
-    el.innerHTML = valueToHtml(value, multiline)
+    if (current !== value) {
+      el.innerHTML = valueToHtml(value, multiline)
+    }
+    syncEmptyDom(el, value)
   }, [multiline, value])
 
   useEffect(() => {
     const el = innerRef.current
-    if (!el || el.innerHTML) return
-    el.innerHTML = valueToHtml(value, multiline)
+    if (!el) return
+    if (!el.innerHTML && !isVisuallyEmpty(value)) {
+      el.innerHTML = valueToHtml(value, multiline)
+    }
+    syncEmptyDom(el, value)
   }, [multiline, value])
 
   const handlePaste = (event) => {
@@ -129,7 +151,7 @@ const IosEmojiField = forwardRef(function IosEmojiField(
       aria-placeholder={placeholder}
       data-placeholder={placeholder}
       data-allow-copy
-      className={`ios-emoji-field outline-none ${className}`}
+      className={`ios-emoji-field outline-none ${isVisuallyEmpty(value) ? 'is-empty' : ''} ${className}`}
       onInput={() => {
         if (composingRef.current) return
         emitChange()

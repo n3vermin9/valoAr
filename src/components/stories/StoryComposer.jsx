@@ -13,8 +13,6 @@ import {
 import {
   navGlassMenuClass,
   contextMenuMotion,
-  dropdownMenuClass,
-  dropdownMenuItemWithIconClass,
   storyGlassButtonClass,
 } from '../../utils/designSystem'
 import Button from '../ui/Button'
@@ -30,9 +28,7 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
   const [privacy, setPrivacy] = useState(STORY_PRIVACY.FRIENDS)
   const [posting, setPosting] = useState(false)
   const [showColorMenu, setShowColorMenu] = useState(false)
-  const [showPrivacyMenu, setShowPrivacyMenu] = useState(false)
   const textareaRef = useRef(null)
-  const privacyMenuRef = useRef(null)
   const colorMenuRef = useRef(null)
 
   const previewClass = getStoryColorClass(color)
@@ -44,7 +40,12 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
 
   const closeMenus = useCallback(() => {
     setShowColorMenu(false)
-    setShowPrivacyMenu(false)
+  }, [])
+
+  const togglePrivacy = useCallback(() => {
+    setPrivacy((current) =>
+      current === STORY_PRIVACY.FRIENDS ? STORY_PRIVACY.ALL : STORY_PRIVACY.FRIENDS
+    )
   }, [])
 
   const syncTextareaHeight = useCallback(() => {
@@ -66,15 +67,14 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
   }, [isOpen])
 
   useEffect(() => {
-    if (!showColorMenu && !showPrivacyMenu) return
+    if (!showColorMenu) return
     const handleClickOutside = (e) => {
-      if (privacyMenuRef.current?.contains(e.target)) return
       if (colorMenuRef.current?.contains(e.target)) return
       closeMenus()
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showColorMenu, showPrivacyMenu, closeMenus])
+  }, [showColorMenu, closeMenus])
 
   const handleClose = () => {
     if (posting) return
@@ -140,56 +140,19 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
               }}
               className={`relative flex-1 rounded-[var(--ios-radius-xl)] p-6 flex items-center justify-center min-h-0 overflow-hidden cursor-text ${previewClass}`}
             >
-              <div className="absolute top-4 left-4 z-20" ref={privacyMenuRef}>
+              <div className="absolute top-4 left-4 z-20">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setShowPrivacyMenu((open) => !open)
+                    togglePrivacy()
                     setShowColorMenu(false)
                   }}
                   className={composerTriggerClass}
-                  aria-label="Story privacy"
-                  aria-expanded={showPrivacyMenu}
+                  aria-label={`Story privacy: ${activePrivacy.label}. Click to switch.`}
                 >
                   <ActivePrivacyIcon size={18} />
-                  <IconChevronDown
-                    size={14}
-                    className={`text-white/70 transition-transform ${showPrivacyMenu ? 'rotate-180' : ''}`}
-                  />
                 </button>
-
-                <AnimatePresence>
-                  {showPrivacyMenu && (
-                    <motion.div
-                      {...contextMenuMotion}
-                      className={`absolute left-0 top-full mt-2 z-30 min-w-[10.5rem] ${dropdownMenuClass} ${navGlassMenuClass}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {privacyOptions.map((option) => {
-                        const OptionIcon = option.icon
-                        const selected = privacy === option.id
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => {
-                              setPrivacy(option.id)
-                              setShowPrivacyMenu(false)
-                            }}
-                            className={`${dropdownMenuItemWithIconClass} ${
-                              selected ? 'text-white' : ''
-                            }`}
-                          >
-                            <OptionIcon size={18} stroke={1.75} className="shrink-0 text-white/55" />
-                            <span className="flex-1 text-left">{option.label}</span>
-                            {selected && <IconCheck size={16} className="shrink-0 text-[var(--ios-blue)]" />}
-                          </button>
-                        )
-                      })}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
 
               <div className="absolute top-4 right-4 z-20" ref={colorMenuRef}>
@@ -198,7 +161,6 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
                   onClick={(e) => {
                     e.stopPropagation()
                     setShowColorMenu((open) => !open)
-                    setShowPrivacyMenu(false)
                   }}
                   className={`${composerTriggerClass} !gap-1.5`}
                   aria-label="Story color"
@@ -217,10 +179,10 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
                   {showColorMenu && (
                     <motion.div
                       {...contextMenuMotion}
-                      className={`absolute right-0 top-full mt-2 z-30 w-44 rounded-[var(--ios-radius-lg)] overflow-hidden ${navGlassMenuClass} p-3`}
+                      className={`absolute right-0 top-full mt-2 z-30 rounded-[var(--ios-radius-lg)] overflow-hidden ${navGlassMenuClass} p-2`}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="grid grid-cols-3 gap-2 justify-items-center">
+                      <div className="flex flex-col gap-2 items-center">
                         {STORY_COLORS.map((entry) => (
                           <button
                             key={entry.id}

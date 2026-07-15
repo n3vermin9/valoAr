@@ -224,6 +224,7 @@ export async function postStory(
     meetupPlaceLat,
     meetupPlaceLng,
     meetupPlaceEmoji,
+    meetupPlacePhotoUrl,
     meetupMaxMembers,
     meetupParticipantIds,
     meetupParticipantGenders,
@@ -259,6 +260,8 @@ export async function postStory(
     if (typeof meetupPlaceLat === 'number') payload.meetupPlaceLat = meetupPlaceLat
     if (typeof meetupPlaceLng === 'number') payload.meetupPlaceLng = meetupPlaceLng
     if (meetupPlaceEmoji) payload.meetupPlaceEmoji = meetupPlaceEmoji
+    const placePhoto = typeof meetupPlacePhotoUrl === 'string' ? meetupPlacePhotoUrl.trim() : ''
+    if (placePhoto) payload.meetupPlacePhotoUrl = placePhoto.slice(0, 1000)
     if (meetupMaxMembers) payload.meetupMaxMembers = meetupMaxMembers
     if (Array.isArray(meetupParticipantIds) && meetupParticipantIds.length) {
       payload.meetupParticipantIds = meetupParticipantIds
@@ -287,6 +290,7 @@ export async function postMeetupStory(
     placeLat,
     placeLng,
     placeEmoji,
+    placePhotoUrl,
     maxMembers,
     participantIds = [],
     participantGenders = {},
@@ -326,6 +330,7 @@ export async function postMeetupStory(
     meetupPlaceLat: placeLat,
     meetupPlaceLng: placeLng,
     meetupPlaceEmoji: placeEmoji,
+    meetupPlacePhotoUrl: placePhotoUrl,
     meetupMaxMembers: maxMembers,
     meetupParticipantIds: participantIds,
     meetupParticipantGenders: participantGenders,

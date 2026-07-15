@@ -160,6 +160,14 @@ function MeetupStoryCard({
   const { title, venue, time, description } = parseMeetupStoryContent(story, meetupData)
   const placePinName = meetupData?.placeName || venue.split(' · ')[0] || venue
   const placePinEmoji = story?.meetupPlaceEmoji || '📍'
+  const placePhotoUrl = (story?.meetupPlacePhotoUrl || meetupData?.placePhotoUrl || '').trim()
+  const [photoFailed, setPhotoFailed] = useState(false)
+
+  useEffect(() => {
+    setPhotoFailed(false)
+  }, [placePhotoUrl])
+
+  const showPlacePhoto = Boolean(placePhotoUrl) && !photoFailed
 
   const action = !isOwn ? (
     showJoin ? (
@@ -224,7 +232,16 @@ function MeetupStoryCard({
         <div className="space-y-3.5 text-center">
           <h2 className={`${typoTitle3Class} text-white text-[22px]`}>{title}</h2>
 
-          {mapCoords ? (
+          {showPlacePhoto ? (
+            <div className="relative h-[9.5rem] w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15 bg-black/30">
+              <img
+                src={placePhotoUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={() => setPhotoFailed(true)}
+              />
+            </div>
+          ) : mapCoords ? (
             <MeetupStoryMapPreview
               lat={mapCoords.lat}
               lng={mapCoords.lng}

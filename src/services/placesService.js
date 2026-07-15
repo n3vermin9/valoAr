@@ -8,10 +8,16 @@ import {
   onSnapshot,
   serverTimestamp,
   writeBatch,
+  deleteField,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 
 const placesCollection = () => collection(db, 'mapPlaces')
+
+function normalizePlacePhotoUrl(photoUrl) {
+  const trimmed = typeof photoUrl === 'string' ? photoUrl.trim() : ''
+  return trimmed ? trimmed.slice(0, 1000) : null
+}
 
 export function subscribeMapPlaces(callback, onError) {
   return onSnapshot(
@@ -26,6 +32,7 @@ export function subscribeMapPlaces(callback, onError) {
 }
 
 export async function createMapPlace(data, userId) {
+  const photoUrl = normalizePlacePhotoUrl(data.photoUrl)
   return addDoc(placesCollection(), {
     name: data.name,
     emoji: data.emoji,
@@ -33,6 +40,7 @@ export async function createMapPlace(data, userId) {
     lat: data.lat,
     lng: data.lng,
     subplaces: data.subplaces || [],
+    ...(photoUrl ? { photoUrl } : {}),
     createdBy: userId || null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -40,11 +48,13 @@ export async function createMapPlace(data, userId) {
 }
 
 export async function updateMapPlace(placeId, data) {
+  const photoUrl = normalizePlacePhotoUrl(data.photoUrl)
   return updateDoc(doc(db, 'mapPlaces', placeId), {
     name: data.name,
     emoji: data.emoji,
     type: data.type,
     subplaces: data.subplaces || [],
+    photoUrl: photoUrl || deleteField(),
     updatedAt: serverTimestamp(),
   })
 }

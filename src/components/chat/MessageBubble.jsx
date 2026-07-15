@@ -165,7 +165,7 @@ export default function MessageBubble({
   const bubbleSurfaceClass = `${
     isOwn
       ? searchActive ? 'bg-blue-400' : 'bg-blue-500'
-      : searchActive ? 'bg-white/[0.18]' : 'bg-white/10'
+      : searchActive ? 'bg-[var(--ios-bg-tertiary)] brightness-110' : 'bg-[var(--ios-bg-tertiary)]'
   } ${highlighted && !searchActive ? 'message-bubble-flash' : ''}`
 
   const metaTone = isOwn ? 'own' : 'other'

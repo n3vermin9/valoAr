@@ -17,7 +17,6 @@ import {
   IconUserCircle,
   IconSearch,
   IconChevronLeft,
-  IconUsers,
 } from '@tabler/icons-react'
 import {
   scatterUsersAroundCenter,
@@ -49,6 +48,7 @@ import {
 } from '../../utils/designSystem'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
+import ConfirmDialog from '../ui/ConfirmDialog'
 import MapPlaceEditor from './MapPlaceEditor'
 import CreateMeetupModal from './CreateMeetupModal'
 import LoadingSpinner from '../ui/LoadingSpinner'
@@ -92,13 +92,18 @@ function MapFlyTo({ target }) {
   const map = useMap()
   useEffect(() => {
     if (!target) return
-    const { lat, lng, offsetY } = target
+    const { lat, lng, offsetY, offsetYRatio } = target
     const zoom = Math.max(map.getZoom(), PLACE_ZOOM)
 
     // Pre-compute the exact map center so the marker lands at desiredY from the top.
     // Default desiredY = mapHeight/2 → marker is vertically centered.
     const mapSize = map.getSize()
-    const desiredY = typeof offsetY === 'number' ? offsetY : mapSize.y / 2
+    const desiredY =
+      typeof offsetY === 'number'
+        ? offsetY
+        : typeof offsetYRatio === 'number'
+          ? mapSize.y * offsetYRatio
+          : mapSize.y / 2
     const markerPixel = map.project([lat, lng], zoom)
     const centerPixel = L.point(markerPixel.x, markerPixel.y - desiredY + mapSize.y / 2)
     const centerLatLng = map.unproject(centerPixel, zoom)
@@ -125,8 +130,21 @@ function MapStatePersistor() {
 function MapClickHandler({ addingPlace, onAddTap, onBackgroundClick }) {
   useMapEvents({
     click: (e) => {
-      if (addingPlace) onAddTap([e.latlng.lat, e.latlng.lng])
-      else onBackgroundClick()
+      if (addingPlace) {
+        onAddTap([e.latlng.lat, e.latlng.lng])
+        return
+      }
+      // Marker clicks can bubble through some Leaflet/divIcon paths — don't treat those as map dismiss.
+      const target = e.originalEvent?.target
+      if (
+        target instanceof Element &&
+        target.closest(
+          '.leaflet-marker-icon, .discover-map-place-pin, .discover-map-user-pin, .discover-map-you-pin'
+        )
+      ) {
+        return
+      }
+      onBackgroundClick()
     },
   })
   return null
@@ -136,12 +154,20 @@ function MapFlyEndNotifier({ flyKey, onEnd }) {
   const map = useMap()
   useEffect(() => {
     if (!flyKey) return
-    const handleEnd = () => {
+    let finished = false
+    const finish = () => {
+      if (finished) return
+      finished = true
       onEnd()
-      map.off('moveend', handleEnd)
+      map.off('moveend', finish)
     }
-    map.on('moveend', handleEnd)
-    return () => map.off('moveend', handleEnd)
+    map.on('moveend', finish)
+    // flyTo to the current view may skip moveend — still open the card.
+    const fallback = window.setTimeout(finish, 650)
+    return () => {
+      map.off('moveend', finish)
+      window.clearTimeout(fallback)
+    }
   }, [flyKey, map, onEnd])
   return null
 }
@@ -159,7 +185,11 @@ function MapInteractionCloser({ onClose, disabled }) {
 }
 
 const mapCardAnchorClass = 'absolute z-[1050] pointer-events-none left-1/2 -translate-x-1/2'
-const mapCardAnchorStyle = { top: 'calc(50% + 30px)' }
+// Pin slightly above mid-screen; card hangs just under it so short cards stay close.
+const MAP_FOCUS_PIN_OFFSET_RATIO = 0.32
+const mapFocusCardAnchorStyle = {
+  top: `calc(${MAP_FOCUS_PIN_OFFSET_RATIO * 100}% + 34px)`,
+}
 
 const mapCardMotion = {
   initial: { opacity: 0, scale: 0.94, y: 14 },
@@ -232,7 +262,7 @@ function UserCard({ pin, onClose, onViewProfile }) {
   return (
     <motion.div
       className={mapCardAnchorClass}
-      style={mapCardAnchorStyle}
+      style={mapFocusCardAnchorStyle}
       {...mapCardMotion}
     >
       <div className="discover-map-place-card relative pointer-events-auto overflow-hidden">
@@ -288,70 +318,54 @@ function UserCard({ pin, onClose, onViewProfile }) {
 
 function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateMeetup, onJoinMeetup }) {
   const [selectedSub, setSelectedSub] = useState(null)
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const [showMeetups, setShowMeetups] = useState(false)
   const typeLabel = PLACE_TYPES.find((t) => t.id === place.type)?.label || 'Place'
   const subplaces = place.subplaces || []
+  const photoUrl = place.photoUrl?.trim() || ''
+  const hasMeetups = meetups.length > 0
 
   useEffect(() => {
     setSelectedSub(null)
-  }, [place.id])
+    setPhotoFailed(false)
+    setShowMeetups(false)
+  }, [place.id, photoUrl])
+
+  useEffect(() => {
+    if (!hasMeetups) setShowMeetups(false)
+  }, [hasMeetups])
 
   return (
     <motion.div
       className={mapCardAnchorClass}
-      style={mapCardAnchorStyle}
+      style={mapFocusCardAnchorStyle}
       {...mapCardMotion}
     >
       <div className="discover-map-place-card relative pointer-events-auto p-4 max-h-[60vh] overflow-y-auto">
-        <div className="flex items-start gap-3">
-          <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-2xl shrink-0">
-            {place.emoji}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className={typoHeadlineClass}>{place.name}</p>
-            <p className={`${typoSubheadClass} mt-0.5`}>
-              {selectedSub ? `${typeLabel} · ${selectedSub.name}` : `${typeLabel} · Meet up here`}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10 shrink-0"
-            aria-label="Close"
-          >
-            <IconX size={18} stroke={2} />
-          </button>
-        </div>
-
-        {subplaces.length > 0 && (
-          <div className="mt-3">
-            <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5">
-              Choose a spot
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {subplaces.map((sub) => (
-                <button
-                  key={sub.id}
-                  type="button"
-                  onClick={() => setSelectedSub((cur) => (cur?.id === sub.id ? null : sub))}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] border transition-colors ${
-                    selectedSub?.id === sub.id
-                      ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
-                      : 'border-white/10 bg-white/[0.06] text-[var(--ios-label-secondary)]'
-                  }`}
-                >
-                  <span>{sub.emoji}</span>
-                  <span className="truncate max-w-[8rem]">{sub.name}</span>
-                </button>
-              ))}
+        {showMeetups && hasMeetups ? (
+          <>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setShowMeetups(false)}
+                className="inline-flex items-center gap-1 text-[13px] text-[var(--ios-blue)] shrink-0"
+              >
+                <IconChevronLeft size={16} stroke={2} />
+                Place
+              </button>
+              <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">
+                Meetups here · {meetups.length}
+              </p>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10 shrink-0"
+                aria-label="Close"
+              >
+                <IconX size={18} stroke={2} />
+              </button>
             </div>
-          </div>
-        )}
 
-        {meetups.length > 0 && (
-          <div className="mt-4">
-            <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5">
-              Meetups here
-            </p>
             <div className="space-y-2">
               {meetups.map((meetup) => {
                 const isMember = meetup.participants?.includes(userId)
@@ -382,31 +396,130 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
                 )
               })}
             </div>
-          </div>
-        )}
+          </>
+        ) : (
+          <>
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-2xl shrink-0">
+                {place.emoji}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className={typoHeadlineClass}>{place.name}</p>
+                <p className={`${typoSubheadClass} mt-0.5`}>
+                  {selectedSub ? `${typeLabel} · ${selectedSub.name}` : typeLabel}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10 shrink-0"
+                aria-label="Close"
+              >
+                <IconX size={18} stroke={2} />
+              </button>
+            </div>
 
-        <Button
-          variant="filled"
-          fullWidth
-          className="mt-4"
-          onClick={() => onCreateMeetup(selectedSub)}
-        >
-          <span className="inline-flex items-center gap-2">
-            <IconCalendarPlus size={16} stroke={2} />
-            Create meetup
-          </span>
-        </Button>
+            {subplaces.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5">
+                  Choose a spot
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {subplaces.map((sub) => (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => setSelectedSub((cur) => (cur?.id === sub.id ? null : sub))}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] border transition-colors ${
+                        selectedSub?.id === sub.id
+                          ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
+                          : 'border-white/10 bg-white/[0.06] text-[var(--ios-label-secondary)]'
+                      }`}
+                    >
+                      <span>{sub.emoji}</span>
+                      <span className="truncate max-w-[8rem]">{sub.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {isAdmin && (
-          <Button variant="bordered" fullWidth className="mt-3" onClick={() => onEdit(place)}>
-            <span className="inline-flex items-center gap-2">
-              <IconPencil size={16} stroke={2} />
-              Edit place
-            </span>
-          </Button>
+            {photoUrl && !photoFailed ? (
+              <div className="mt-4 rounded-[var(--ios-radius-md)] overflow-hidden border border-white/10">
+                <img
+                  src={photoUrl}
+                  alt=""
+                  className="w-full aspect-[16/10] object-cover"
+                  onError={() => setPhotoFailed(true)}
+                />
+              </div>
+            ) : null}
+
+            <Button
+              variant="filled"
+              fullWidth
+              className="mt-4"
+              onClick={() => onCreateMeetup(selectedSub)}
+            >
+              <span className="inline-flex items-center gap-2">
+                <IconCalendarPlus size={16} stroke={2} />
+                Create meetup
+              </span>
+            </Button>
+
+            {isAdmin && (
+              <Button variant="bordered" fullWidth className="mt-3" onClick={() => onEdit(place)}>
+                <span className="inline-flex items-center gap-2">
+                  <IconPencil size={16} stroke={2} />
+                  Edit place
+                </span>
+              </Button>
+            )}
+
+            {hasMeetups ? (
+              <button
+                type="button"
+                onClick={() => setShowMeetups(true)}
+                className="mt-3 w-full text-center text-[12px] font-medium text-[var(--ios-blue)] transition-colors"
+              >
+                Meetups here · {meetups.length}
+              </button>
+            ) : null}
+          </>
         )}
       </div>
     </motion.div>
+  )
+}
+
+function MeetupManagerCard({ meetup, isMember, onAction }) {
+  const members = meetup.participants?.length || 0
+  const maxMembers = meetup.maxMembers || 0
+  const full = maxMembers > 0 && members >= maxMembers
+  const venue = meetup.subplaceName
+    ? `${meetup.placeName} · ${meetup.subplaceName}`
+    : meetup.placeName || 'Place'
+
+  return (
+    <div className="rounded-[var(--ios-radius-md)] border border-white/10 bg-white/[0.05] p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[14px] font-medium text-[var(--ios-label)] truncate">{meetup.title}</p>
+          <p className="text-[12px] text-[var(--ios-label-secondary)] truncate">
+            {venue} · {formatMeetupTime(meetup.startAt)} · {members}/{maxMembers || members}
+            {meetup.privacy === 'friends' ? ' · Friends' : ''}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onAction(meetup)}
+          disabled={full && !isMember}
+          className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium bg-[var(--ios-blue)] text-white disabled:opacity-50"
+        >
+          {isMember ? 'Open' : full ? 'Full' : 'Join'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -424,21 +537,23 @@ function MeetupManager({
   const availCount = availableMeetups.length
   const [placeSearchQuery, setPlaceSearchQuery] = useState('')
   const [searchActive, setSearchActive] = useState(false)
-  const [selectedMyMeetup, setSelectedMyMeetup] = useState(null)
+  const [joinTarget, setJoinTarget] = useState(null)
+  const [joining, setJoining] = useState(false)
 
   useEffect(() => {
     if (!expanded) {
       setPlaceSearchQuery('')
       setSearchActive(false)
-      setSelectedMyMeetup(null)
+      if (!joining) setJoinTarget(null)
     }
-  }, [expanded])
+  }, [expanded, joining])
 
   useEffect(() => {
-    if (selectedMyMeetup && !myMeetups.some((meetup) => meetup.id === selectedMyMeetup.id)) {
-      setSelectedMyMeetup(null)
+    if (!joinTarget) return
+    if (!availableMeetups.some((meetup) => meetup.id === joinTarget.id)) {
+      setJoinTarget(null)
     }
-  }, [myMeetups, selectedMyMeetup])
+  }, [availableMeetups, joinTarget])
 
   const handleExpand = () => {
     onBeforeExpand?.()
@@ -467,87 +582,139 @@ function MeetupManager({
     onSelectPlace?.(place)
   }
 
+  const handleConfirmJoin = async () => {
+    if (!joinTarget || joining) return
+    setJoining(true)
+    try {
+      await onOpenMeetupChat(joinTarget)
+      setJoinTarget(null)
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  const panelChromeClass =
+    'w-full rounded-[var(--ios-radius-lg)] border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md shadow-[0_10px_26px_rgba(0,0,0,0.35)]'
+  const headerSlotClass = 'relative h-10 w-full'
+
   return (
     <div className="relative w-full pointer-events-auto">
-      {!expanded ? (
-        <button
-          type="button"
-          onClick={handleExpand}
-          className="w-full h-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md px-4 py-0 flex items-center justify-between gap-3"
-          aria-label="Open meetups manager"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <IconCalendarPlus size={18} stroke={2} className="text-[var(--ios-blue)] shrink-0" />
-            <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="min-w-[22px] h-6 px-2 rounded-full bg-[var(--ios-blue)] text-white text-[12px] font-semibold flex items-center justify-center">
-              {myCount}
-            </span>
-            <span className="min-w-[22px] h-6 px-2 rounded-full bg-white/[0.08] border border-white/10 text-white text-[12px] font-semibold flex items-center justify-center">
-              {availCount}
-            </span>
-          </div>
-        </button>
-      ) : (
-        <div className="absolute left-0 right-0 top-[calc(100%+8px)] rounded-[var(--ios-radius-lg)] border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md p-3 shadow-[0_10px_26px_rgba(0,0,0,0.35)]">
-          {showSearchBar && (
-            <div className="mb-2">
-              <div className="flex items-center gap-2 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-fill-tertiary)] px-3 h-10">
-                <IconSearch size={16} stroke={2} className="text-[var(--ios-label-tertiary)] shrink-0" />
-                <input
-                  type="search"
-                  value={placeSearchQuery}
-                  onChange={(e) => setPlaceSearchQuery(e.target.value)}
-                  onBlur={handleSearchBlur}
-                  autoFocus={searchActive}
-                  placeholder="Find a place…"
-                  className="flex-1 min-w-0 bg-transparent text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none"
-                  aria-label="Search places"
-                />
-                {placeSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlaceSearchQuery('')
-                      setSearchActive(false)
-                    }}
-                    className="p-0.5 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
-                    aria-label="Clear search"
-                  >
-                    <IconX size={14} stroke={2} />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-3 mb-2">
+      <AnimatePresence mode="wait" initial={false}>
+        {!expanded ? (
+          <motion.button
+            key="meetups-collapsed"
+            type="button"
+            onClick={handleExpand}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full h-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md px-4 py-0 flex items-center justify-between gap-3"
+            aria-label="Open meetups manager"
+          >
             <div className="flex items-center gap-2 min-w-0">
               <IconCalendarPlus size={18} stroke={2} className="text-[var(--ios-blue)] shrink-0" />
-              <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups manager</p>
+              <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups</p>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              {!showSearchBar && (
-                <button
-                  type="button"
-                  onClick={() => setSearchActive(true)}
-                  className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
-                  aria-label="Search places"
-                >
-                  <IconSearch size={18} stroke={2} />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onExpandedChange(false)}
-                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
-                aria-label="Close meetups manager"
-              >
-                <IconX size={18} stroke={2} />
-              </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="min-w-[22px] h-6 px-2 rounded-full bg-[var(--ios-blue)] text-white text-[12px] font-semibold flex items-center justify-center">
+                {myCount}
+              </span>
+              <span className="min-w-[22px] h-6 px-2 rounded-full bg-white/[0.08] border border-white/10 text-white text-[12px] font-semibold flex items-center justify-center">
+                {availCount}
+              </span>
             </div>
-          </div>
+          </motion.button>
+        ) : (
+          <motion.div
+            key="meetups-expanded"
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className={`${panelChromeClass} p-3`}
+          >
+            <div className={`${headerSlotClass} mb-2`}>
+              <AnimatePresence mode="wait" initial={false}>
+                {showSearchBar ? (
+                  <motion.div
+                    key="search"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute inset-0 flex items-center gap-1.5"
+                  >
+                    <div className="flex-1 min-w-0 flex items-center gap-2 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-fill-tertiary)] px-3 h-10">
+                      <IconSearch size={16} stroke={2} className="text-[var(--ios-label-tertiary)] shrink-0" />
+                      <input
+                        type="search"
+                        value={placeSearchQuery}
+                        onChange={(e) => setPlaceSearchQuery(e.target.value)}
+                        onBlur={handleSearchBlur}
+                        autoFocus={searchActive}
+                        placeholder="Find a place…"
+                        className="flex-1 min-w-0 bg-transparent text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none"
+                        aria-label="Search places"
+                      />
+                      {placeSearchQuery ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlaceSearchQuery('')
+                            setSearchActive(false)
+                          }}
+                          className="p-0.5 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                          aria-label="Clear search"
+                        >
+                          <IconX size={14} stroke={2} />
+                        </button>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onExpandedChange(false)}
+                      className="shrink-0 p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                      aria-label="Close meetups manager"
+                    >
+                      <IconX size={18} stroke={2} />
+                    </button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="header"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute inset-0 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <IconCalendarPlus size={18} stroke={2} className="text-[var(--ios-blue)] shrink-0" />
+                      <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups manager</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSearchActive(true)}
+                        className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                        aria-label="Search places"
+                      >
+                        <IconSearch size={18} stroke={2} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onExpandedChange(false)}
+                        className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                        aria-label="Close meetups manager"
+                      >
+                        <IconX size={18} stroke={2} />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
           {isSearching ? (
             <div className="max-h-52 overflow-y-auto space-y-1">
@@ -574,94 +741,68 @@ function MeetupManager({
                 ))
               )}
             </div>
-          ) : selectedMyMeetup ? (
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => setSelectedMyMeetup(null)}
-                className="inline-flex items-center gap-1 text-[13px] text-[var(--ios-blue)]"
-              >
-                <IconChevronLeft size={16} stroke={2} />
-                Back to meetups
-              </button>
-
-              <div className="rounded-[var(--ios-radius-md)] border border-white/10 bg-white/[0.05] p-3 space-y-2">
-                <p className={typoHeadlineClass}>{selectedMyMeetup.title}</p>
-                <p className={`${typoSubheadClass} text-[14px]`}>
-                  {selectedMyMeetup.placeName}
-                  {selectedMyMeetup.subplaceName ? ` · ${selectedMyMeetup.subplaceName}` : ''}
-                </p>
-                <p className={`${typoSubheadClass} text-[14px]`}>
-                  {formatMeetupTime(selectedMyMeetup.startAt)}
-                </p>
-                {selectedMyMeetup.description ? (
-                  <p className={`${typoSubheadClass} text-[14px] whitespace-pre-wrap`}>
-                    {selectedMyMeetup.description}
-                  </p>
-                ) : null}
-                <p className="text-[13px] text-[var(--ios-label-secondary)]">
-                  {selectedMyMeetup.participants?.length || 0}/{selectedMyMeetup.maxMembers} members ·{' '}
-                  {selectedMyMeetup.privacy === 'friends' ? 'Friends only' : 'Public'}
-                </p>
-              </div>
-
-              <Button variant="filled" fullWidth onClick={() => onOpenMeetupChat(selectedMyMeetup)}>
-                <span className="inline-flex items-center gap-2">
-                  <IconUsers size={16} stroke={2} />
-                  View group chat
-                </span>
-              </Button>
-            </div>
           ) : (
             <div className="space-y-3">
               <div>
-                <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1 inline-flex items-center gap-2">
+                <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5 inline-flex items-center gap-2">
                   <IconClockHour4 size={14} stroke={2} className="text-amber-300" />
                   Your meetups
                 </p>
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="space-y-2 max-h-40 overflow-y-auto">
                   {myMeetups.length === 0 ? (
                     <p className="text-[13px] text-[var(--ios-label-secondary)]">No active meetups</p>
                   ) : (
                     myMeetups.map((meetup) => (
-                      <button
+                      <MeetupManagerCard
                         key={meetup.id}
-                        type="button"
-                        onClick={() => setSelectedMyMeetup(meetup)}
-                        className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-[13px] text-[var(--ios-label)]"
-                      >
-                        {meetup.title}
-                      </button>
+                        meetup={meetup}
+                        isMember
+                        onAction={() => onOpenMeetupChat(meetup)}
+                      />
                     ))
                   )}
                 </div>
               </div>
 
               <div>
-                <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1">
+                <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5">
                   Available meetups
                 </p>
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="space-y-2 max-h-40 overflow-y-auto">
                   {availableMeetups.length === 0 ? (
                     <p className="text-[13px] text-[var(--ios-label-secondary)]">No meetups nearby</p>
                   ) : (
                     availableMeetups.slice(0, 16).map((meetup) => (
-                      <button
+                      <MeetupManagerCard
                         key={meetup.id}
-                        type="button"
-                        onClick={() => onOpenMeetupChat(meetup)}
-                        className="shrink-0 rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-[13px] text-[var(--ios-label)]"
-                      >
-                        {meetup.placeName} · {formatMeetupTime(meetup.startAt)}
-                      </button>
+                        meetup={meetup}
+                        isMember={false}
+                        onAction={() => setJoinTarget(meetup)}
+                      />
                     ))
                   )}
                 </div>
               </div>
             </div>
           )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <ConfirmDialog
+        isOpen={Boolean(joinTarget)}
+        onClose={() => !joining && setJoinTarget(null)}
+        onConfirm={handleConfirmJoin}
+        title="Join this meetup?"
+        message={
+          joinTarget
+            ? `Join "${joinTarget.title}" at ${joinTarget.placeName || 'the meetup spot'}? You'll be added to the group chat.`
+            : 'Join this meetup and enter the group chat?'
+        }
+        confirmLabel="Join"
+        loading={joining}
+        overlayClassName="z-[1200]"
+      />
     </div>
   )
 }
@@ -718,14 +859,56 @@ export default function DiscoverMap({
 
   const dismissMapSelection = useCallback(() => {
     setVisibleCardKey(null)
+    setSelectedPlace(null)
+    setSelectedUserPin(null)
     setMeetupManagerExpanded(false)
   }, [])
 
-  const handleMapCardExitComplete = useCallback(() => {
-    if (visibleCardKeyRef.current === null) {
-      setSelectedPlace(null)
-      setSelectedUserPin(null)
+  const handleChromeClose = useCallback(() => {
+    if (meetupDraft) {
+      setMeetupDraft(null)
+      return
     }
+    if (editorPlace) {
+      setEditorPlace(null)
+      return
+    }
+    if (showSettings) {
+      setShowSettings(false)
+      return
+    }
+    if (addingPlace) {
+      setAddingPlace(false)
+      return
+    }
+    if (visibleCardKey || selectedPlace || selectedUserPin) {
+      dismissMapSelection()
+      return
+    }
+    onExitMap?.()
+  }, [
+    meetupDraft,
+    editorPlace,
+    showSettings,
+    addingPlace,
+    visibleCardKey,
+    selectedPlace,
+    selectedUserPin,
+    dismissMapSelection,
+    onExitMap,
+  ])
+
+  const chromeCloseLabel =
+    meetupDraft || editorPlace || showSettings || addingPlace || visibleCardKey
+      ? 'Close'
+      : 'Exit map mode'
+
+  const handleMapCardExitComplete = useCallback(() => {
+    // Keep a pending place/user selection while the map flies to the next pin.
+    if (visibleCardKeyRef.current !== null) return
+    if (selectedPlaceRef.current || selectedUserPinRef.current) return
+    setSelectedPlace(null)
+    setSelectedUserPin(null)
   }, [])
 
   const handleFlyEnd = useCallback(() => {
@@ -738,12 +921,10 @@ export default function DiscoverMap({
 
   const handleOpenProfile = useCallback(
     (userProfile) => {
-      setVisibleCardKey(null)
-      setSelectedPlace(null)
-      setSelectedUserPin(null)
+      dismissMapSelection()
       onViewProfile?.(userProfile)
     },
-    [onViewProfile]
+    [dismissMapSelection, onViewProfile]
   )
 
   const updateSettings = (patch) => {
@@ -848,18 +1029,32 @@ export default function DiscoverMap({
   }
 
   const handleUserPinClick = (pin) => {
+    setAddingPlace(false)
+    setMeetupManagerExpanded(false)
     setSelectedPlace(null)
     setVisibleCardKey(null)
     setSelectedUserPin(pin)
-    setFlyTarget({ lat: pin.position[0], lng: pin.position[1], ts: Date.now() })
+    setFlyTarget({
+      lat: pin.position[0],
+      lng: pin.position[1],
+      offsetYRatio: MAP_FOCUS_PIN_OFFSET_RATIO,
+      ts: Date.now(),
+    })
   }
 
   const handlePlaceClick = (place) => {
+    if (!place) return
     setAddingPlace(false)
+    setMeetupManagerExpanded(false)
     setSelectedUserPin(null)
     setVisibleCardKey(null)
     setSelectedPlace(place)
-    setFlyTarget({ lat: place.lat, lng: place.lng, ts: Date.now() })
+    setFlyTarget({
+      lat: place.lat,
+      lng: place.lng,
+      offsetYRatio: MAP_FOCUS_PIN_OFFSET_RATIO,
+      ts: Date.now(),
+    })
   }
 
   const handleSelectPlaceFromSearch = (place) => {
@@ -977,7 +1172,12 @@ export default function DiscoverMap({
               key={pin.id}
               position={pin.position}
               icon={createUserIcon(pin.photo || sad)}
-              eventHandlers={{ click: () => handleUserPinClick(pin) }}
+              eventHandlers={{
+                click: (e) => {
+                  if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent)
+                  handleUserPinClick(pin)
+                },
+              }}
             />
           ))}
 
@@ -992,7 +1192,12 @@ export default function DiscoverMap({
                 selectedPlace?.id === place.id,
                 placeMeetupCounts[place.id] || 0
               )}
-              eventHandlers={{ click: () => handlePlaceClick(place) }}
+              eventHandlers={{
+                click: (e) => {
+                  if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent)
+                  handlePlaceClick(place)
+                },
+              }}
             />
           ))}
       </MapContainer>
@@ -1019,9 +1224,9 @@ export default function DiscoverMap({
           {!meetupManagerExpanded && onExitMap && (
             <button
               type="button"
-              onClick={onExitMap}
+              onClick={handleChromeClose}
               className="pointer-events-auto shrink-0 h-12 w-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md text-[var(--ios-label)] flex items-center justify-center"
-              aria-label="Exit map mode"
+              aria-label={chromeCloseLabel}
             >
               <IconX size={20} stroke={2} />
             </button>
@@ -1059,7 +1264,7 @@ export default function DiscoverMap({
             <UserCard
               key={visibleCardKey}
               pin={selectedUserPin}
-              onClose={() => setVisibleCardKey(null)}
+              onClose={dismissMapSelection}
               onViewProfile={handleOpenProfile}
             />
           )}
@@ -1070,7 +1275,7 @@ export default function DiscoverMap({
               isAdmin={isAdmin}
               meetups={meetups}
               userId={userId}
-              onClose={() => setVisibleCardKey(null)}
+              onClose={dismissMapSelection}
               onEdit={(place) => {
                 setVisibleCardKey(null)
                 setSelectedPlace(null)
