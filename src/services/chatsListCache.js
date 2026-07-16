@@ -147,3 +147,12 @@ export function setChatsListSnapshot(userId, { chats, users } = {}) {
   store[userId] = next
   writeStore(store)
 }
+
+export function clearChatsListSnapshot() {
+  memory.clear()
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}

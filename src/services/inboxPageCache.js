@@ -136,3 +136,12 @@ export function setInboxPageSnapshot(
   store[userId] = next
   writeStore(store)
 }
+
+export function clearInboxPageSnapshot() {
+  memory.clear()
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}

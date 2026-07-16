@@ -31,14 +31,19 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import PageShell from '../layout/PageShell'
 import { pageSwitchMotion, pageSwitchTransition, pageSwitchVariants, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
 import { setMapModeOverlayOpen } from '../../utils/mapModeOverlay'
+import {
+  getDiscoverCardsSnapshot,
+  setDiscoverCardsSnapshot,
+} from '../../services/discoverCardsCache'
 
 export default function Discover() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, profile, setProfile } = useAuth()
-  const [newProfiles, setNewProfiles] = useState([])
-  const [recentProfiles, setRecentProfiles] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cardsSnapshot = profile?.id ? getDiscoverCardsSnapshot(profile.id) : null
+  const [newProfiles, setNewProfiles] = useState(() => cardsSnapshot?.newProfiles || [])
+  const [recentProfiles, setRecentProfiles] = useState(() => cardsSnapshot?.recentProfiles || [])
+  const [loading, setLoading] = useState(() => !cardsSnapshot)
   const [loadError, setLoadError] = useState(null)
   const [section, setSection] = useState('new')
   const [view, setView] = useState('cards')
@@ -80,6 +85,7 @@ export default function Discover() {
         feed.recentProfiles.some((p, i) => p.id !== recentProfiles[i]?.id)
       setNewProfiles(feed.newProfiles)
       setRecentProfiles(feed.recentProfiles)
+      setDiscoverCardsSnapshot(profile.id, feed)
       setLoadError(null)
       if (changed) toast.success('Discover updated')
     } catch {
@@ -97,6 +103,7 @@ export default function Discover() {
         const feed = await getDiscoverFeed(profile)
         setNewProfiles(feed.newProfiles)
         setRecentProfiles(feed.recentProfiles)
+        setDiscoverCardsSnapshot(profile.id, feed)
         setLoadError(null)
         if (targetSection === 'new') setNewIndex(0)
         else setRecentIndex(0)
@@ -139,21 +146,38 @@ export default function Discover() {
     if (!profile?.id) return
     let cancelled = false
     setContentReadyForMotion(false)
-    ;(async () => {
+
+    const cached = getDiscoverCardsSnapshot(profile.id)
+    if (cached) {
+      setNewProfiles(cached.newProfiles)
+      setRecentProfiles(cached.recentProfiles)
+      setLoading(false)
+      setLoadError(null)
+      if (cached.newProfiles.length === 0 && cached.recentProfiles.length > 0) {
+        setSection('recent')
+      }
+    } else {
       setLoading(true)
       setLoadError(null)
+    }
+
+    ;(async () => {
       try {
         const feed = await getDiscoverFeed(profile)
         if (cancelled) return
         setNewProfiles(feed.newProfiles)
         setRecentProfiles(feed.recentProfiles)
+        setDiscoverCardsSnapshot(profile.id, feed)
         setNewIndex(0)
         setRecentIndex(0)
         setSection(feed.newProfiles.length > 0 ? 'new' : 'recent')
+        setLoadError(null)
       } catch (err) {
         if (!cancelled) {
-          setLoadError(err?.message || 'Could not load Discover')
-          toast.error('Could not load Discover')
+          if (!cached) {
+            setLoadError(err?.message || 'Could not load Discover')
+            toast.error('Could not load Discover')
+          }
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -249,6 +273,20 @@ export default function Discover() {
       setRecentIndex((i) => i + 1)
     }
     setProfile((prev) => patchProfileAfterSwipe(prev, targetId, action))
+    if (profile?.id) {
+      const nextNew =
+        section === 'new'
+          ? newProfiles.filter((p) => p.id !== targetId)
+          : newProfiles
+      const nextRecent =
+        section === 'recent'
+          ? recentProfiles.filter((p) => p.id !== targetId)
+          : recentProfiles
+      setDiscoverCardsSnapshot(profile.id, {
+        newProfiles: nextNew,
+        recentProfiles: nextRecent,
+      })
+    }
     if (action === 'like') toast.success('Friend request sent!')
     feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
 
@@ -259,6 +297,12 @@ export default function Discover() {
         setRecentIndex((i) => Math.max(0, i - 1))
       }
       setProfile(previousProfile)
+      if (profile?.id) {
+        setDiscoverCardsSnapshot(profile.id, {
+          newProfiles,
+          recentProfiles,
+        })
+      }
       toast.error(err.message || 'Failed to save swipe')
     })
   }

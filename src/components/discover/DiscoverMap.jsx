@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './discover-map.css'
@@ -53,6 +53,11 @@ import MapPlaceEditor from './MapPlaceEditor'
 import CreateMeetupModal from './CreateMeetupModal'
 import { PageSkeleton } from '../ui/Skeleton'
 import { optimizeAvatarUrl } from '../../services/avatarImageCache'
+import {
+  fetchAndCacheTile,
+  loadPersistedMapView,
+  savePersistedMapView,
+} from '../../services/mapTileCache'
 import { formatAppDateTime, getLowQualityImageSrc } from '../../utils/helpers'
 import { sad } from '../../assets'
 
@@ -68,17 +73,37 @@ function formatMeetupTime(ms) {
 const DEFAULT_CENTER = [43.3178, 45.6949]
 const PLACE_ZOOM = 16
 const MAP_MAX_ZOOM = 17
-const USER_PINS_MIN_ZOOM = 12
-const VIEWPORT_PAD_RATIO = 0.35
+const USER_PINS_MIN_ZOOM = 13
+const VIEWPORT_PAD_RATIO = 0.12
+const MAX_VISIBLE_USER_PINS = 28
+const MAX_VISIBLE_PLACES = 36
 /** Tiny map-pin avatars — enough for a circle, cheap to decode/composite. */
 const MAP_AVATAR_PX = 28
 const MAP_AVATAR_QUALITY = 0.28
+/** Skip canvas recompress when many pins are on screen (URL thumb is enough). */
+const AVATAR_CANVAS_PIN_CAP = 12
 
 // Prefer nolabels tiles (lighter PNGs). “Streets” keeps labels when needed.
 const MAP_THEMES = [
-  { id: 'dark', label: 'Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png' },
-  { id: 'light', label: 'Light', url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png' },
-  { id: 'labeled', label: 'Streets', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
+  {
+    id: 'dark',
+    label: 'Dark',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+    // Approx. Carto land after our brightness lift — fills gaps while tiles load.
+    accent: '#323232',
+  },
+  {
+    id: 'light',
+    label: 'Light',
+    url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    accent: '#f0eee8',
+  },
+  {
+    id: 'labeled',
+    label: 'Streets',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    accent: '#2e2e2e',
+  },
 ]
 
 const mapSession = {
@@ -87,6 +112,90 @@ const mapSession = {
   anchor: null,
   viewCenter: null,
   zoom: 14,
+}
+
+;(function hydrateMapSessionFromStorage() {
+  const saved = loadPersistedMapView()
+  if (!saved?.center) return
+  mapSession.located = true
+  mapSession.viewCenter = saved.center
+  mapSession.anchor = DEFAULT_CENTER
+  mapSession.userCenter = DEFAULT_CENTER
+  mapSession.zoom = saved.zoom
+})()
+
+/** Leaflet tile layer that serves tiles from IndexedDB when available, and caches new ones. */
+const OfflineTileLayer = L.TileLayer.extend({
+  options: {
+    crossOrigin: true,
+    placeholderColor: '#323232',
+  },
+
+  createTile(coords, done) {
+    const tile = document.createElement('img')
+
+    L.DomEvent.on(tile, 'load', L.Util.bind(this._tileOnLoad, this, done, tile))
+    L.DomEvent.on(tile, 'error', L.Util.bind(this._tileOnError, this, done, tile))
+
+    if (this.options.crossOrigin || this.options.crossOrigin === '') {
+      tile.crossOrigin = this.options.crossOrigin === true ? '' : this.options.crossOrigin
+    }
+
+    tile.alt = ''
+    tile.setAttribute('role', 'presentation')
+    if (this.options.placeholderColor) {
+      tile.style.backgroundColor = this.options.placeholderColor
+    }
+
+    const url = this.getTileUrl(coords)
+    fetchAndCacheTile(url)
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob)
+        tile._arvoliBlobUrl = objectUrl
+        tile.src = objectUrl
+      })
+      .catch(() => {
+        tile.src = url
+      })
+
+    return tile
+  },
+
+  _removeTile(key) {
+    const tile = this._tiles[key]
+    if (tile?.el?._arvoliBlobUrl) {
+      URL.revokeObjectURL(tile.el._arvoliBlobUrl)
+      tile.el._arvoliBlobUrl = null
+    }
+    return L.TileLayer.prototype._removeTile.call(this, key)
+  },
+})
+
+function CachedBasemapTiles({ url, maxZoom, placeholderColor }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!url) return undefined
+
+    const layer = new OfflineTileLayer(url, {
+      maxZoom,
+      maxNativeZoom: maxZoom,
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      // Keep neighboring tiles around so pan/zoom doesn't flash empty/black.
+      keepBuffer: 6,
+      crossOrigin: true,
+      className: 'discover-map-tiles',
+      placeholderColor: placeholderColor || '#323232',
+    })
+
+    map.addLayer(layer)
+    return () => {
+      map.removeLayer(layer)
+    }
+  }, [map, url, maxZoom, placeholderColor])
+
+  return null
 }
 
 function boundsContainLatLng(bounds, lat, lng, padRatio = 0) {
@@ -153,15 +262,29 @@ function MapViewport({ onChange }) {
   return null
 }
 
-function MapStatePersistor() {
+function MapStatePersistor({ themeId }) {
   useMapEvents({
     moveend: (e) => {
       const c = e.target.getCenter()
+      const zoom = e.target.getZoom()
       mapSession.viewCenter = [c.lat, c.lng]
-      mapSession.zoom = e.target.getZoom()
+      mapSession.zoom = zoom
+      savePersistedMapView({
+        center: mapSession.viewCenter,
+        zoom,
+        theme: themeId,
+      })
     },
     zoomend: (e) => {
-      mapSession.zoom = e.target.getZoom()
+      const c = e.target.getCenter()
+      const zoom = e.target.getZoom()
+      mapSession.viewCenter = [c.lat, c.lng]
+      mapSession.zoom = zoom
+      savePersistedMapView({
+        center: mapSession.viewCenter,
+        zoom,
+        theme: themeId,
+      })
     },
   })
   return null
@@ -308,7 +431,7 @@ function PlaceMarker({ place, selected, meetupCount, onClick }) {
   )
 }
 
-function UserMarker({ pin, selected, onClick }) {
+function UserMarker({ pin, selected, onClick, skipCanvasThumb = false }) {
   const markerRef = useRef(null)
   const rawPhoto = pin.photo || pin.profile?.photos?.[0] || ''
   const [thumbSrc, setThumbSrc] = useState(() =>
@@ -324,6 +447,8 @@ function UserMarker({ pin, selected, onClick }) {
     const optimized = optimizeAvatarUrl(rawPhoto, MAP_AVATAR_PX)
     setThumbSrc(optimized)
 
+    if (skipCanvasThumb) return undefined
+
     let cancelled = false
     getLowQualityImageSrc(optimized, {
       maxWidth: MAP_AVATAR_PX,
@@ -335,7 +460,7 @@ function UserMarker({ pin, selected, onClick }) {
     return () => {
       cancelled = true
     }
-  }, [rawPhoto])
+  }, [rawPhoto, skipCanvasThumb])
 
   const icon = useMemo(
     () => createUserIcon(thumbSrc, pin.isFriend),
@@ -725,42 +850,47 @@ function MeetupManager({
   }
 
   const panelChromeClass =
-    'w-full rounded-[var(--ios-radius-lg)] border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md shadow-[0_10px_26px_rgba(0,0,0,0.35)]'
+    'w-full overflow-hidden border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/98 shadow-[0_10px_26px_rgba(0,0,0,0.35)] transform-gpu'
   const headerSlotClass = 'relative h-10 w-full'
+  const expandedMaxHeight = isSearching ? 340 : 560
 
   return (
     <div className="relative w-full pointer-events-auto">
       <motion.div
-        layout
-        role={!expanded ? 'button' : undefined}
-        tabIndex={!expanded ? 0 : undefined}
-        onClick={!expanded ? handleExpand : undefined}
-        onKeyDown={
-          !expanded
-            ? (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  handleExpand()
-                }
-              }
-            : undefined
-        }
         initial={false}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{
-          layout: { duration: 0.22, ease: [0.22, 1, 0.36, 1] },
-          opacity: { duration: 0.12 },
-          scale: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+        animate={{
+          maxHeight: expanded ? expandedMaxHeight : 48,
+          borderRadius: expanded ? 18 : 999,
         }}
-        className={
-          expanded
-            ? `${panelChromeClass} p-3`
-            : 'w-full h-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md px-4 py-0 flex items-center justify-between gap-3'
-        }
-        aria-label={!expanded ? 'Open meetups manager' : undefined}
+        transition={{
+          duration: 0.24,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        className={panelChromeClass}
+        style={{ willChange: 'max-height, border-radius' }}
       >
-        {!expanded ? (
-          <>
+        <div className="relative min-h-12">
+          <motion.button
+            type="button"
+            onClick={handleExpand}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                handleExpand()
+              }
+            }}
+            initial={false}
+            animate={{
+              opacity: expanded ? 0 : 1,
+              scale: expanded ? 0.98 : 1,
+            }}
+            transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+            className={`absolute inset-0 h-12 px-4 flex items-center justify-between gap-3 ${
+              expanded ? 'pointer-events-none' : 'pointer-events-auto'
+            }`}
+            aria-label="Open meetups manager"
+            tabIndex={expanded ? -1 : 0}
+          >
             <div className="flex items-center gap-2 min-w-0">
               <IconCalendarPlus size={18} stroke={2} className="text-[var(--ios-blue)] shrink-0" />
               <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups</p>
@@ -773,11 +903,20 @@ function MeetupManager({
                 {availCount}
               </span>
             </div>
-          </>
-        ) : (
-          <>
+          </motion.button>
+
+          <motion.div
+            initial={false}
+            animate={{
+              opacity: expanded ? 1 : 0,
+              y: expanded ? 0 : -6,
+            }}
+            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            className={`p-3 ${expanded ? 'pointer-events-auto' : 'pointer-events-none'}`}
+            aria-hidden={!expanded}
+          >
             <div className={`${headerSlotClass} mb-2`}>
-              <AnimatePresence mode="wait" initial={false}>
+              <AnimatePresence mode="sync" initial={false}>
                 {showSearchBar ? (
                   <motion.div
                     key="search"
@@ -927,8 +1066,8 @@ function MeetupManager({
               </div>
             </div>
           )}
-          </>
-        )}
+          </motion.div>
+        </div>
       </motion.div>
 
       <ConfirmDialog
@@ -1082,7 +1221,13 @@ export default function DiscoverMap({
   }
 
   useEffect(() => {
-    if (mapSession.located) return
+    if (mapSession.located && mapSession.viewCenter) {
+      setUserCenter(mapSession.userCenter || DEFAULT_CENTER)
+      setAnchor(mapSession.anchor || DEFAULT_CENTER)
+      setCenter(mapSession.viewCenter)
+      setLoading(false)
+      return
+    }
 
     mapSession.located = true
     mapSession.userCenter = DEFAULT_CENTER
@@ -1092,6 +1237,11 @@ export default function DiscoverMap({
     setAnchor(DEFAULT_CENTER)
     setCenter(DEFAULT_CENTER)
     setLoading(false)
+    savePersistedMapView({
+      center: DEFAULT_CENTER,
+      zoom: mapSession.zoom,
+      theme: loadMapSettings().theme,
+    })
   }, [])
 
   useEffect(() => {
@@ -1167,17 +1317,24 @@ export default function DiscoverMap({
 
   const visibleUserPins = useMemo(() => {
     const filtered = settings.show === 'friends' ? userPins.filter((pin) => pin.isFriend) : userPins
-    if (!viewport.bounds) return filtered
-    return filtered.filter((pin) =>
-      boundsContainLatLng(viewport.bounds, pin.position[0], pin.position[1], VIEWPORT_PAD_RATIO)
-    )
+    const inView = !viewport.bounds
+      ? filtered
+      : filtered.filter((pin) =>
+          boundsContainLatLng(viewport.bounds, pin.position[0], pin.position[1], VIEWPORT_PAD_RATIO)
+        )
+    if (inView.length <= MAX_VISIBLE_USER_PINS) return inView
+    const friends = inView.filter((pin) => pin.isFriend)
+    const others = inView.filter((pin) => !pin.isFriend)
+    return [...friends, ...others].slice(0, MAX_VISIBLE_USER_PINS)
   }, [userPins, settings.show, viewport.bounds])
 
   const visiblePlaces = useMemo(() => {
-    if (!viewport.bounds) return displayPlaces
-    return displayPlaces.filter((place) =>
-      boundsContainLatLng(viewport.bounds, place.lat, place.lng, VIEWPORT_PAD_RATIO)
-    )
+    const inView = !viewport.bounds
+      ? displayPlaces
+      : displayPlaces.filter((place) =>
+          boundsContainLatLng(viewport.bounds, place.lat, place.lng, VIEWPORT_PAD_RATIO)
+        )
+    return inView.length > MAX_VISIBLE_PLACES ? inView.slice(0, MAX_VISIBLE_PLACES) : inView
   }, [displayPlaces, viewport.bounds])
 
   const renderUserPins = showUsers && viewport.zoom >= USER_PINS_MIN_ZOOM
@@ -1197,6 +1354,8 @@ export default function DiscoverMap({
     if (visiblePlaces.some((place) => place.id === selectedPlace.id)) return visiblePlaces
     return [...visiblePlaces, selectedPlace]
   }, [showPlaces, visiblePlaces, selectedPlace])
+
+  const skipUserAvatarCanvas = markersUsers.length > AVATAR_CANVAS_PIN_CAP
 
   const handleRecenter = () => {
     if (userCenter) setCenter([...userCenter])
@@ -1357,21 +1516,17 @@ export default function DiscoverMap({
         <MapFlyTo target={flyTarget} />
         <MapFlyEndNotifier flyKey={flyTarget?.ts} onEnd={handleFlyEnd} />
         <MapInteractionCloser onClose={dismissMapSelection} disabled={!visibleCardKey} />
-        <MapStatePersistor />
+        <MapStatePersistor themeId={theme.id} />
         <MapViewport onChange={setViewport} />
         <MapClickHandler
           addingPlace={addingPlace}
           onAddTap={handleMapTapForPlace}
           onBackgroundClick={dismissMapSelection}
         />
-        <TileLayer
-          key={theme.id}
+        <CachedBasemapTiles
           url={theme.url}
           maxZoom={MAP_MAX_ZOOM}
-          maxNativeZoom={MAP_MAX_ZOOM}
-          updateWhenZooming={false}
-          updateWhenIdle
-          keepBuffer={1}
+          placeholderColor={theme.accent}
         />
 
         {userCenter && <Marker position={userCenter} icon={youMarkerIcon} />}
@@ -1382,6 +1537,7 @@ export default function DiscoverMap({
             pin={pin}
             selected={selectedUserPin?.id === pin.id}
             onClick={handleUserPinClick}
+            skipCanvasThumb={skipUserAvatarCanvas}
           />
         ))}
 

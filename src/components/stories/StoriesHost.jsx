@@ -21,6 +21,7 @@ export default function StoriesHost({ profile, friendIds, showBar = true }) {
   if (!profile || !user?.uid) return null
 
   const openViewer = (userId, origin) => {
+    deleteExpiredStories(user.uid).catch(() => {})
     const index = feed.findIndex((entry) => entry.userId === userId)
     if (index < 0) return
     const entry = feed[index]

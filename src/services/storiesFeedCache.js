@@ -101,3 +101,12 @@ export function setStoriesFeedSnapshot(viewerId, { feed, views, users } = {}) {
   store[viewerId] = next
   writeStore(store)
 }
+
+export function clearStoriesFeedSnapshot() {
+  memory.clear()
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}

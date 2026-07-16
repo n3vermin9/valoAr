@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth'
 import { auth } from '../firebase/config'
 import { fetchUser, fetchDeletedUser, setupPresence, deleteAccount } from '../services/userService'
-import { clearCache } from '../services/userCache'
+import { clearAllAppCaches } from '../services/appCacheClear'
 
 const AuthContext = createContext(null)
 
@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
               }
               setUser(null)
               setProfile(null)
-              clearCache()
+              clearAllAppCaches()
               return
             }
             setUser(firebaseUser)
@@ -45,13 +45,13 @@ export function AuthProvider({ children }) {
         } else {
           setUser(null)
           setProfile(null)
-          clearCache()
+          clearAllAppCaches()
         }
       } catch (err) {
         console.error('Failed to initialize auth session', err)
         setUser(null)
         setProfile(null)
-        clearCache()
+        clearAllAppCaches()
       } finally {
         setLoading(false)
       }
@@ -94,7 +94,7 @@ export function AuthProvider({ children }) {
 
     setUser(null)
     setProfile(null)
-    clearCache()
+    clearAllAppCaches()
   }
 
   return (

@@ -79,7 +79,15 @@ function offsetPosition(center, offset) {
 export function scatterUsersAroundCenter(center, profiles = [], friendIds = []) {
   if (profiles.length === 0) return []
   const friendSet = new Set(friendIds)
-  return profiles.slice(0, 16).map((profile, index) => ({
+  const friends = []
+  const others = []
+  for (const profile of profiles) {
+    if (!profile?.id) continue
+    if (profile.isFriend === true || friendSet.has(profile.id)) friends.push(profile)
+    else others.push(profile)
+  }
+  const ordered = [...friends, ...others].slice(0, 16)
+  return ordered.map((profile, index) => ({
     id: profile.id,
     profile,
     photo: profile.photos?.[0] || null,

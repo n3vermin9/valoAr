@@ -204,3 +204,12 @@ export function setChatRoomSnapshot(
 
   writeStore(store)
 }
+
+export function clearChatRoomSnapshot() {
+  memory.clear()
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}

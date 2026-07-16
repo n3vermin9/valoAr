@@ -45,3 +45,11 @@ export function setProfileSnapshot(userId, { username, photo } = {}) {
   }
   writeStore(store)
 }
+
+export function clearProfileSnapshots() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}

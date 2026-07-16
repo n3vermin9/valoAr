@@ -542,6 +542,13 @@ export default function LikedYou() {
     if (item.type === 'group_join_denied') {
       return <>Your request to join {item.groupName || 'the group'} was declined</>
     }
+    if (item.type === 'meetup_join') {
+      return (
+        <>
+          {nameLabel} joined {item.meetupTitle || 'your meetup'}
+        </>
+      )
+    }
     return (
       <>
         You and {nameLabel} are now friends
@@ -567,6 +574,10 @@ export default function LikedYou() {
       return
     }
     if ((item.type === 'group_join_approved' || item.type === 'group_join_denied') && item.chatId) {
+      navigate(`/chats/${item.chatId}`)
+      return
+    }
+    if (item.type === 'meetup_join' && item.chatId) {
       navigate(`/chats/${item.chatId}`)
       return
     }

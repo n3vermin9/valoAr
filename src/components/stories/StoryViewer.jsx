@@ -14,6 +14,7 @@ import {
 import toast from 'react-hot-toast'
 import {
   deleteStory,
+  deleteExpiredStories,
   recordStoryView,
   replyToStory,
   setStoryReaction,
@@ -245,6 +246,11 @@ export default function StoryViewer({
   const navigate = useNavigate()
   queueRef.current = sessionQueue
   navRef.current = nav
+
+  useEffect(() => {
+    if (!viewerId) return
+    deleteExpiredStories(viewerId).catch(() => {})
+  }, [viewerId])
 
   const OPEN_TAP_GUARD_MS = 400
 

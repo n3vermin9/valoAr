@@ -17,7 +17,7 @@ import {
 import { db } from '../firebase/config'
 import { sendMessage } from './chatService'
 import { getMatchId, reportBackgroundError } from '../utils/helpers'
-import { pushInboxNotification } from './inboxService'
+import { pushInboxNotification, removeMatchingInboxNotifications, patchMatchingInboxNotifications } from './inboxService'
 import {
   isStoryActive,
   storyCreatedMs,
@@ -388,7 +388,10 @@ export async function setStoryReaction(ownerId, storyId, userId, emoji, actorUse
   if (!snap.exists()) return null
 
   const reactions = { ...(snap.data().reactions || {}) }
-  const removing = reactions[userId] === emoji
+  const previousEmoji = reactions[userId] || null
+  const removing = previousEmoji === emoji
+  const isFirstReaction = !previousEmoji
+
   if (removing) {
     delete reactions[userId]
   } else {
@@ -399,14 +402,32 @@ export async function setStoryReaction(ownerId, storyId, userId, emoji, actorUse
     reactions: Object.keys(reactions).length ? reactions : deleteField(),
   })
 
-  if (!removing && ownerId !== userId) {
-    await pushInboxNotification(ownerId, {
+  if (ownerId !== userId) {
+    const reactionMatch = {
       type: 'story_reaction',
       actorId: userId,
-      actorUsername,
-      emoji,
       storyId,
-    }).catch((err) => reportBackgroundError('Failed to push story reaction inbox item', err))
+    }
+    if (removing) {
+      await removeMatchingInboxNotifications(ownerId, reactionMatch).catch((err) =>
+        reportBackgroundError('Failed to clear story reaction inbox item', err)
+      )
+    } else if (isFirstReaction) {
+      // Only the first reaction notifies; later emoji changes stay silent.
+      await pushInboxNotification(ownerId, {
+        type: 'story_reaction',
+        actorId: userId,
+        actorUsername,
+        emoji,
+        storyId,
+      }).catch((err) => reportBackgroundError('Failed to push story reaction inbox item', err))
+    } else {
+      // Update emoji on the existing inbox row (no new doc / toast / unread bump).
+      await patchMatchingInboxNotifications(ownerId, reactionMatch, {
+        emoji,
+        actorUsername,
+      }).catch((err) => reportBackgroundError('Failed to patch story reaction inbox item', err))
+    }
   }
 
   return reactions[userId] || null

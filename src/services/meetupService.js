@@ -16,6 +16,8 @@ import { db } from '../firebase/config'
 import { createMeetupGroupChat, leaveGroupChat, deleteGroupChat } from './groupChatService'
 import { deleteMeetupAnnouncementStories } from './storyService'
 import { postSystemMessage, postAndPinMeetupInfo, SYSTEM_EVENTS } from './systemChatMessage'
+import { pushInboxNotification } from './inboxService'
+import { fetchUser } from './userService'
 
 const MEETUP_COOLDOWN_MS = 60 * 1000
 const MEETUP_CHAT_GRACE_MS = 12 * 60 * 60 * 1000
@@ -329,6 +331,18 @@ export async function joinMeetup(meetupId, userId) {
     actorId: userId,
     isMeetup: true,
   }).catch(() => {})
+
+  if (meetup.creatorId && meetup.creatorId !== userId) {
+    const joiner = await fetchUser(userId).catch(() => null)
+    pushInboxNotification(meetup.creatorId, {
+      type: 'meetup_join',
+      actorId: userId,
+      actorUsername: joiner?.username || 'Someone',
+      meetupId,
+      chatId: meetup.chatId,
+      meetupTitle: meetup.title || 'your meetup',
+    }).catch(() => {})
+  }
 
   return { chatId: meetup.chatId, alreadyJoined: false }
 }
