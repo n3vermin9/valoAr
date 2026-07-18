@@ -1,0 +1,137 @@
+import { useMemo, useState } from 'react'
+import { IconSearch, IconX } from '@tabler/icons-react'
+import { HOBBIES, MAX_HOBBIES, getHobbyLabel, normalizeHobbies } from '../../utils/profileOptions'
+import { handleInputFocusCursor } from '../../utils/inputHelpers'
+import { fieldLabelClass, typoSubheadClass } from '../../utils/designSystem'
+
+const LIST_HEIGHT = 'h-28' // fixed ~112px — fewer chips visible at once
+
+/**
+ * Multi-select hobbies picker with search + selected chips.
+ */
+export default function HobbiesSelect({
+  value = [],
+  onChange,
+  max = MAX_HOBBIES,
+  className = '',
+}) {
+  const [query, setQuery] = useState('')
+  const selected = useMemo(() => normalizeHobbies(value).slice(0, max), [value, max])
+  const selectedSet = useMemo(() => new Set(selected), [selected])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return HOBBIES
+    return HOBBIES.filter(
+      (h) => h.label.toLowerCase().includes(q) || h.id.toLowerCase().includes(q)
+    )
+  }, [query])
+
+  const toggle = (id) => {
+    if (selectedSet.has(id)) {
+      onChange(selected.filter((x) => x !== id))
+      return
+    }
+    if (selected.length >= max) return
+    onChange([...selected, id])
+  }
+
+  return (
+    <div className={className}>
+      <div className="flex items-baseline justify-between gap-3 mb-1.5">
+        <label className={`${fieldLabelClass} !mb-0 !text-[13px]`}>Hobbies</label>
+        <span className={`${typoSubheadClass} !text-[12px]`}>
+          {selected.length}/{max}
+        </span>
+      </div>
+
+      <div className="min-h-8 flex flex-wrap gap-1.5 mb-2">
+        {selected.length === 0 ? (
+          <span className="text-[12px] text-white/35 leading-8">Pick up to {max}</span>
+        ) : (
+          selected.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => toggle(id)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-500/70 text-white text-[12px] font-medium leading-none"
+            >
+              {getHobbyLabel(id)}
+              <IconX size={12} stroke={2.5} className="opacity-80" />
+            </button>
+          ))
+        )}
+      </div>
+
+      <div className="relative mb-2">
+        <IconSearch
+          size={13}
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={handleInputFocusCursor}
+          placeholder="Search…"
+          className="w-full h-8 pl-8 pr-3 rounded-full bg-white/[0.06] border border-white/5 text-[13px] outline-none focus:border-blue-500/60"
+        />
+      </div>
+
+      <div
+        className={`${LIST_HEIGHT} rounded-2xl bg-white/[0.03] overflow-y-auto overscroll-contain`}
+      >
+        {filtered.length === 0 ? (
+          <p className="px-3 py-4 text-center text-white/35 text-[12px]">No hobbies match</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 p-2.5 content-start">
+            {filtered.map((hobby) => {
+              const on = selectedSet.has(hobby.id)
+              const atCap = !on && selected.length >= max
+              return (
+                <button
+                  key={hobby.id}
+                  type="button"
+                  disabled={atCap}
+                  onClick={() => toggle(hobby.id)}
+                  className={`px-2.5 py-1 rounded-full text-[12px] font-medium leading-none transition-colors disabled:opacity-30 ${
+                    on
+                      ? 'bg-blue-500/70 text-white'
+                      : 'bg-transparent text-white/50 hover:bg-white/[0.06] hover:text-white/70'
+                  }`}
+                >
+                  {hobby.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Read-only chip row for profile / cards. */
+export function HobbiesDisplay({ hobbies = [], className = '', limit = MAX_HOBBIES }) {
+  const ids = normalizeHobbies(hobbies)
+  if (!ids.length) return null
+  const shown = ids.slice(0, limit)
+  const extra = ids.length - shown.length
+
+  return (
+    <div className={`flex flex-wrap gap-1.5 ${className}`}>
+      {shown.map((id) => (
+        <span
+          key={id}
+          className="px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[12px] font-medium leading-none"
+        >
+          {getHobbyLabel(id)}
+        </span>
+      ))}
+      {extra > 0 ? (
+        <span className="px-2.5 py-1 rounded-full bg-white/10 text-white/50 text-[12px] font-medium leading-none">
+          +{extra}
+        </span>
+      ) : null}
+    </div>
+  )
+}

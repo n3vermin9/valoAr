@@ -44,6 +44,7 @@ import {
   reportBackgroundError,
 } from '../utils/helpers'
 import { normalizeSocials, sanitizeProfileSocials, stripSocials } from '../utils/socialLinks'
+import { DEFAULT_CITY_ID, normalizeCity, normalizeHobbies } from '../utils/profileOptions'
 import { removeChatForUser } from './chatService'
 import { deleteAllUserStories } from './storyService'
 import { pushInboxNotification } from './inboxService'
@@ -165,6 +166,8 @@ export async function createUserProfile(userId, profileData) {
     transaction.set(userRef, {
       ...profileData,
       username,
+      city: normalizeCity(profileData.city || DEFAULT_CITY_ID),
+      hobbies: normalizeHobbies(profileData.hobbies),
       matches: [],
       previousMatches: [],
       swipes: {},
@@ -195,6 +198,8 @@ export async function updateUserProfile(userId, updates, oldUsername) {
   await runTransaction(db, async (transaction) => {
     const nextUpdates = { ...updates }
     if (nextUsername) nextUpdates.username = nextUsername
+    if ('city' in nextUpdates) nextUpdates.city = normalizeCity(nextUpdates.city)
+    if ('hobbies' in nextUpdates) nextUpdates.hobbies = normalizeHobbies(nextUpdates.hobbies)
 
     if (nextUsername && nextUsername !== prevUsername) {
       const nextUsernameRef = doc(db, 'usernames', nextUsername)
@@ -558,27 +563,20 @@ export async function searchUsersByUsername(queryText, currentUser = null) {
   const normalized = normalizeUsername(queryText)
   if (!normalized || normalized.length < 2) return []
 
-  const results = new Map()
-
-  const addUser = async (userId) => {
-    if (!userId || results.has(userId)) return
-    const profile = await fetchUser(userId)
-    if (profile) {
-      results.set(userId, sanitizeProfileSocials(profile, currentUser))
-    }
+  const usernameDocs = await listUsernameDocsForSearch(normalized)
+  const userIds = []
+  for (const usernameDoc of usernameDocs) {
+    const data = usernameDoc.data()
+    if (!data?.userId || data.deleted) continue
+    if (!userIds.includes(data.userId)) userIds.push(data.userId)
   }
 
-  const usernameDocs = await listUsernameDocsForSearch(normalized)
+  if (!userIds.length) return []
 
-  await Promise.all(
-    usernameDocs.map(async (usernameDoc) => {
-      const data = usernameDoc.data()
-      if (!data?.userId || data.deleted) return
-      await addUser(data.userId)
-    })
-  )
-
-  return Array.from(results.values())
+  const userMap = await fetchUsersMap(userIds.slice(0, 25))
+  return Object.values(userMap)
+    .map((profile) => sanitizeProfileSocials(profile, currentUser))
+    .filter(Boolean)
     .sort((a, b) => {
       const aUser = a.username?.toLowerCase() || ''
       const bUser = b.username?.toLowerCase() || ''

@@ -25,7 +25,7 @@ import { sad } from '../../assets'
 import { PublicProfileView } from '../profile/ProfileView'
 import StoriesHost from '../stories/StoriesHost'
 import ChevronBack from '../ui/ChevronBack'
-import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
+import { handleInputFocusCursor } from '../../utils/inputHelpers'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 import PageShell from '../layout/PageShell'
@@ -56,10 +56,6 @@ export default function Discover() {
   const [profileFromSearch, setProfileFromSearch] = useState(false)
   const [profileFromMap, setProfileFromMap] = useState(false)
   const [showSearchPage, setShowSearchPage] = useState(false)
-  const [searchUsername, setSearchUsername] = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [groupSearchResults, setGroupSearchResults] = useState([])
-  const [searchLoading, setSearchLoading] = useState(false)
   const [likedYouIds, setLikedYouIds] = useState(new Set())
   const [mapFriendProfiles, setMapFriendProfiles] = useState([])
   const [messageTarget, setMessageTarget] = useState(null)
@@ -357,55 +353,6 @@ export default function Discover() {
     setProfileFromMap(false)
   }
 
-  const handleSearchByUsername = (usernameOverride) => {
-    const normalized = (usernameOverride ?? searchUsername).trim().toLowerCase().replace(/^@/, '')
-    if (!normalized) {
-      toast.error('Enter a username to search')
-      return
-    }
-
-    const result = searchResults.find((p) => p.username?.toLowerCase() === normalized)
-    if (!result) {
-      toast.error('User not found')
-      return
-    }
-
-    handleSelectFromSearch(result.id)
-  }
-
-  useEffect(() => {
-    const normalized = searchUsername.trim().toLowerCase().replace(/^@/, '')
-    if (!normalized) {
-      setSearchResults([])
-      setGroupSearchResults([])
-      setSearchLoading(false)
-      return
-    }
-
-    let cancelled = false
-    setSearchLoading(true)
-    const timer = setTimeout(async () => {
-      const [userResult, groupResult] = await Promise.allSettled([
-        searchUsersByUsername(normalized, profile),
-        searchPublicGroups(normalized, { userId: user?.uid }),
-      ])
-
-      if (cancelled) return
-
-      setSearchResults(userResult.status === 'fulfilled' ? userResult.value : [])
-      setGroupSearchResults(groupResult.status === 'fulfilled' ? groupResult.value : [])
-      if (userResult.status === 'rejected' || groupResult.status === 'rejected') {
-        toast.error('Some search results could not load')
-      }
-      setSearchLoading(false)
-    }, 120)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [searchUsername, profile, user?.uid])
-
   const discoverSearchButton = (
     <button
       onClick={() => setShowSearchPage(true)}
@@ -426,12 +373,8 @@ export default function Discover() {
       <DiscoverSearchPage
         isOpen={showSearchPage}
         onClose={() => setShowSearchPage(false)}
-        searchUsername={searchUsername}
-        setSearchUsername={setSearchUsername}
-        userResults={searchResults}
-        groupResults={groupSearchResults}
-        searchLoading={searchLoading}
-        onSearch={handleSearchByUsername}
+        profile={profile}
+        userId={user?.uid}
         onSelectProfile={handleSelectFromSearch}
         onSelectGroup={handleSelectGroup}
       />
@@ -441,7 +384,7 @@ export default function Discover() {
   const emptyMessage =
     section === 'new'
       ? 'No new profiles right now. Check back later!'
-      : 'No recent profiles to show. Pass on someone in New to see them here.'
+      : 'No recent profiles yet. Pass on someone in New to see them here.'
 
   const renderSectionFeed = (profiles) => {
     const pullIndicator = (
@@ -466,7 +409,7 @@ export default function Discover() {
           onTouchEnd={handleFeedTouchEnd}
         >
           {pullIndicator}
-          <div className="flex-1 flex items-center justify-center min-h-0">
+          <div className="flex-1 flex items-center justify-center min-h-0 min-w-0 px-2">
             <EmptyState message={emptyMessage} />
           </div>
         </div>
@@ -693,17 +636,88 @@ function DiscoverSectionTabs({ section, onSectionChange }) {
 function DiscoverSearchPage({
   isOpen,
   onClose,
-  searchUsername,
-  setSearchUsername,
-  userResults,
-  groupResults,
-  searchLoading,
-  onSearch,
+  profile,
+  userId,
   onSelectProfile,
   onSelectGroup,
 }) {
-  const hasQuery = searchUsername.trim().length > 0
+  const [query, setQuery] = useState('')
+  const [userResults, setUserResults] = useState([])
+  const [groupResults, setGroupResults] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const profileRef = useRef(profile)
+  useEffect(() => {
+    profileRef.current = profile
+  }, [profile])
+
+  const normalized = query.trim().toLowerCase().replace(/^@/, '')
+  const hasQuery = normalized.length > 0
+  const canSearch = normalized.length >= 2
   const hasResults = userResults.length > 0 || groupResults.length > 0
+
+  useEffect(() => {
+    if (!isOpen) {
+      setQuery('')
+      setUserResults([])
+      setGroupResults([])
+      setSearchLoading(false)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    if (!canSearch) {
+      setUserResults([])
+      setGroupResults([])
+      setSearchLoading(false)
+      return undefined
+    }
+
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setSearchLoading(true)
+      const [userResult, groupResult] = await Promise.allSettled([
+        searchUsersByUsername(normalized, profileRef.current),
+        searchPublicGroups(normalized, { userId, handlesOnly: true }),
+      ])
+
+      if (cancelled) return
+
+      setUserResults(userResult.status === 'fulfilled' ? userResult.value : [])
+      setGroupResults(groupResult.status === 'fulfilled' ? groupResult.value : [])
+      if (userResult.status === 'rejected' || groupResult.status === 'rejected') {
+        toast.error('Some search results could not load')
+      }
+      setSearchLoading(false)
+    }, 280)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [isOpen, normalized, canSearch, userId])
+
+  const handleEnter = () => {
+    if (!normalized) {
+      toast.error('Enter a username to search')
+      return
+    }
+    const exact = userResults.find((p) => p.username?.toLowerCase() === normalized)
+    if (exact) {
+      onSelectProfile(exact.id)
+      return
+    }
+    if (groupResults.length === 1) {
+      onSelectGroup(groupResults[0].id)
+      return
+    }
+    if (!canSearch) {
+      toast.error('Type at least 2 characters')
+      return
+    }
+    toast.error('User not found')
+  }
 
   return (
     <AnimatePresence>
@@ -715,71 +729,80 @@ function DiscoverSearchPage({
           <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-white/10">
             <ChevronBack onClick={onClose} />
             <div className="flex-1 flex items-center bg-white/10 rounded-full border border-white/10 px-4">
-              <IconSearch size={18} className="text-white/50 mr-2" />
+              <IconSearch size={18} className="text-white/50 mr-2 shrink-0" />
               <input
                 autoFocus
-                value={searchUsername}
-                onChange={createSanitizedChangeHandler(setSearchUsername, (value) => value.toLowerCase())}
+                value={query}
+                onChange={(e) => setQuery(e.target.value.toLowerCase())}
                 onFocus={handleInputFocusCursor}
-                onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+                onKeyDown={(e) => e.key === 'Enter' && handleEnter()}
                 placeholder="Search users and groups"
                 className="w-full py-2.5 bg-transparent outline-none text-sm"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
           </div>
 
           <div className="h-[calc(100%-64px)] overflow-y-auto pb-24">
-        {!hasQuery && (
-          <p className="px-4 pt-4 text-sm text-white/50">Search by username or public group name</p>
-        )}
+            {!hasQuery && (
+              <p className="px-4 pt-4 text-sm text-white/50">Search by username or public group</p>
+            )}
 
-        {hasQuery && searchLoading && (
-          <p className="px-4 pt-4 text-sm text-white/50">Searching…</p>
-        )}
+            {hasQuery && !canSearch && (
+              <p className="px-4 pt-4 text-sm text-white/50">Keep typing…</p>
+            )}
 
-        {hasQuery && !searchLoading && !hasResults && (
-          <p className="px-4 pt-4 text-sm text-white/50">No users or groups found</p>
-        )}
+            {canSearch && searchLoading && (
+              <p className="px-4 pt-4 text-sm text-white/50">Searching…</p>
+            )}
 
-        {userResults.map((profile) => (
-          <button
-            key={profile.id}
-            onClick={() => onSelectProfile(profile.id)}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
-          >
-            <img
-              src={profile.photos?.[0] || sad}
-              alt=""
-              className="w-12 h-12 rounded-full object-cover"
-            />
-            <div className="text-left">
-              <UsernameLabel username={profile.username} className="font-medium" badgeSize={14} />
-              <p className="text-sm text-white/50">{profile.age} years old</p>
-            </div>
-          </button>
-        ))}
+            {canSearch && !searchLoading && !hasResults && (
+              <p className="px-4 pt-4 text-sm text-white/50">No users or groups found</p>
+            )}
 
-        {groupResults.length > 0 && userResults.length > 0 && (
-          <div className="mx-4 my-2 border-t border-white/10" aria-hidden />
-        )}
+            {userResults.map((result) => (
+              <button
+                key={result.id}
+                type="button"
+                onClick={() => onSelectProfile(result.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
+              >
+                <img
+                  src={result.photos?.[0] || sad}
+                  alt=""
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <div className="text-left min-w-0">
+                  <UsernameLabel username={result.username} className="font-medium" badgeSize={14} />
+                  <p className="text-sm text-white/50">{result.age} years old</p>
+                </div>
+              </button>
+            ))}
 
-        {groupResults.map((group) => (
-          <button
-            key={group.id}
-            onClick={() => onSelectGroup(group.id)}
-            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
-          >
-            <GroupAvatar photoUrl={group.photoUrl} size={48} />
-            <div className="text-left min-w-0">
-              <p className="font-medium truncate">{getGroupDisplayName(group)}</p>
-              <p className="text-sm text-white/50">
-                {group.username ? `@${group.username} · ` : ''}
-                {group.participants?.length || 0} members · Public
-              </p>
-            </div>
-          </button>
-        ))}
-      </div>
+            {groupResults.length > 0 && userResults.length > 0 && (
+              <div className="mx-4 my-2 border-t border-white/10" aria-hidden />
+            )}
+
+            {groupResults.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                onClick={() => onSelectGroup(group.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
+              >
+                <GroupAvatar photoUrl={group.photoUrl} size={48} />
+                <div className="text-left min-w-0">
+                  <p className="font-medium truncate">{getGroupDisplayName(group)}</p>
+                  <p className="text-sm text-white/50 truncate">
+                    {group.username ? `@${group.username} · ` : ''}
+                    {group.participants?.length || 0} members · Public
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

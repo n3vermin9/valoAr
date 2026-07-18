@@ -9,9 +9,12 @@ import { APP_AGE_MAX, APP_AGE_MIN, normalizeUsername } from '../../utils/helpers
 import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
+import CitySelect from './CitySelect'
+import HobbiesSelect from './HobbiesSelect'
 import Modal from '../ui/Modal'
 import LoadingSpinner from '../ui/LoadingSpinner'
-import { pageTitleClass, typoSubheadClass, typoTitle3Class, fieldLabelClass, btnFilledClass } from '../../utils/designSystem'
+import { pageTitleClass, typoSubheadClass, typoTitle3Class } from '../../utils/designSystem'
+import { DEFAULT_CITY_ID, normalizeCity, normalizeHobbies } from '../../utils/profileOptions'
 
 export default function ProfileSetup() {
   const { user, refreshProfile } = useAuth()
@@ -20,6 +23,8 @@ export default function ProfileSetup() {
   const [age, setAge] = useState(18)
   const [gender, setGender] = useState('')
   const [interestedIn, setInterestedIn] = useState('')
+  const [city, setCity] = useState(DEFAULT_CITY_ID)
+  const [hobbies, setHobbies] = useState([])
   const [bio, setBio] = useState('')
   const [photos, setPhotos] = useState(['', '', ''])
   const [visiblePhotoSlots, setVisiblePhotoSlots] = useState(1)
@@ -29,12 +34,12 @@ export default function ProfileSetup() {
 
   const { status, error: usernameError } = useUsernameCheck(username, user?.uid)
 
-  const filledPhotos = photos.filter(Boolean)
   const canSubmit =
     status === 'available' &&
     photos[0].trim() !== '' &&
     gender !== '' &&
     interestedIn !== '' &&
+    Boolean(city) &&
     age >= APP_AGE_MIN &&
     age <= APP_AGE_MAX
 
@@ -71,6 +76,8 @@ export default function ProfileSetup() {
         age,
         gender,
         interestedIn,
+        city: normalizeCity(city),
+        hobbies: normalizeHobbies(hobbies),
         bio,
         photos: photos.filter(Boolean),
       })
@@ -148,6 +155,11 @@ export default function ProfileSetup() {
         </div>
 
         <div>
+          <label className="text-sm text-white/60 mb-2 block">City</label>
+          <CitySelect value={city} onChange={setCity} />
+        </div>
+
+        <div>
           <label className="text-sm text-white/60 mb-2 block flex items-center gap-1">
             Interested In
             <button type="button" onClick={() => setShowBothInfo(true)}>
@@ -173,6 +185,8 @@ export default function ProfileSetup() {
             ))}
           </div>
         </div>
+
+        <HobbiesSelect value={hobbies} onChange={setHobbies} />
 
         <div>
           <label className="text-sm text-white/60 mb-2 block">Bio</label>

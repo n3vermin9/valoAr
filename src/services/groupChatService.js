@@ -588,7 +588,10 @@ export async function leaveGroupChat(chatId, userId) {
   }
 }
 
-export async function searchPublicGroups(searchQuery, { excludeChatIds = [], userId = null } = {}) {
+export async function searchPublicGroups(
+  searchQuery,
+  { excludeChatIds = [], userId = null, handlesOnly = false } = {}
+) {
   const normalized = normalizeGroupUsername(searchQuery)
   if (normalized.length < 2) return []
 
@@ -637,37 +640,40 @@ export async function searchPublicGroups(searchQuery, { excludeChatIds = [], use
     })
   )
 
-  try {
-    const publicGroups = await listPublicGroupsForSearch()
-    publicGroups.forEach((group) => addGroup(group))
-  } catch {
-    // ignore
-  }
-
-  if (userId) {
+  // Live typeahead skips full public-group scans — those are expensive.
+  if (!handlesOnly) {
     try {
-      const memberSnap = await getDocs(
-        query(
-          collection(db, 'chats'),
-          where('type', '==', 'group'),
-          where('participants', 'array-contains', userId),
-          limit(30)
-        )
-      )
-      memberSnap.docs.forEach((d) => addGroup({ id: d.id, ...d.data() }))
+      const publicGroups = await listPublicGroupsForSearch()
+      publicGroups.forEach((group) => addGroup(group))
     } catch {
+      // ignore
+    }
+
+    if (userId) {
       try {
-        const allSnap = await getDocs(
-          query(collection(db, 'chats'), where('type', '==', 'group'), limit(100))
+        const memberSnap = await getDocs(
+          query(
+            collection(db, 'chats'),
+            where('type', '==', 'group'),
+            where('participants', 'array-contains', userId),
+            limit(30)
+          )
         )
-        allSnap.docs.forEach((d) => {
-          const data = d.data()
-          if (data.participants?.includes(userId)) {
-            addGroup({ id: d.id, ...data })
-          }
-        })
+        memberSnap.docs.forEach((d) => addGroup({ id: d.id, ...d.data() }))
       } catch {
-        // ignore
+        try {
+          const allSnap = await getDocs(
+            query(collection(db, 'chats'), where('type', '==', 'group'), limit(100))
+          )
+          allSnap.docs.forEach((d) => {
+            const data = d.data()
+            if (data.participants?.includes(userId)) {
+              addGroup({ id: d.id, ...data })
+            }
+          })
+        } catch {
+          // ignore
+        }
       }
     }
   }

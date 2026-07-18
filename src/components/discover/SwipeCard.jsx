@@ -4,7 +4,9 @@ import { sad } from '../../assets'
 import { profileActionBtnClass } from '../../utils/designSystem'
 import ProfileLookingFor from '../profile/ProfileLookingFor'
 import SocialLinksDisplay from '../profile/SocialLinksDisplay'
+import { HobbiesDisplay } from '../profile/HobbiesSelect'
 import VerifiedBadge from '../ui/VerifiedBadge'
+import { getCityLabel } from '../../utils/profileOptions'
 
 export default function SwipeCard({
   profile,
@@ -17,6 +19,7 @@ export default function SwipeCard({
   const bio = profile.bio?.trim()
   const photos = (profile.photos || []).filter(Boolean)
   const displayPhotos = photos.length ? photos : [sad]
+  const cityLabel = getCityLabel(profile.city)
   const [photoIndex, setPhotoIndex] = useState(0)
   const galleryRef = useRef(null)
 
@@ -72,6 +75,7 @@ export default function SwipeCard({
             <h3 className="text-base font-bold leading-tight inline-flex items-center gap-1 flex-wrap">
               <span>
                 {profile.username}, {profile.age}
+                {cityLabel ? ` · ${cityLabel}` : ''}
               </span>
               <VerifiedBadge username={profile.username} size={16} />
             </h3>
@@ -88,6 +92,8 @@ export default function SwipeCard({
             interestedIn={profile.interestedIn}
             className="text-xs text-white/50 mt-1.5"
           />
+
+          <HobbiesDisplay hobbies={profile.hobbies} className="mt-1.5" limit={4} />
 
           <SocialLinksDisplay socials={profile.socials} compact visible={alreadyMatched} />
         </div>

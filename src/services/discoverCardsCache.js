@@ -28,6 +28,8 @@ function slimProfile(profile) {
     photos: (profile.photos || []).filter(Boolean).slice(0, 3),
     gender: profile.gender || null,
     lookingFor: profile.lookingFor || null,
+    city: profile.city || null,
+    hobbies: Array.isArray(profile.hobbies) ? profile.hobbies.slice(0, 4) : [],
     socialLinks: profile.socialLinks || null,
   }
 }

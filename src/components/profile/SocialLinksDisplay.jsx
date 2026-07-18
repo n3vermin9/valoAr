@@ -20,7 +20,7 @@ export default function SocialLinksDisplay({ socials: rawSocials, compact = fals
     : iconButtonClass
 
   return (
-    <div className={compact ? 'mt-2.5' : 'mt-4 pt-4 border-t border-white/10 text-center'}>
+    <div className={compact ? 'mt-2.5' : 'mt-1 pt-3.5 border-t border-white/[0.06] text-center'}>
       <div className={`flex flex-wrap gap-2 ${compact ? '' : 'justify-center'}`}>
         {SOCIAL_PLATFORMS.map(({ id, label }) => {
           const value = socials[id]

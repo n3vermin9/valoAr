@@ -10,13 +10,12 @@ import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { getMatchId } from '../../utils/helpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoCaptionClass, typoBodyClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoCaptionClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
 import { canDirectMessage } from '../../utils/directMessages'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
 import BlockedList from './BlockedList'
 import MatchHistory from './MatchHistory'
-import ProfileLookingFor from './ProfileLookingFor'
 import Modal from '../ui/Modal'
 import PhotoGallery from '../ui/PhotoGallery'
 import PhotoHeroView, {
@@ -30,13 +29,21 @@ import CopyableUsername from '../ui/CopyableUsername'
 import ChevronBack from '../ui/ChevronBack'
 import { SubpageHeaderBar } from '../layout/SubpageShell'
 import ChatBackgroundSettings from './ChatBackgroundSettings'
-import SocialLinksDisplay from './SocialLinksDisplay'
 import ProfileMutualGroups from './ProfileMutualGroups'
+import ProfileAboutBlock from './ProfileAboutBlock'
 import ProfileStoryAvatar from '../stories/ProfileStoryAvatar'
 import StoryViewer from '../stories/StoryViewer'
 import AnalyticsDashboard from '../analytics/AnalyticsDashboard'
 import { isDurovAdmin } from '../../utils/appAdmin'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
+import { getCityLabel } from '../../utils/profileOptions'
+
+function profileAgeCityLine(profile) {
+  const age = profile?.age != null ? `${profile.age} years old` : null
+  const city = getCityLabel(profile?.city)
+  if (age && city) return `${age} · ${city}`
+  return age || city || ''
+}
 
 export default function ProfileView() {
   const { user, profile, logout, removeAccount, refreshProfile, setProfile } = useAuth()
@@ -202,7 +209,7 @@ export default function ProfileView() {
           <h2 className={typoTitle2Class}>
             <CopyableUsername username={profile.username} className={typoTitle2Class} />
           </h2>
-          <p className={typoSubheadClass}>{profile.age} years old</p>
+          <p className={typoSubheadClass}>{profileAgeCityLine(profile)}</p>
         </div>
 
         <div className="mx-[var(--ios-page-x-lg)] mt-6">
@@ -217,13 +224,7 @@ export default function ProfileView() {
         </div>
 
         <div className={`${insetCardOuterClass} mt-6 min-w-0 mx-[var(--ios-page-x-lg)]`}>
-          <div className="p-4 min-w-0">
-            <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
-              {profile.bio || 'No bio yet'}
-            </p>
-            <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
-            <SocialLinksDisplay socials={profile.socials} />
-          </div>
+          <ProfileAboutBlock profile={profile} socialsVisible />
           <InfoRow label="Member Since" value={memberSince} small />
         </div>
       </PhotoHeroContentOverlap>
@@ -796,7 +797,7 @@ export function PublicProfileView({
             <IconBellOff size={18} className="text-white/50 shrink-0" aria-label="Muted" />
           )}
         </div>
-        <p className="text-white/60">{profile.age} years old</p>
+        <p className="text-white/60">{profileAgeCityLine(profile)}</p>
 
         {showProfileActions &&
           (showAcceptRequest ||
@@ -891,18 +892,12 @@ export function PublicProfileView({
       </div>
 
       <div className={`${insetCardOuterClass} mt-6 min-w-0 mx-[var(--ios-page-x-lg)]`}>
-        <div className="p-4 min-w-0">
-          <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>
-            {profile.bio || 'No bio yet'}
-          </p>
-          <ProfileLookingFor gender={profile.gender} interestedIn={profile.interestedIn} />
-          {!isSelf && profile.showFriendCount !== false && (
-            <p className="text-sm text-white/50 mt-1">
-              Has {friendCount} {friendCount === 1 ? 'friend' : 'friends'}
-            </p>
-          )}
-          <SocialLinksDisplay socials={profile.socials} visible={isSelf || isMatched} />
-        </div>
+        <ProfileAboutBlock
+          profile={profile}
+          showFriendCount={!isSelf && profile.showFriendCount !== false}
+          friendCount={friendCount}
+          socialsVisible={isSelf || isMatched}
+        />
         <InfoRow label="Member Since" value={memberSince} small />
       </div>
 

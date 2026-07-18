@@ -11,6 +11,8 @@ import { setProfileEditorOpen } from '../../utils/profileOverlay'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection, { getVisiblePhotoSlotCount, promotePhotoToPrimary, compactPhotos } from './PhotoUrlSection'
 import SocialLinksEditor from './SocialLinksEditor'
+import CitySelect from './CitySelect'
+import HobbiesSelect from './HobbiesSelect'
 import EditSaveBar from '../ui/EditSaveBar'
 import PhotoGallery from '../ui/PhotoGallery'
 import ChevronBack from '../ui/ChevronBack'
@@ -25,6 +27,12 @@ import {
   chatFloatingButtonClass,
   typoSubheadClass,
 } from '../../utils/designSystem'
+import {
+  DEFAULT_CITY_ID,
+  hobbiesEqual,
+  normalizeCity,
+  normalizeHobbies,
+} from '../../utils/profileOptions'
 
 function EditFieldSection({ children, compact = false }) {
   return (
@@ -38,10 +46,17 @@ export default function EditProfile({ onCancel }) {
   const { user, profile, refreshProfile } = useAuth()
   const initialPhotos = profile?.photos?.concat(['', '', '']).slice(0, 3) || ['', '', '']
   const initialSocials = useMemo(() => normalizeSocials(profile?.socials), [profile?.socials])
+  const initialHobbies = useMemo(
+    () => normalizeHobbies(profile?.hobbies),
+    [profile?.hobbies]
+  )
+  const initialCity = normalizeCity(profile?.city || DEFAULT_CITY_ID)
 
   const [username, setUsername] = useState(profile?.username || '')
   const [age, setAge] = useState(profile?.age || 18)
   const [interestedIn, setInterestedIn] = useState(profile?.interestedIn || '')
+  const [city, setCity] = useState(initialCity)
+  const [hobbies, setHobbies] = useState(initialHobbies)
   const [bio, setBio] = useState(profile?.bio || '')
   const [socials, setSocials] = useState(() => normalizeSocials(profile?.socials))
   const [photos, setPhotos] = useState(initialPhotos)
@@ -102,6 +117,8 @@ export default function EditProfile({ onCancel }) {
     username !== (profile?.username || '') ||
     age !== (profile?.age || 18) ||
     interestedIn !== (profile?.interestedIn || '') ||
+    city !== initialCity ||
+    !hobbiesEqual(hobbies, initialHobbies) ||
     bio !== (profile?.bio || '') ||
     photosChanged ||
     socialsChanged
@@ -109,6 +126,7 @@ export default function EditProfile({ onCancel }) {
   const canSubmit =
     currentPhotos.length > 0 &&
     interestedIn !== '' &&
+    Boolean(city) &&
     age >= APP_AGE_MIN &&
     age <= APP_AGE_MAX &&
     (!usernameChanged || status === 'available')
@@ -158,6 +176,8 @@ export default function EditProfile({ onCancel }) {
           username: normalizeUsername(username),
           age,
           interestedIn,
+          city: normalizeCity(city),
+          hobbies: normalizeHobbies(hobbies),
           bio,
           socials: normalizeSocials(socials),
           photos: photos.filter(Boolean),
@@ -277,6 +297,11 @@ export default function EditProfile({ onCancel }) {
             <AgeSlider value={age} onChange={setAge} />
           </EditFieldSection>
 
+          <EditFieldSection>
+            <label className={fieldLabelClass}>City</label>
+            <CitySelect value={city} onChange={setCity} />
+          </EditFieldSection>
+
           <section>
             <p className={`${sectionLabelClass} normal-case`}>
               <span
@@ -309,6 +334,10 @@ export default function EditProfile({ onCancel }) {
               </div>
             </div>
           </section>
+
+          <EditFieldSection>
+            <HobbiesSelect value={hobbies} onChange={setHobbies} />
+          </EditFieldSection>
 
           <SettingsSection title="Links">
             <div className="px-4 py-4 flex justify-center">

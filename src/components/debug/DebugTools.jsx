@@ -11,9 +11,21 @@ import {
   suggestUniqueUsername,
 } from '../../services/userService'
 import { randomInt, generateRandomCredentials } from '../../utils/devAuth'
+import { DEFAULT_CITY_ID, HOBBIES } from '../../utils/profileOptions'
 
 function randomPick(list) {
   return list[randomInt(0, list.length - 1)]
+}
+
+function randomHobbies(count = 3) {
+  const pool = [...HOBBIES]
+  const picked = []
+  const n = Math.min(count, 4)
+  while (picked.length < n && pool.length) {
+    const i = randomInt(0, pool.length - 1)
+    picked.push(pool.splice(i, 1)[0].id)
+  }
+  return picked
 }
 
 function randomUserData() {
@@ -38,6 +50,8 @@ function randomUserData() {
     age: randomInt(18, 40),
     gender: randomPick(['male', 'female']),
     interestedIn: randomPick(['men', 'women', 'both']),
+    city: DEFAULT_CITY_ID,
+    hobbies: randomHobbies(randomInt(1, 4)),
     bio: randomPick(bios),
     photos: [randomPick(photos)],
   }
@@ -86,6 +100,8 @@ export default function DebugTools() {
         age: random.age,
         gender: random.gender,
         interestedIn: random.interestedIn,
+        city: random.city,
+        hobbies: random.hobbies,
         bio: random.bio,
         photos: random.photos,
       })
