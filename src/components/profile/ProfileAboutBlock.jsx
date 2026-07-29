@@ -1,10 +1,9 @@
 import ProfileLookingFor from './ProfileLookingFor'
 import SocialLinksDisplay from './SocialLinksDisplay'
-import { HobbiesDisplay } from './HobbiesSelect'
 import { typoBodyClass } from '../../utils/designSystem'
 
 /**
- * Bio / looking-for / hobbies / friend-count block inside the profile about card.
+ * Bio / looking-for / friend-count / socials block (interests live in ProfileInterestsCard).
  */
 export default function ProfileAboutBlock({
   profile,
@@ -13,9 +12,7 @@ export default function ProfileAboutBlock({
   socialsVisible = true,
 }) {
   const bio = profile?.bio?.trim()
-  const hasHobbies = Array.isArray(profile?.hobbies) && profile.hobbies.length > 0
   const hasLookingFor = Boolean(profile?.interestedIn)
-  const hasMeta = hasLookingFor || hasHobbies || showFriendCount
 
   return (
     <div className="p-4 min-w-0 flex flex-col gap-3.5">
@@ -27,8 +24,8 @@ export default function ProfileAboutBlock({
         {bio || 'No bio yet'}
       </p>
 
-      {hasMeta ? (
-        <div className="flex flex-col gap-2.5 pt-3 border-t border-white/[0.06]">
+      {hasLookingFor || showFriendCount ? (
+        <div className="flex flex-col gap-1.5">
           {hasLookingFor ? (
             <ProfileLookingFor
               gender={profile?.gender}
@@ -36,9 +33,6 @@ export default function ProfileAboutBlock({
               className="text-[13px] leading-snug text-white/45"
             />
           ) : null}
-
-          {hasHobbies ? <HobbiesDisplay hobbies={profile.hobbies} /> : null}
-
           {showFriendCount ? (
             <p className="text-[12px] leading-none text-white/35">
               Has {friendCount} {friendCount === 1 ? 'friend' : 'friends'}

@@ -186,7 +186,7 @@ export default function ProfileSetup() {
           </div>
         </div>
 
-        <HobbiesSelect value={hobbies} onChange={setHobbies} />
+        <HobbiesSelect value={hobbies} onChange={setHobbies} userId={user?.uid} />
 
         <div>
           <label className="text-sm text-white/60 mb-2 block">Bio</label>

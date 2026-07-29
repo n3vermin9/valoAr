@@ -198,7 +198,16 @@ export function getCityLabel(cityId) {
 
 export function getHobbyLabel(hobbyId) {
   if (!hobbyId) return null
-  return HOBBY_BY_ID[hobbyId]?.label || null
+  if (HOBBY_BY_ID[hobbyId]?.label) return HOBBY_BY_ID[hobbyId].label
+  if (typeof hobbyId === 'string' && hobbyId.startsWith('custom-')) {
+    return hobbyId
+      .replace(/^custom-/, '')
+      .split('-')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+  }
+  return null
 }
 
 export function isValidCityId(cityId) {
@@ -211,12 +220,27 @@ export function normalizeHobbies(hobbies = []) {
   const seen = new Set()
   const next = []
   for (const id of hobbies) {
-    if (!HOBBY_BY_ID[id] || seen.has(id)) continue
+    const isCustom = typeof id === 'string' && /^custom-[a-z0-9-]{2,40}$/.test(id)
+    if ((!HOBBY_BY_ID[id] && !isCustom) || seen.has(id)) continue
     seen.add(id)
     next.push(id)
     if (next.length >= MAX_HOBBIES) break
   }
   return next
+}
+
+export function getCombinedHobbies(customInterests = []) {
+  const seen = new Set(HOBBIES.map((hobby) => hobby.id))
+  return [
+    ...HOBBIES,
+    ...customInterests
+      .filter((interest) => interest?.id && interest?.label && !seen.has(interest.id))
+      .map((interest) => ({
+        id: interest.id,
+        label: interest.label,
+        custom: interest.custom === true,
+      })),
+  ]
 }
 
 export function normalizeCity(cityId) {

@@ -1,7 +1,6 @@
 import {
   doc,
   getDoc,
-  setDoc,
   updateDoc,
   deleteDoc,
   deleteField,
@@ -514,7 +513,13 @@ export async function markLikeAsRead(userId, fromUserId) {
   await updateDoc(doc(db, 'users', userId, 'likesReceived', fromUserId), { read: true })
 }
 
-function passesDiscoverBaseFilters(currentUser, profile) {
+function sharedHobbyCount(currentUser, profile) {
+  const mine = new Set(normalizeHobbies(currentUser?.hobbies))
+  if (!mine.size) return 0
+  return normalizeHobbies(profile?.hobbies).filter((id) => mine.has(id)).length
+}
+
+function passesDiscoverFilters(currentUser, profile, filters = {}) {
   if (profile.id === currentUser.id) return false
   if (currentUser.blocked?.includes(profile.id)) return false
   if (profile.blocked?.includes(currentUser.id)) return false
@@ -522,17 +527,36 @@ function passesDiscoverBaseFilters(currentUser, profile) {
   if (!genderMatchesPreference(profile.gender, currentUser.interestedIn)) return false
   if (!genderMatchesPreference(currentUser.gender, profile.interestedIn)) return false
   if (!ageInRange(currentUser.age, profile.age, DISCOVER_AGE_GAP_DEFAULT)) return false
+
+  if (filters.city && profile.city !== filters.city) return false
+
+  const filterHobbies = normalizeHobbies(filters.hobbies || [])
+  if (filterHobbies.length) {
+    const profileHobbies = new Set(normalizeHobbies(profile.hobbies))
+    if (!filterHobbies.some((id) => profileHobbies.has(id))) return false
+  }
+
   return true
 }
 
-export async function getDiscoverFeed(currentUser) {
+function rankDiscoverProfiles(currentUser, profiles) {
+  return profiles.sort((a, b) => {
+    const sharedDiff = sharedHobbyCount(currentUser, b) - sharedHobbyCount(currentUser, a)
+    if (sharedDiff !== 0) return sharedDiff
+    const aName = a.username?.toLowerCase() || ''
+    const bName = b.username?.toLowerCase() || ''
+    return aName.localeCompare(bName)
+  })
+}
+
+export async function getDiscoverFeed(currentUser, filters = {}) {
   const usersSnap = await getDocs(collection(db, 'users'))
   const newProfiles = []
   const recentProfiles = []
 
   for (const userDoc of usersSnap.docs) {
     const profile = { id: userDoc.id, ...userDoc.data() }
-    if (!passesDiscoverBaseFilters(currentUser, profile)) continue
+    if (!passesDiscoverFilters(currentUser, profile, filters)) continue
 
     const likedMe = await getDoc(doc(db, 'users', currentUser.id, 'likesReceived', profile.id))
     if (likedMe.exists()) continue
@@ -551,7 +575,10 @@ export async function getDiscoverFeed(currentUser) {
     }
   }
 
-  return { newProfiles, recentProfiles }
+  return {
+    newProfiles: rankDiscoverProfiles(currentUser, newProfiles),
+    recentProfiles: rankDiscoverProfiles(currentUser, recentProfiles),
+  }
 }
 
 export async function getDiscoverProfiles(currentUser) {

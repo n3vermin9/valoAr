@@ -6,7 +6,7 @@ import ProfileLookingFor from '../profile/ProfileLookingFor'
 import SocialLinksDisplay from '../profile/SocialLinksDisplay'
 import { HobbiesDisplay } from '../profile/HobbiesSelect'
 import VerifiedBadge from '../ui/VerifiedBadge'
-import { getCityLabel } from '../../utils/profileOptions'
+import { getCityLabel, normalizeHobbies } from '../../utils/profileOptions'
 
 export default function SwipeCard({
   profile,
@@ -15,11 +15,19 @@ export default function SwipeCard({
   alreadyLikedYou,
   alreadyMatched,
   onViewProfile,
+  currentUserHobbies = [],
 }) {
   const bio = profile.bio?.trim()
   const photos = (profile.photos || []).filter(Boolean)
   const displayPhotos = photos.length ? photos : [sad]
   const cityLabel = getCityLabel(profile.city)
+  const currentHobbySet = new Set(normalizeHobbies(currentUserHobbies))
+  const profileHobbies = normalizeHobbies(profile.hobbies)
+  const mutualHobbies = profileHobbies.filter((id) => currentHobbySet.has(id))
+  const orderedHobbies = [
+    ...mutualHobbies,
+    ...profileHobbies.filter((id) => !currentHobbySet.has(id)),
+  ]
   const [photoIndex, setPhotoIndex] = useState(0)
   const galleryRef = useRef(null)
 
@@ -36,7 +44,7 @@ export default function SwipeCard({
   }
 
   return (
-    <div className="relative w-full max-w-[17rem] mx-auto max-h-full">
+    <div className="relative w-full max-w-[18rem] mx-auto max-h-full">
       <div className="relative flex flex-col rounded-[var(--ios-radius-lg)] overflow-hidden bg-white/5 border border-white/10 shadow-2xl">
         <div className="relative">
           <div
@@ -70,7 +78,7 @@ export default function SwipeCard({
           )}
         </div>
 
-        <div className="px-3.5 pt-2.5 max-h-28 overflow-y-auto overscroll-y-contain">
+        <div className="px-3.5 pt-2.5 max-h-36 overflow-y-auto overscroll-y-contain">
           <button type="button" onClick={() => onViewProfile?.(profile)} className="text-left w-full">
             <h3 className="text-base font-bold leading-tight inline-flex items-center gap-1 flex-wrap">
               <span>
@@ -93,7 +101,13 @@ export default function SwipeCard({
             className="text-xs text-white/50 mt-1.5"
           />
 
-          <HobbiesDisplay hobbies={profile.hobbies} className="mt-1.5" limit={4} />
+          <HobbiesDisplay
+            hobbies={orderedHobbies}
+            highlightIds={mutualHobbies}
+            className="mt-1.5"
+            limit={4}
+            variant="card"
+          />
 
           <SocialLinksDisplay socials={profile.socials} compact visible={alreadyMatched} />
         </div>

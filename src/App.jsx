@@ -96,13 +96,27 @@ function AppLayout() {
 function PublicProfileRoute() {
   const { userId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
 
   if (!user) return <Navigate to="/login" />
 
+  const closeProfile = () => {
+    const returnTo = location.state?.returnTo
+    if (returnTo && returnTo !== location.pathname) {
+      navigate(returnTo, { replace: true })
+      return
+    }
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate('/discover', { replace: true })
+  }
+
   return (
-    <Modal isOpen onClose={() => navigate('/discover')} fullscreen>
-      <PublicProfileView userId={userId} onClose={() => navigate('/discover')} />
+    <Modal isOpen onClose={closeProfile} fullscreen>
+      <PublicProfileView userId={userId} onClose={closeProfile} />
     </Modal>
   )
 }

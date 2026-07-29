@@ -336,7 +336,7 @@ export default function EditProfile({ onCancel }) {
           </section>
 
           <EditFieldSection>
-            <HobbiesSelect value={hobbies} onChange={setHobbies} />
+            <HobbiesSelect value={hobbies} onChange={setHobbies} userId={user?.uid} />
           </EditFieldSection>
 
           <SettingsSection title="Links">

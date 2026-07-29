@@ -35,12 +35,15 @@ import {
   getDiscoverCardsSnapshot,
   setDiscoverCardsSnapshot,
 } from '../../services/discoverCardsCache'
+import { hasActiveDiscoverFilters, loadDiscoverFilters } from '../../utils/discoverFilters'
 
 export default function Discover() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, profile, setProfile } = useAuth()
-  const cardsSnapshot = profile?.id ? getDiscoverCardsSnapshot(profile.id) : null
+  const [discoverFilters, setDiscoverFilters] = useState(loadDiscoverFilters)
+  const filtersActive = hasActiveDiscoverFilters(discoverFilters)
+  const cardsSnapshot = profile?.id && !filtersActive ? getDiscoverCardsSnapshot(profile.id) : null
   const [newProfiles, setNewProfiles] = useState(() => cardsSnapshot?.newProfiles || [])
   const [recentProfiles, setRecentProfiles] = useState(() => cardsSnapshot?.recentProfiles || [])
   const [loading, setLoading] = useState(() => !cardsSnapshot)
@@ -54,18 +57,24 @@ export default function Discover() {
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [viewProfile, setViewProfile] = useState(null)
   const [profileFromSearch, setProfileFromSearch] = useState(false)
-  const [profileFromMap, setProfileFromMap] = useState(false)
+  const [, setProfileFromMap] = useState(false)
   const [showSearchPage, setShowSearchPage] = useState(false)
   const [likedYouIds, setLikedYouIds] = useState(new Set())
   const [mapFriendProfiles, setMapFriendProfiles] = useState([])
   const [messageTarget, setMessageTarget] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [pullY, setPullY] = useState(0)
+  const [pullMode, setPullMode] = useState(null)
+  const [storiesCollapsed, setStoriesCollapsed] = useState(false)
   const [contentReadyForMotion, setContentReadyForMotion] = useState(false)
   const feedRef = useRef(null)
   const pullStartY = useRef(0)
   const pulling = useRef(false)
   const pullYRef = useRef(0)
+  const pullModeRef = useRef(null)
+  const lastFeedScrollTop = useRef(0)
+  const wheelPullY = useRef(0)
+  const wheelPullTimer = useRef(null)
 
   const PULL_THRESHOLD = 72
 
@@ -73,7 +82,7 @@ export default function Discover() {
     if (!profile?.id || refreshing) return
     setRefreshing(true)
     try {
-      const feed = await getDiscoverFeed(profile)
+      const feed = await getDiscoverFeed(profile, discoverFilters)
       const changed =
         feed.newProfiles.length !== newProfiles.length ||
         feed.recentProfiles.length !== recentProfiles.length ||
@@ -81,7 +90,7 @@ export default function Discover() {
         feed.recentProfiles.some((p, i) => p.id !== recentProfiles[i]?.id)
       setNewProfiles(feed.newProfiles)
       setRecentProfiles(feed.recentProfiles)
-      setDiscoverCardsSnapshot(profile.id, feed)
+      if (!filtersActive) setDiscoverCardsSnapshot(profile.id, feed)
       setLoadError(null)
       if (changed) toast.success('Discover updated')
     } catch {
@@ -89,17 +98,19 @@ export default function Discover() {
     } finally {
       setRefreshing(false)
       setPullY(0)
+      setPullMode(null)
+      pullModeRef.current = null
     }
-  }, [profile?.id, refreshing, newProfiles, recentProfiles])
+  }, [profile, profile?.id, refreshing, newProfiles, recentProfiles, discoverFilters, filtersActive])
 
   const reloadSectionFeed = useCallback(
     async (targetSection) => {
       if (!profile?.id) return
       try {
-        const feed = await getDiscoverFeed(profile)
+        const feed = await getDiscoverFeed(profile, discoverFilters)
         setNewProfiles(feed.newProfiles)
         setRecentProfiles(feed.recentProfiles)
-        setDiscoverCardsSnapshot(profile.id, feed)
+        if (!filtersActive) setDiscoverCardsSnapshot(profile.id, feed)
         setLoadError(null)
         if (targetSection === 'new') setNewIndex(0)
         else setRecentIndex(0)
@@ -107,35 +118,105 @@ export default function Discover() {
         toast.error('Could not refresh profiles')
       }
     },
-    [profile]
+    [profile, discoverFilters, filtersActive]
   )
 
   useEffect(() => {
     pullYRef.current = pullY
   }, [pullY])
 
+  useEffect(() => {
+    pullModeRef.current = pullMode
+  }, [pullMode])
+
+  useEffect(() => {
+    if (view !== 'cards') return undefined
+    lastFeedScrollTop.current = 0
+    const showTimer = window.setTimeout(() => setStoriesCollapsed(false), 0)
+    return () => {
+      window.clearTimeout(showTimer)
+      window.clearTimeout(wheelPullTimer.current)
+    }
+  }, [view, profile?.id])
+
+  useEffect(() => {
+    if (view !== 'cards' || storiesCollapsed) return undefined
+    const collapseTimer = window.setTimeout(() => setStoriesCollapsed(true), 5000)
+    return () => window.clearTimeout(collapseTimer)
+  }, [view, profile?.id, storiesCollapsed])
+
   const handleFeedTouchStart = (e) => {
     if ((feedRef.current?.scrollTop ?? 0) > 0) return
     pullStartY.current = e.touches[0].clientY
     pulling.current = true
+    const mode = storiesCollapsed ? 'reveal' : 'refresh'
+    pullModeRef.current = mode
+    setPullMode(mode)
   }
 
   const handleFeedTouchMove = (e) => {
     if (!pulling.current || refreshing) return
     const dy = e.touches[0].clientY - pullStartY.current
     if (dy > 0 && (feedRef.current?.scrollTop ?? 0) <= 0) {
-      setPullY(Math.min(dy * 0.45, 96))
+      if (pullModeRef.current === 'reveal') {
+        setPullY(Math.min(dy * 0.35, 44))
+        if (dy > 14) setStoriesCollapsed(false)
+      } else {
+        setPullY(Math.min(dy * 0.45, 96))
+      }
     }
   }
 
   const handleFeedTouchEnd = () => {
     if (!pulling.current) return
     pulling.current = false
-    if (pullYRef.current >= PULL_THRESHOLD) {
+    const mode = pullModeRef.current
+    pullModeRef.current = null
+    setPullMode(null)
+
+    if (mode === 'refresh' && pullYRef.current >= PULL_THRESHOLD) {
       refreshDiscover()
     } else {
       setPullY(0)
     }
+  }
+
+  const handleFeedWheel = (e) => {
+    const feedTop = feedRef.current?.scrollTop ?? 0
+
+    if (e.deltaY > 0) {
+      setStoriesCollapsed(true)
+      return
+    }
+
+    if (refreshing || feedTop > 0 || e.deltaY >= 0) return
+
+    const mode = pullModeRef.current ?? (storiesCollapsed ? 'reveal' : 'refresh')
+    pullModeRef.current = mode
+    setPullMode(mode)
+
+    wheelPullY.current = Math.min(wheelPullY.current + Math.abs(e.deltaY), 120)
+    if (mode === 'reveal') {
+      setStoriesCollapsed(false)
+      setPullY(Math.min(wheelPullY.current * 0.35, 44))
+    } else {
+      setPullY(Math.min(wheelPullY.current * 0.65, 96))
+    }
+
+    window.clearTimeout(wheelPullTimer.current)
+    wheelPullTimer.current = window.setTimeout(() => {
+      const completedMode = pullModeRef.current
+      const completedPull = wheelPullY.current
+      wheelPullY.current = 0
+      pullModeRef.current = null
+      setPullMode(null)
+
+      if (completedMode === 'refresh' && completedPull >= PULL_THRESHOLD) {
+        refreshDiscover()
+      } else {
+        setPullY(0)
+      }
+    }, 160)
   }
 
   useEffect(() => {
@@ -143,7 +224,7 @@ export default function Discover() {
     let cancelled = false
     setContentReadyForMotion(false)
 
-    const cached = getDiscoverCardsSnapshot(profile.id)
+    const cached = filtersActive ? null : getDiscoverCardsSnapshot(profile.id)
     if (cached) {
       setNewProfiles(cached.newProfiles)
       setRecentProfiles(cached.recentProfiles)
@@ -159,11 +240,11 @@ export default function Discover() {
 
     ;(async () => {
       try {
-        const feed = await getDiscoverFeed(profile)
+        const feed = await getDiscoverFeed(profile, discoverFilters)
         if (cancelled) return
         setNewProfiles(feed.newProfiles)
         setRecentProfiles(feed.recentProfiles)
-        setDiscoverCardsSnapshot(profile.id, feed)
+        if (!filtersActive) setDiscoverCardsSnapshot(profile.id, feed)
         setNewIndex(0)
         setRecentIndex(0)
         setSection(feed.newProfiles.length > 0 ? 'new' : 'recent')
@@ -182,7 +263,7 @@ export default function Discover() {
     return () => {
       cancelled = true
     }
-  }, [profile?.id])
+  }, [profile?.id, discoverFilters, filtersActive])
 
   useEffect(() => {
     if (loading || loadError) {
@@ -383,10 +464,27 @@ export default function Discover() {
 
   const emptyMessage =
     section === 'new'
-      ? 'No new profiles right now. Check back later!'
-      : 'No recent profiles yet. Pass on someone in New to see them here.'
+      ? filtersActive
+        ? 'No profiles match these filters yet.'
+        : 'No new profiles right now. Check back later!'
+      : filtersActive
+        ? 'No recent profiles match these filters.'
+        : 'No recent profiles yet. Pass on someone in New to see them here.'
 
   const renderSectionFeed = (profiles) => {
+    const handleFeedScroll = (e) => {
+      const top = e.currentTarget.scrollTop
+      const previousTop = lastFeedScrollTop.current
+
+      if (top < previousTop - 10 || top <= 2) {
+        setStoriesCollapsed(false)
+      } else if (top > previousTop + 10 || top > 40) {
+        setStoriesCollapsed(true)
+      }
+
+      lastFeedScrollTop.current = top
+    }
+
     const pullIndicator = (
       <div
         className="flex items-center justify-center overflow-hidden transition-[height] duration-150 shrink-0"
@@ -394,7 +492,13 @@ export default function Discover() {
       >
         {(pullY > 0 || refreshing) && (
           <span className="text-xs text-white/50 py-2">
-            {refreshing ? 'Refreshing…' : pullY >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'}
+            {refreshing
+              ? 'Refreshing…'
+              : pullMode === 'reveal'
+                ? 'Release to show stories'
+                : pullY >= PULL_THRESHOLD
+                  ? 'Release to refresh'
+                  : 'Pull to refresh'}
           </span>
         )}
       </div>
@@ -407,6 +511,7 @@ export default function Discover() {
           onTouchStart={handleFeedTouchStart}
           onTouchMove={handleFeedTouchMove}
           onTouchEnd={handleFeedTouchEnd}
+          onWheel={handleFeedWheel}
         >
           {pullIndicator}
           <div className="flex-1 flex items-center justify-center min-h-0 min-w-0 px-2">
@@ -422,10 +527,12 @@ export default function Discover() {
         onTouchStart={handleFeedTouchStart}
         onTouchMove={handleFeedTouchMove}
         onTouchEnd={handleFeedTouchEnd}
+        onWheel={handleFeedWheel}
       >
         {pullIndicator}
         <div
           ref={feedRef}
+          onScroll={handleFeedScroll}
           className="flex-1 min-h-0 overflow-y-auto snap-y snap-mandatory overscroll-y-contain scroll-smooth"
           style={{ transform: pullY > 0 ? `translateY(${pullY}px)` : undefined }}
         >
@@ -440,6 +547,7 @@ export default function Discover() {
               onLikeWithMessage={() => openLikeMessageModal(p)}
               alreadyLikedYou={likedYouIds.has(p.id)}
               alreadyMatched={profile?.matches?.includes(p.id)}
+              currentUserHobbies={profile?.hobbies}
               onViewProfile={handleViewProfile}
             />
           </article>
@@ -561,7 +669,23 @@ export default function Discover() {
       >
         {view === 'cards' && (
           <>
-            <StoriesHost profile={profile} friendIds={profile?.matches} showBar />
+            <motion.div
+              className="shrink-0 overflow-hidden"
+              initial={false}
+              animate={{
+                maxHeight: storiesCollapsed ? 0 : 116,
+                opacity: storiesCollapsed ? 0 : 1,
+                y: storiesCollapsed ? -24 : 0,
+              }}
+              transition={{
+                maxHeight: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
+                opacity: { duration: 0.26 },
+                y: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
+              }}
+              style={{ pointerEvents: storiesCollapsed ? 'none' : 'auto' }}
+            >
+              <StoriesHost profile={profile} friendIds={profile?.matches} showBar />
+            </motion.div>
             <DiscoverViewToggle view={view} onViewChange={handleViewChange} />
           </>
         )}

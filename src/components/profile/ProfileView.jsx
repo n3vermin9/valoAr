@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconEdit, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette, IconChartBar } from '@tabler/icons-react'
+import { IconAdjustmentsHorizontal, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconEdit, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette, IconChartBar } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
@@ -31,12 +31,15 @@ import { SubpageHeaderBar } from '../layout/SubpageShell'
 import ChatBackgroundSettings from './ChatBackgroundSettings'
 import ProfileMutualGroups from './ProfileMutualGroups'
 import ProfileAboutBlock from './ProfileAboutBlock'
+import ProfileInterestsCard from './ProfileInterestsCard'
+import DiscoverFiltersPanel from '../discover/DiscoverFiltersPanel'
 import ProfileStoryAvatar from '../stories/ProfileStoryAvatar'
 import StoryViewer from '../stories/StoryViewer'
 import AnalyticsDashboard from '../analytics/AnalyticsDashboard'
 import { isDurovAdmin } from '../../utils/appAdmin'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 import { getCityLabel } from '../../utils/profileOptions'
+import { hasActiveDiscoverFilters, loadDiscoverFilters } from '../../utils/discoverFilters'
 
 function profileAgeCityLine(profile) {
   const age = profile?.age != null ? `${profile.age} years old` : null
@@ -56,6 +59,8 @@ export default function ProfileView() {
   const [showSettings, setShowSettings] = useState(false)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const [showChatBackground, setShowChatBackground] = useState(false)
+  const [showDiscoverFilters, setShowDiscoverFilters] = useState(false)
+  const [discoverSettingsFilters, setDiscoverSettingsFilters] = useState(loadDiscoverFilters)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
@@ -90,6 +95,7 @@ export default function ProfileView() {
     ? profile.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently'
   const profilePhotos = (profile.photos || []).filter(Boolean)
+  const discoverFiltersActive = hasActiveDiscoverFilters(discoverSettingsFilters)
 
   const handleDelete = async () => {
     setDeleting(true)
@@ -227,6 +233,7 @@ export default function ProfileView() {
           <ProfileAboutBlock profile={profile} socialsVisible />
           <InfoRow label="Member Since" value={memberSince} small />
         </div>
+        <ProfileInterestsCard profile={profile} />
       </PhotoHeroContentOverlap>
 
       <div className="mt-4">
@@ -303,6 +310,17 @@ export default function ProfileView() {
               />
             </SettingsSection>
 
+            <SettingsSection title="Discover">
+              <SettingsNavRow
+                icon={IconAdjustmentsHorizontal}
+                iconTone="blue"
+                label="Discover filters"
+                description="Optional city and interest filters for your Discover feed."
+                value={discoverFiltersActive ? 'On' : 'Off'}
+                onClick={() => setShowDiscoverFilters(true)}
+              />
+            </SettingsSection>
+
             {isDurovAdmin(profile) && (
               <SettingsSection title="Admin">
                 <SettingsNavRow
@@ -347,6 +365,22 @@ export default function ProfileView() {
 
       {showChatBackground && (
         <ChatBackgroundSettings onBack={() => setShowChatBackground(false)} />
+      )}
+
+      {showDiscoverFilters && (
+        <div className="fixed inset-0 z-[90] bg-black flex flex-col">
+          <SubpageHeaderBar title="Discover Filters" onBack={() => setShowDiscoverFilters(false)} />
+          <div className="flex-1 overflow-y-auto px-[var(--ios-page-x-lg)] pb-8">
+            <p className={`${typoSubheadClass} mb-5`}>
+              These filters are optional and only affect your Discover cards.
+            </p>
+            <DiscoverFiltersPanel
+              filters={discoverSettingsFilters}
+              onChange={setDiscoverSettingsFilters}
+              userId={user?.uid}
+            />
+          </div>
+        </div>
       )}
 
       {showAnalytics && (
@@ -672,6 +706,7 @@ export function PublicProfileView({
       }
       await refreshProfile()
       setConfirmRemoveMatch(false)
+      onDismissHost?.()
       onClose?.()
       if (fromChat && mode === 'remove') navigate('/chats')
     } catch {
@@ -900,6 +935,7 @@ export function PublicProfileView({
         />
         <InfoRow label="Member Since" value={memberSince} small />
       </div>
+      <ProfileInterestsCard profile={profile} />
 
       {!isSelf && user?.uid && (
         <ProfileMutualGroups
