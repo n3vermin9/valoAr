@@ -47,6 +47,7 @@ import { DEFAULT_CITY_ID, normalizeCity, normalizeHobbies } from '../utils/profi
 import { removeChatForUser } from './chatService'
 import { deleteAllUserStories } from './storyService'
 import { pushInboxNotification } from './inboxService'
+import { clearAllAppCaches } from './appCacheClear'
 
 export async function fetchUser(userId) {
   const cached = getCachedUser(userId)
@@ -878,30 +879,73 @@ export async function resetAllMatchesForUser(userId) {
   invalidateUser(userId)
 }
 
+/** Firestore batches max out at 500 ops — keep headroom for large wipes. */
+const DELETE_BATCH_LIMIT = 400
+
+async function commitDeleteRefs(refs) {
+  for (let i = 0; i < refs.length; i += DELETE_BATCH_LIMIT) {
+    const chunk = refs.slice(i, i + DELETE_BATCH_LIMIT)
+    const batch = writeBatch(db)
+    chunk.forEach((docRef) => batch.delete(docRef))
+    await batch.commit()
+  }
+}
+
+async function collectCollectionRefs(collectionRef, into) {
+  const snap = await getDocs(collectionRef)
+  snap.docs.forEach((d) => into.push(d.ref))
+  return snap.docs
+}
+
+/**
+ * Dev/debug wipe of app data in Firestore + RTDB.
+ * Does not delete Firebase Auth users (requires Admin SDK).
+ */
 export async function deleteAllAccountsData() {
+  const refs = []
+
   const usersSnap = await getDocs(collection(db, 'users'))
-  const usernamesSnap = await getDocs(collection(db, 'usernames'))
-  const chatsSnap = await getDocs(collection(db, 'chats'))
-
-  const batch = writeBatch(db)
-
   for (const userDoc of usersSnap.docs) {
-    const likesSnap = await getDocs(collection(db, 'users', userDoc.id, 'likesReceived'))
-    likesSnap.docs.forEach((d) => batch.delete(d.ref))
-    batch.delete(userDoc.ref)
+    const uid = userDoc.id
+
+    await collectCollectionRefs(collection(db, 'users', uid, 'likesReceived'), refs)
+    await collectCollectionRefs(collection(db, 'users', uid, 'inbox'), refs)
+    await collectCollectionRefs(collection(db, 'users', uid, 'storyViews'), refs)
+
+    const storiesSnap = await getDocs(collection(db, 'users', uid, 'stories'))
+    for (const storyDoc of storiesSnap.docs) {
+      await collectCollectionRefs(
+        collection(db, 'users', uid, 'stories', storyDoc.id, 'views'),
+        refs
+      )
+      refs.push(storyDoc.ref)
+    }
+
+    refs.push(userDoc.ref)
   }
 
-  usernamesSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref))
+  for (const name of [
+    'usernames',
+    'groupUsernames',
+    'deletedUsers',
+    'publicStoryAuthors',
+    'meetups',
+    'mapPlaces',
+  ]) {
+    await collectCollectionRefs(collection(db, name), refs)
+  }
 
+  const chatsSnap = await getDocs(collection(db, 'chats'))
   for (const chatDoc of chatsSnap.docs) {
-    const messagesSnap = await getDocs(collection(db, 'chats', chatDoc.id, 'messages'))
-    messagesSnap.docs.forEach((d) => batch.delete(d.ref))
-    batch.delete(chatDoc.ref)
+    await collectCollectionRefs(collection(db, 'chats', chatDoc.id, 'messages'), refs)
+    await collectCollectionRefs(collection(db, 'chats', chatDoc.id, 'joinRequests'), refs)
+    refs.push(chatDoc.ref)
   }
 
-  await batch.commit()
+  await commitDeleteRefs(refs)
 
-  // Clear Realtime Database app state.
-  await set(ref(rtdb, 'presence'), null)
-  await set(ref(rtdb, 'typing'), null)
+  // Clear Realtime Database app state (presence, typing, etc.).
+  await set(ref(rtdb), null)
+
+  clearAllAppCaches()
 }

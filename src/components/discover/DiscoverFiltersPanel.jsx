@@ -6,6 +6,7 @@ import {
   normalizeDiscoverFilters,
   saveDiscoverFilters,
 } from '../../utils/discoverFilters'
+import { typoCaptionClass } from '../../utils/designSystem'
 
 export default function DiscoverFiltersPanel({ filters, onChange, userId }) {
   const [draft, setDraft] = useState(() => normalizeDiscoverFilters(filters))
@@ -18,45 +19,26 @@ export default function DiscoverFiltersPanel({ filters, onChange, userId }) {
     onChange?.(normalized)
   }
 
-  const setCity = (city) => {
-    apply({
-      ...draft,
-      city: draft.city === city ? '' : city,
-    })
-  }
-
   const clear = () => apply(normalizeDiscoverFilters())
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <section>
-        <p className="text-[12px] font-semibold uppercase tracking-wide text-white/45 mb-2">
-          City
-        </p>
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => apply({ ...draft, city: '' })}
-            className={`px-4 py-2.5 rounded-full text-[15px] font-medium transition-colors ${
-              !draft.city
-                ? 'bg-blue-500 text-white'
-                : 'bg-white/10 text-white/75 hover:bg-white/15'
-            }`}
-          >
-            Any city
-          </button>
-          <CitySelect value={draft.city} onChange={setCity} />
-        </div>
+        <p className={`${typoCaptionClass} mb-2`}>City</p>
+        <CitySelect
+          value={draft.city}
+          onChange={(city) => apply({ ...draft, city })}
+          allowAny
+        />
       </section>
 
-      <section>
-        <p className="text-[12px] font-semibold uppercase tracking-wide text-white/45 mb-2">
-          Interests
-        </p>
+      <section className="border-t border-white/10 pt-8">
+        <p className={`${typoCaptionClass} mb-2`}>Interests</p>
         <HobbiesSelect
           value={draft.hobbies}
           onChange={(hobbies) => apply({ ...draft, hobbies })}
           userId={userId}
+          showLabel={false}
         />
       </section>
 

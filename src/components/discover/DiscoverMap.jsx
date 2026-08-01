@@ -216,8 +216,10 @@ function MapFlyTo({ target }) {
   const map = useMap()
   useEffect(() => {
     if (!target) return
-    const { lat, lng, offsetY, offsetYRatio } = target
-    const zoom = Math.max(map.getZoom(), PLACE_ZOOM)
+    const { lat, lng, offsetY, offsetYRatio, keepZoom, minZoom } = target
+    const zoom = keepZoom
+      ? map.getZoom()
+      : Math.max(map.getZoom(), typeof minZoom === 'number' ? minZoom : PLACE_ZOOM)
 
     // Pre-compute the exact map center so the marker lands at desiredY from the top.
     // Default desiredY = mapHeight/2 → marker is vertically centered.
@@ -348,10 +350,17 @@ function MapInteractionCloser({ onClose, disabled }) {
 }
 
 const mapCardAnchorClass = 'absolute z-[1050] pointer-events-none left-1/2 -translate-x-1/2'
-// Pin slightly above mid-screen; card hangs just under it so short cards stay close.
+// Places: pin slightly above mid-screen; card hangs just under it.
 const MAP_FOCUS_PIN_OFFSET_RATIO = 0.32
 const mapFocusCardAnchorStyle = {
   top: `calc(${MAP_FOCUS_PIN_OFFSET_RATIO * 100}% + 34px)`,
+}
+// Users: pin sits upper-screen; card top is anchored a fixed gap below the pin
+// (not vertically centered — otherwise bio/username length changes the gap).
+const MAP_USER_FOCUS_PIN_OFFSET_RATIO = 0.22
+const MAP_USER_CARD_GAP_PX = 28
+const mapUserCardAnchorStyle = {
+  top: `calc(${MAP_USER_FOCUS_PIN_OFFSET_RATIO * 100}% + ${MAP_USER_CARD_GAP_PX}px)`,
 }
 
 const mapCardMotion = {
@@ -518,14 +527,14 @@ function UserCard({ pin, onClose, onViewProfile }) {
   return (
     <motion.div
       className={mapCardAnchorClass}
-      style={mapFocusCardAnchorStyle}
+      style={mapUserCardAnchorStyle}
       {...mapCardMotion}
     >
       <div className="discover-map-place-card relative pointer-events-auto overflow-hidden">
-        {/* Photo header */}
-        <div className="relative h-32 bg-[var(--ios-fill-tertiary)]">
+        {/* Square PFP — no wide crop */}
+        <div className="relative w-full aspect-square bg-[var(--ios-fill-tertiary)]">
           {photo ? (
-            <img src={photo} alt={name} className="w-full h-full object-cover" />
+            <img src={photo} alt={name} className="w-full h-full object-cover object-center" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <IconUserCircle size={48} stroke={1.2} className="text-[var(--ios-label-tertiary)]" />
@@ -1370,7 +1379,7 @@ export default function DiscoverMap({
     setFlyTarget({
       lat: pin.position[0],
       lng: pin.position[1],
-      offsetYRatio: MAP_FOCUS_PIN_OFFSET_RATIO,
+      offsetYRatio: MAP_USER_FOCUS_PIN_OFFSET_RATIO,
       ts: Date.now(),
     })
   }

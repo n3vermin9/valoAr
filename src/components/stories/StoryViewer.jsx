@@ -39,6 +39,7 @@ import {
   buildStoryShareText,
   MAX_STORY_REPLY_LENGTH,
   getStoryOpenMotion,
+  storyShellTransition,
   storySlideVariants,
   storyUserSlideTransition,
 } from '../../utils/storyHelpers'
@@ -195,6 +196,7 @@ export default function StoryViewer({
   onClose,
   onNavigateToProfile: _onNavigateToProfile,
   openOrigin = null,
+  onStoryViewed,
 }) {
   const { profile: viewerProfile } = useAuth()
   const [sessionQueue, setSessionQueue] = useState(() => cloneQueue(queue))
@@ -489,17 +491,19 @@ export default function StoryViewer({
     const viewKey = `${ownerId}:${story.id}`
     if (recordedViewsRef.current.has(viewKey)) return
     recordedViewsRef.current.add(viewKey)
+    const createdMs = storyCreatedMs(story)
+    onStoryViewed?.(ownerId, createdMs)
     recordStoryView(
       viewerId,
       ownerId,
       story.id,
       viewerUsername,
       viewerPhoto,
-      storyCreatedMs(story)
+      createdMs
     ).catch(() => {
       recordedViewsRef.current.delete(viewKey)
     })
-  }, [story?.id, viewerId, ownerId, viewerUsername, viewerPhoto, isOwn])
+  }, [story?.id, viewerId, ownerId, viewerUsername, viewerPhoto, isOwn, onStoryViewed])
 
   useEffect(() => {
     if (!isOwn || !story?.id) return
@@ -933,21 +937,19 @@ export default function StoryViewer({
   const userSlideKey = `${userIndex}-${ownerId}`
   const slideCustom = { direction: slideDirectionRef.current }
 
-  const shellTransition = { type: 'spring', stiffness: 430, damping: 38, mass: 0.85 }
-
   return createPortal(
     <motion.div
       data-story-viewer
-      initial={{ scale: openMotion.initialScale, opacity: 0.8 }}
+      initial={{ scale: openMotion.initialScale, opacity: 1 }}
       animate={
         isPresent
           ? { scale: 1, opacity: 1 }
           : { scale: openMotion.initialScale, opacity: 0 }
       }
-      transition={shellTransition}
+      transition={storyShellTransition}
       onAnimationComplete={handleShellAnimationComplete}
       style={{ transformOrigin: openMotion.transformOrigin }}
-      className="fixed inset-0 z-[95] overflow-hidden will-change-transform"
+      className="fixed inset-0 z-[95] overflow-hidden will-change-transform bg-black"
     >
       <AnimatePresence custom={slideCustom}>
         <motion.div

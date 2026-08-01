@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createUserWithEmailAndPassword } from 'firebase/auth'
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { auth } from '../../firebase/config'
@@ -83,9 +83,13 @@ export default function DebugTools() {
 
   const handleDeleteAll = () =>
     runAction(async () => {
+      if (!window.confirm('Delete ALL Firestore/RTDB account data? This cannot be undone.')) {
+        return
+      }
       await deleteAllAccountsData()
-      toast.success('All account data deleted')
-      navigate('/setup')
+      await signOut(auth)
+      toast.success('All account data deleted (Auth logins may still exist)')
+      navigate('/login', { replace: true })
     })
 
   const handleCreateRandomAndLogin = () =>

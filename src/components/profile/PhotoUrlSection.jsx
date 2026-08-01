@@ -2,11 +2,17 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { IconPlus, IconX } from '@tabler/icons-react'
 import ConfirmDialog from '../ui/ConfirmDialog'
-import { chatRoomTopScrimClass, photoHeroFrameClass, photoHeroImageClass } from '../../utils/designSystem'
+import {
+  chatFloatingButtonClass,
+  photoHeroFrameClass,
+  photoHeroImageClass,
+} from '../../utils/designSystem'
 
 const photoControlSpring = { type: 'spring', stiffness: 520, damping: 30 }
-const photoControlButtonClass =
-  'h-12 w-12 shrink-0 flex items-center justify-center rounded-full border border-[var(--ios-glass-border)] bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition-colors hover:bg-white/15 active:bg-white/20'
+const photoOverlayControlClass = `${chatFloatingButtonClass} text-white/80`
+/** Same bottom fade as PhotoHeroView on profile viewing. */
+const photoHeroScrimClass =
+  'absolute bottom-0 inset-x-0 z-[10] pointer-events-none bg-gradient-to-t from-black via-black/80 to-transparent h-32'
 
 export const SAMPLE_PROFILE_PHOTOS = [
   'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQnvhPPC8A8dZ7DhQiqL8_bvErdnIN1XbJkYx2o64onBg&s=10',
@@ -52,10 +58,10 @@ function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
   if (selectedSample) {
     const isHero = variant === 'hero'
     return (
-      <div className={isHero ? 'px-[var(--ios-page-x-lg)] pb-4' : 'mb-4 px-[var(--ios-page-x-lg)]'}>
+      <div className={isHero ? undefined : 'mb-4 px-[var(--ios-page-x-lg)]'}>
         <div
-          className={`relative overflow-hidden border-2 border-blue-500 ${
-            isHero ? `${photoHeroFrameClass} border-0` : 'w-full aspect-square max-w-sm mx-auto rounded-2xl'
+          className={`relative overflow-hidden ${
+            isHero ? photoHeroFrameClass : 'w-full aspect-square max-w-sm mx-auto rounded-2xl'
           }`}
         >
           <img
@@ -63,13 +69,18 @@ function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
             alt=""
             className={isHero ? photoHeroImageClass : 'w-full h-full object-cover'}
           />
+          <div aria-hidden className={photoHeroScrimClass} />
           <button
             type="button"
             onClick={handleRemove}
-            className="absolute top-3 right-3 z-[30] h-10 w-10 flex items-center justify-center rounded-full border border-[var(--ios-glass-border)] bg-black/50 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-sm transition-colors hover:bg-black/65 active:bg-black/75"
+            className={`absolute z-[30] ${photoOverlayControlClass} ${
+              isHero
+                ? 'top-[max(0.75rem,var(--ios-safe-top))] right-[var(--ios-page-x-lg)]'
+                : 'top-3 right-3'
+            }`}
             aria-label="Remove photo"
           >
-            <IconX size={20} stroke={2} />
+            <IconX size={24} stroke={2} className="w-6 h-6" />
           </button>
         </div>
       </div>
@@ -306,15 +317,7 @@ function HeroPhotoSection({
               />
             )}
 
-            <div
-              aria-hidden
-              className={chatRoomTopScrimClass}
-              style={{ height: 'calc(var(--ios-safe-top) + 4.5rem)' }}
-            />
-            <div
-              aria-hidden
-              className="absolute bottom-0 inset-x-0 z-[10] pointer-events-none bg-gradient-to-t from-black via-black/80 to-transparent h-32"
-            />
+            <div aria-hidden className={photoHeroScrimClass} />
 
             {hasMultiplePhotos ? (
               <div
@@ -336,19 +339,6 @@ function HeroPhotoSection({
             <AnimatePresence>
               {showPhotoControls ? (
                 <motion.div
-                  key="photo-controls-scrim"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.16 }}
-                  className="absolute inset-0 z-20 pointer-events-none bg-black/20"
-                />
-              ) : null}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {showPhotoControls ? (
-                <motion.div
                   key="photo-controls"
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -364,10 +354,10 @@ function HeroPhotoSection({
                       exit={{ opacity: 0, scale: 0.78 }}
                       transition={photoControlSpring}
                       onClick={handleAddMore}
-                      className={photoControlButtonClass}
+                      className={photoOverlayControlClass}
                       aria-label="Add more photos"
                     >
-                      <IconPlus size={22} stroke={2} />
+                      <IconPlus size={24} stroke={2} className="w-6 h-6" />
                     </motion.button>
                   ) : null}
                   <motion.button
@@ -377,10 +367,10 @@ function HeroPhotoSection({
                     exit={{ opacity: 0, scale: 0.78 }}
                     transition={photoControlSpring}
                     onClick={requestRemoveCurrent}
-                    className={`${photoControlButtonClass} text-white/80`}
+                    className={photoOverlayControlClass}
                     aria-label="Remove photo"
                   >
-                    <IconX size={22} stroke={2} />
+                    <IconX size={24} stroke={2} className="w-6 h-6" />
                   </motion.button>
                 </motion.div>
               ) : null}

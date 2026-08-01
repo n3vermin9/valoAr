@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'arvoli-discover-cards-v1'
+const STORAGE_KEY = 'arvoli-discover-cards-v2'
 const TTL_MS = 24 * 60 * 60 * 1000
 const memory = new Map()
 
@@ -18,19 +18,21 @@ function writeStore(store) {
   }
 }
 
+/** Slim card fields needed for instant Discover paint (text + photo URLs). */
 function slimProfile(profile) {
   if (!profile?.id) return null
+  const photos = (profile.photos || []).filter(Boolean).slice(0, 6)
   return {
     id: profile.id,
     username: profile.username || 'User',
-    age: profile.age || null,
-    bio: typeof profile.bio === 'string' ? profile.bio.slice(0, 180) : '',
-    photos: (profile.photos || []).filter(Boolean).slice(0, 3),
+    age: profile.age ?? null,
+    bio: typeof profile.bio === 'string' ? profile.bio.slice(0, 500) : '',
+    photos,
     gender: profile.gender || null,
-    lookingFor: profile.lookingFor || null,
+    interestedIn: profile.interestedIn || null,
     city: profile.city || null,
-    hobbies: Array.isArray(profile.hobbies) ? profile.hobbies.slice(0, 4) : [],
-    socialLinks: profile.socialLinks || null,
+    hobbies: Array.isArray(profile.hobbies) ? profile.hobbies.slice(0, 8) : [],
+    socials: profile.socials || { telegram: '', instagram: '', tiktok: '' },
   }
 }
 
@@ -93,6 +95,8 @@ export function clearDiscoverCardsSnapshot() {
   memory.clear()
   try {
     localStorage.removeItem(STORAGE_KEY)
+    // Drop legacy v1 key so old wrong-shaped entries are not left behind.
+    localStorage.removeItem('arvoli-discover-cards-v1')
   } catch {
     // ignore
   }

@@ -22,6 +22,7 @@ export default function HobbiesSelect({
   max = MAX_HOBBIES,
   className = '',
   userId = null,
+  showLabel = true,
 }) {
   const [query, setQuery] = useState('')
   const [customInterests, setCustomInterests] = useState([])
@@ -48,13 +49,14 @@ export default function HobbiesSelect({
     return subscribeCustomInterests(setCustomInterests)
   }, [])
 
-  const toggle = (id) => {
+  const toggle = (id, { clearSearch = false } = {}) => {
     if (selectedSet.has(id)) {
       onChange(selected.filter((x) => x !== id))
       return
     }
     if (selected.length >= max) return
     onChange([...selected, id])
+    if (clearSearch) setQuery('')
   }
 
   const handleCreateInterest = async () => {
@@ -75,8 +77,10 @@ export default function HobbiesSelect({
 
   return (
     <div className={className}>
-      <div className="flex items-baseline justify-between gap-3 mb-1.5">
-        <label className={`${fieldLabelClass} !mb-0 !text-[13px]`}>Hobbies</label>
+      <div className={`flex items-baseline gap-3 mb-1.5 ${showLabel ? 'justify-between' : 'justify-end'}`}>
+        {showLabel ? (
+          <label className={`${fieldLabelClass} !mb-0 !text-[13px]`}>Hobbies</label>
+        ) : null}
         <span className={`${typoSubheadClass} !text-[12px]`}>
           {selected.length}/{max}
         </span>
@@ -130,7 +134,7 @@ export default function HobbiesSelect({
                   key={hobby.id}
                   type="button"
                   disabled={atCap}
-                  onClick={() => toggle(hobby.id)}
+                  onClick={() => toggle(hobby.id, { clearSearch: Boolean(hobby.custom) || Boolean(cleanQuery) })}
                   className={`px-2.5 py-1 rounded-full text-[12px] font-medium leading-none transition-colors disabled:opacity-30 ${
                     on
                       ? 'bg-blue-500/70 text-white'

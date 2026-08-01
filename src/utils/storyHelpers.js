@@ -328,24 +328,32 @@ export function storyOpenOriginFromRect(rect) {
 }
 
 export function getStoryOpenMotion(origin) {
-  const w = window.innerWidth
-  const h = window.innerHeight
+  const w = window.innerWidth || 1
+  const h = window.innerHeight || 1
 
   if (!origin) {
-    return { transformOrigin: '50% 42%', initialScale: 0.14 }
+    return { transformOrigin: '50% 42%', initialScale: 0.92 }
   }
 
   const cx = origin.x + origin.width / 2
   const cy = origin.y + origin.height / 2
+  // Grow from the ring without shrinking so far that the frame flashes empty.
   const initialScale = Math.min(
-    1,
-    Math.max(origin.width / w, origin.height / h, 0.06)
+    0.96,
+    Math.max(origin.width / w, origin.height / h, 0.28)
   )
 
   return {
     transformOrigin: `${cx}px ${cy}px`,
     initialScale,
   }
+}
+
+/** Open/close shell — tween avoids spring overshoot blinks. */
+export const storyShellTransition = {
+  type: 'tween',
+  duration: 0.28,
+  ease: [0.22, 1, 0.36, 1],
 }
 
 export const storySlideVariants = {

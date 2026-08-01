@@ -1,4 +1,5 @@
 import { useState, useRef, useLayoutEffect, useCallback, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import toast from 'react-hot-toast'
 import { IconX, IconUsers, IconWorld, IconChevronDown, IconCheck } from '@tabler/icons-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -109,7 +110,9 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
 
   const composerTriggerClass = `${storyGlassButtonClass} !p-2 flex items-center justify-center gap-1`
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -235,6 +238,7 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }

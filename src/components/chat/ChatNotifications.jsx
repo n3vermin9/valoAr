@@ -79,6 +79,12 @@ function canMerge(existing, incoming, now) {
   return now - anchor <= GROUP_WINDOW_MS
 }
 
+/** True on the chats list, a chat room, or group settings — no chat banners there. */
+function isOnChatsPages(pathname) {
+  if (!pathname) return false
+  return pathname === '/chats' || pathname.startsWith('/chats/') || pathname.startsWith('/groups/')
+}
+
 function SwipeableNotification({ notification, onDismiss, onOpen }) {
   const [offsetY, setOffsetY] = useState(0)
   const [autoExit, setAutoExit] = useState(false)
@@ -218,6 +224,24 @@ function ChatNotificationSession({ userId, pathname, username }) {
   const likesInitializedRef = useRef(false)
   const inboxInitializedRef = useRef(false)
   const usersRef = useRef({})
+  const pathnameRef = useRef(pathname)
+
+  useEffect(() => {
+    pathnameRef.current = pathname
+  }, [pathname])
+
+  // Clear chat banners whenever the user is on any chats-related page.
+  useEffect(() => {
+    if (!isOnChatsPages(pathname)) return
+
+    queueRef.current = queueRef.current.filter((item) => item.type !== 'chat')
+    setActiveNotification((current) => {
+      if (current?.type === 'chat') {
+        return queueRef.current.shift() ?? null
+      }
+      return current
+    })
+  }, [pathname])
 
   const dismiss = useCallback((id) => {
     setActiveNotification((current) => {
@@ -239,6 +263,7 @@ function ChatNotificationSession({ userId, pathname, username }) {
   )
 
   const enqueueNotification = useCallback((item) => {
+    if (item.type === 'chat' && isOnChatsPages(pathnameRef.current)) return
     if (notifiedIdsRef.current.has(item.sourceId)) return
     notifiedIdsRef.current.add(item.sourceId)
 
@@ -300,7 +325,7 @@ function ChatNotificationSession({ userId, pathname, username }) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
-        if (pathname === `/chats/${chat.id}`) {
+        if (isOnChatsPages(pathnameRef.current)) {
           knownMessagesRef.current.set(chat.id, newKey)
           continue
         }
@@ -352,7 +377,7 @@ function ChatNotificationSession({ userId, pathname, username }) {
         })
       }
     })
-  }, [userId, pathname, username, enqueueNotification])
+  }, [userId, username, enqueueNotification])
 
   useEffect(() => {
     return subscribeLikesReceived(userId, async (likes) => {

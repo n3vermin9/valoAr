@@ -43,7 +43,9 @@ export default function Discover() {
   const { user, profile, setProfile } = useAuth()
   const [discoverFilters, setDiscoverFilters] = useState(loadDiscoverFilters)
   const filtersActive = hasActiveDiscoverFilters(discoverFilters)
-  const cardsSnapshot = profile?.id && !filtersActive ? getDiscoverCardsSnapshot(profile.id) : null
+  const cacheUserId = profile?.id || user?.uid
+  const cardsSnapshot =
+    cacheUserId && !filtersActive ? getDiscoverCardsSnapshot(cacheUserId) : null
   const [newProfiles, setNewProfiles] = useState(() => cardsSnapshot?.newProfiles || [])
   const [recentProfiles, setRecentProfiles] = useState(() => cardsSnapshot?.recentProfiles || [])
   const [loading, setLoading] = useState(() => !cardsSnapshot)
@@ -65,7 +67,10 @@ export default function Discover() {
   const [refreshing, setRefreshing] = useState(false)
   const [pullY, setPullY] = useState(0)
   const [pullMode, setPullMode] = useState(null)
-  const [storiesCollapsed, setStoriesCollapsed] = useState(false)
+  // Hidden by default when Discover has cards; pull down to reveal.
+  const [storiesCollapsed, setStoriesCollapsed] = useState(true)
+  const [storiesOverlayOpen, setStoriesOverlayOpen] = useState(false)
+  const [hasUnseenStories, setHasUnseenStories] = useState(false)
   const [contentReadyForMotion, setContentReadyForMotion] = useState(false)
   const feedRef = useRef(null)
   const pullStartY = useRef(0)
@@ -75,8 +80,11 @@ export default function Discover() {
   const lastFeedScrollTop = useRef(0)
   const wheelPullY = useRef(0)
   const wheelPullTimer = useRef(null)
+  const storiesRevealedByPullRef = useRef(false)
 
-  const PULL_THRESHOLD = 72
+  const PULL_THRESHOLD = 40
+  const PULL_REFRESH_MAX = 44
+  const PULL_REVEAL_MAX = 32
 
   const refreshDiscover = useCallback(async () => {
     if (!profile?.id || refreshing) return
@@ -129,21 +137,58 @@ export default function Discover() {
     pullModeRef.current = pullMode
   }, [pullMode])
 
+  const discoverCardsEmpty =
+    !loading &&
+    newProfiles.slice(newIndex).length === 0 &&
+    recentProfiles.slice(recentIndex).length === 0
+
+  const collapseStoriesBar = useCallback(() => {
+    storiesRevealedByPullRef.current = false
+    setStoriesCollapsed(true)
+  }, [])
+
+  const revealStoriesBar = useCallback(() => {
+    storiesRevealedByPullRef.current = true
+    setStoriesCollapsed(false)
+  }, [])
+
   useEffect(() => {
     if (view !== 'cards') return undefined
     lastFeedScrollTop.current = 0
-    const showTimer = window.setTimeout(() => setStoriesCollapsed(false), 0)
+    storiesRevealedByPullRef.current = false
     return () => {
-      window.clearTimeout(showTimer)
       window.clearTimeout(wheelPullTimer.current)
     }
   }, [view, profile?.id])
 
+  // With cards: hide until pull-down. Empty feed: show stories.
   useEffect(() => {
-    if (view !== 'cards' || storiesCollapsed) return undefined
-    const collapseTimer = window.setTimeout(() => setStoriesCollapsed(true), 5000)
+    if (view !== 'cards' || loading) return
+    if (discoverCardsEmpty) {
+      setStoriesCollapsed(false)
+      return
+    }
+    if (!storiesRevealedByPullRef.current) {
+      setStoriesCollapsed(true)
+    }
+  }, [view, profile?.id, loading, discoverCardsEmpty])
+
+  useEffect(() => {
+    if (view !== 'cards' || storiesCollapsed || storiesOverlayOpen) return undefined
+    // Auto-hide after reveal; longer when the feed is empty.
+    const hideAfterMs = discoverCardsEmpty ? 10000 : 5000
+    const collapseTimer = window.setTimeout(collapseStoriesBar, hideAfterMs)
     return () => window.clearTimeout(collapseTimer)
-  }, [view, profile?.id, storiesCollapsed])
+  }, [view, profile?.id, storiesCollapsed, storiesOverlayOpen, discoverCardsEmpty, collapseStoriesBar])
+
+  const handleStoriesOverlayChange = useCallback((open) => {
+    setStoriesOverlayOpen(open)
+    // Keep current bar visibility; only prevent further auto-hide while open.
+  }, [])
+
+  const handleUnseenStoriesChange = useCallback((hasUnseen) => {
+    setHasUnseenStories(hasUnseen)
+  }, [])
 
   const handleFeedTouchStart = (e) => {
     if ((feedRef.current?.scrollTop ?? 0) > 0) return
@@ -159,10 +204,10 @@ export default function Discover() {
     const dy = e.touches[0].clientY - pullStartY.current
     if (dy > 0 && (feedRef.current?.scrollTop ?? 0) <= 0) {
       if (pullModeRef.current === 'reveal') {
-        setPullY(Math.min(dy * 0.35, 44))
-        if (dy > 14) setStoriesCollapsed(false)
+        setPullY(Math.min(dy * 0.3, PULL_REVEAL_MAX))
+        if (dy > 14) revealStoriesBar()
       } else {
-        setPullY(Math.min(dy * 0.45, 96))
+        setPullY(Math.min(dy * 0.35, PULL_REFRESH_MAX))
       }
     }
   }
@@ -185,7 +230,7 @@ export default function Discover() {
     const feedTop = feedRef.current?.scrollTop ?? 0
 
     if (e.deltaY > 0) {
-      setStoriesCollapsed(true)
+      if (!storiesOverlayOpen) collapseStoriesBar()
       return
     }
 
@@ -197,10 +242,10 @@ export default function Discover() {
 
     wheelPullY.current = Math.min(wheelPullY.current + Math.abs(e.deltaY), 120)
     if (mode === 'reveal') {
-      setStoriesCollapsed(false)
-      setPullY(Math.min(wheelPullY.current * 0.35, 44))
+      revealStoriesBar()
+      setPullY(Math.min(wheelPullY.current * 0.3, PULL_REVEAL_MAX))
     } else {
-      setPullY(Math.min(wheelPullY.current * 0.65, 96))
+      setPullY(Math.min(wheelPullY.current * 0.45, PULL_REFRESH_MAX))
     }
 
     window.clearTimeout(wheelPullTimer.current)
@@ -226,6 +271,7 @@ export default function Discover() {
 
     const cached = filtersActive ? null : getDiscoverCardsSnapshot(profile.id)
     if (cached) {
+      // Paint name/bio/looking-for instantly from localStorage; refresh in background.
       setNewProfiles(cached.newProfiles)
       setRecentProfiles(cached.recentProfiles)
       setLoading(false)
@@ -476,10 +522,13 @@ export default function Discover() {
       const top = e.currentTarget.scrollTop
       const previousTop = lastFeedScrollTop.current
 
-      if (top < previousTop - 10 || top <= 2) {
-        setStoriesCollapsed(false)
-      } else if (top > previousTop + 10 || top > 40) {
-        setStoriesCollapsed(true)
+      if (!storiesOverlayOpen) {
+        // With cards, only pull-down reveals stories — scrolling up must not.
+        if (discoverCardsEmpty && (top < previousTop - 10 || top <= 2)) {
+          setStoriesCollapsed(false)
+        } else if (top > previousTop + 10 || top > 40) {
+          collapseStoriesBar()
+        }
       }
 
       lastFeedScrollTop.current = top
@@ -488,10 +537,10 @@ export default function Discover() {
     const pullIndicator = (
       <div
         className="flex items-center justify-center overflow-hidden transition-[height] duration-150 shrink-0"
-        style={{ height: pullY > 0 || refreshing ? Math.max(pullY, refreshing ? 40 : 0) : 0 }}
+        style={{ height: pullY > 0 || refreshing ? Math.max(pullY, refreshing ? 28 : 0) : 0 }}
       >
         {(pullY > 0 || refreshing) && (
-          <span className="text-xs text-white/50 py-2">
+          <span className="text-xs text-white/50 py-1">
             {refreshing
               ? 'Refreshing…'
               : pullMode === 'reveal'
@@ -534,7 +583,6 @@ export default function Discover() {
           ref={feedRef}
           onScroll={handleFeedScroll}
           className="flex-1 min-h-0 overflow-y-auto snap-y snap-mandatory overscroll-y-contain scroll-smooth"
-          style={{ transform: pullY > 0 ? `translateY(${pullY}px)` : undefined }}
         >
         {profiles.map((p) => (
           <article
@@ -669,23 +717,42 @@ export default function Discover() {
       >
         {view === 'cards' && (
           <>
-            <motion.div
-              className="shrink-0 overflow-hidden"
-              initial={false}
-              animate={{
-                maxHeight: storiesCollapsed ? 0 : 116,
-                opacity: storiesCollapsed ? 0 : 1,
-                y: storiesCollapsed ? -24 : 0,
-              }}
-              transition={{
-                maxHeight: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
-                opacity: { duration: 0.26 },
-                y: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
-              }}
-              style={{ pointerEvents: storiesCollapsed ? 'none' : 'auto' }}
-            >
-              <StoriesHost profile={profile} friendIds={profile?.matches} showBar />
-            </motion.div>
+            <StoriesHost
+              profile={profile}
+              friendIds={profile?.matches}
+              showBar
+              onOverlayChange={handleStoriesOverlayChange}
+              onUnseenStoriesChange={handleUnseenStoriesChange}
+              renderBar={(bar) => (
+                <motion.div
+                  className="shrink-0 overflow-hidden"
+                  initial={false}
+                  animate={{
+                    maxHeight: storiesCollapsed ? 0 : 116,
+                    opacity: storiesCollapsed ? 0 : 1,
+                    y: storiesCollapsed ? -24 : 0,
+                  }}
+                  transition={{
+                    maxHeight: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
+                    opacity: { duration: 0.26 },
+                    y: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
+                  }}
+                  style={{ pointerEvents: storiesCollapsed ? 'none' : 'auto' }}
+                >
+                  {bar}
+                </motion.div>
+              )}
+            />
+            {storiesCollapsed && !discoverCardsEmpty && hasUnseenStories ? (
+              <div className="h-10 shrink-0 flex items-center px-[var(--ios-page-x-lg)]">
+                <div className="w-16 flex justify-center">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-[var(--ios-green)]"
+                    aria-label="New stories available"
+                  />
+                </div>
+              </div>
+            ) : null}
             <DiscoverViewToggle view={view} onViewChange={handleViewChange} />
           </>
         )}
@@ -712,7 +779,7 @@ const discoverSectionVariants = pageSwitchVariants
 
 function DiscoverViewToggle({ view, onViewChange }) {
   return (
-    <div className="px-[var(--ios-page-x-lg)] pt-2 pb-1 z-10">
+    <div className="px-[var(--ios-page-x-lg)] pt-1 pb-1 z-10">
       <div className={segmentedControlClass}>
         {[
           { id: 'cards', label: 'Cards' },
@@ -732,29 +799,9 @@ function DiscoverViewToggle({ view, onViewChange }) {
   )
 }
 
-function DiscoverSectionTabs({ section, onSectionChange }) {
-  return (
-    <>
-      <div className="mx-[var(--ios-page-x-lg)] border-t border-white/10" aria-hidden />
-      <div className="flex px-[var(--ios-page-x-lg)] pt-3 pb-2 z-10">
-        {[
-          { id: 'new', label: 'New' },
-          { id: 'recent', label: 'Recent' },
-        ].map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onSectionChange(id)}
-            className={`flex-1 py-1 text-center text-sm font-medium transition-colors ${
-              section === id ? 'text-white' : 'text-white/45 hover:text-white/70'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </>
-  )
+/** Temporarily hidden — New/Recent divider will return later. */
+function DiscoverSectionTabs() {
+  return null
 }
 
 function DiscoverSearchPage({
