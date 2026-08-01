@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconAdjustmentsHorizontal, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconEdit, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette, IconChartBar } from '@tabler/icons-react'
+import { IconAdjustmentsHorizontal, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette, IconChartBar } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
@@ -222,9 +222,8 @@ export default function ProfileView() {
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className={`${btnBorderedClass} w-full gap-2`}
+            className={`${btnBorderedClass} w-full`}
           >
-            <IconEdit size={18} stroke={1.75} />
             Edit profile
           </button>
         </div>
