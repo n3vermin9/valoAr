@@ -9,11 +9,16 @@ const photoControlButtonClass =
   'h-12 w-12 shrink-0 flex items-center justify-center rounded-full border border-[var(--ios-glass-border)] bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition-colors hover:bg-white/15 active:bg-white/20'
 
 export const SAMPLE_PROFILE_PHOTOS = [
-  'https://uztag.info/upload/resize_cache/iblock/734/554_350_2/734006f0c865c4cb23f0fca35ac72f63.jpg',
+  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQnvhPPC8A8dZ7DhQiqL8_bvErdnIN1XbJkYx2o64onBg&s=10',
   'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT2kaC5zyrWmhTzl6TPzIvI5USiu08kBMKCHw&s',
   'https://toc.h-cdn.co/assets/16/09/1600x1600/square-1456787230-gettyimages-168599144-1.jpg',
   'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSUpXk8E9Jo-5ep79TH13BTxFXIWTMem-3Mug&s',
 ]
+
+export function isSampleProfilePhoto(url) {
+  const trimmed = url?.trim()
+  return Boolean(trimmed && SAMPLE_PROFILE_PHOTOS.includes(trimmed))
+}
 
 export function getVisiblePhotoSlotCount(photos) {
   for (let i = photos.length - 1; i >= 0; i -= 1) {
@@ -35,26 +40,56 @@ export function compactPhotos(photos) {
   return [...filled, '', '', ''].slice(0, photos.length)
 }
 
-function SamplePhotoPicker({ photos, updatePhoto }) {
+function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
+  const primaryPhoto = photos[0]?.trim()
+  const selectedSample = isSampleProfilePhoto(primaryPhoto) ? primaryPhoto : null
+
+  const handleRemove = (e) => {
+    e.stopPropagation()
+    updatePhoto(0, '')
+  }
+
+  if (selectedSample) {
+    const isHero = variant === 'hero'
+    return (
+      <div className={isHero ? 'px-[var(--ios-page-x-lg)] pb-4' : 'mb-4 px-[var(--ios-page-x-lg)]'}>
+        <div
+          className={`relative overflow-hidden border-2 border-blue-500 ${
+            isHero ? `${photoHeroFrameClass} border-0` : 'w-full aspect-square max-w-sm mx-auto rounded-2xl'
+          }`}
+        >
+          <img
+            src={selectedSample}
+            alt=""
+            className={isHero ? photoHeroImageClass : 'w-full h-full object-cover'}
+          />
+          <button
+            type="button"
+            onClick={handleRemove}
+            className="absolute top-3 right-3 z-[30] h-10 w-10 flex items-center justify-center rounded-full border border-[var(--ios-glass-border)] bg-black/50 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-sm transition-colors hover:bg-black/65 active:bg-black/75"
+            aria-label="Remove photo"
+          >
+            <IconX size={20} stroke={2} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mb-4 px-[var(--ios-page-x-lg)]">
       <p className="text-xs text-white/40 mb-2">Sample photos</p>
       <div className="grid grid-cols-4 gap-2">
-        {SAMPLE_PROFILE_PHOTOS.map((url) => {
-          const selected = photos[0] === url
-          return (
-            <button
-              key={url}
-              type="button"
-              onClick={() => updatePhoto(0, url)}
-              className={`rounded-xl overflow-hidden border-2 transition-colors ${
-                selected ? 'border-blue-500' : 'border-white/10 hover:border-white/25'
-              }`}
-            >
-              <img src={url} alt="" className="w-full aspect-square object-cover" />
-            </button>
-          )
-        })}
+        {SAMPLE_PROFILE_PHOTOS.map((url) => (
+          <button
+            key={url}
+            type="button"
+            onClick={() => updatePhoto(0, url)}
+            className="rounded-xl overflow-hidden border-2 border-white/10 transition-colors hover:border-white/25"
+          >
+            <img src={url} alt="" className="w-full aspect-square object-cover" />
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -211,10 +246,17 @@ function HeroPhotoSection({
     setCurrentViewIndex((index) => (index + 1) % entryCount)
   }
 
+  const primarySampleSelected = showSamplePhotos && isSampleProfilePhoto(photos[0])
+  const showSamplePicker = showSamplePhotos && (primarySampleSelected || !hasPhotos)
+  const showHeroFrame = !showSamplePhotos || (hasPhotos && !primarySampleSelected)
+
   return (
     <div ref={heroRef}>
-      {showSamplePhotos && <SamplePhotoPicker photos={photos} updatePhoto={updatePhoto} />}
+      {showSamplePicker ? (
+        <SamplePhotoPicker photos={photos} updatePhoto={updatePhoto} variant="hero" />
+      ) : null}
 
+      {showHeroFrame ? (
       <div className={photoHeroFrameClass}>
         {!hasPhotos ? (
           <PhotoSlot
@@ -346,7 +388,9 @@ function HeroPhotoSection({
           </>
         )}
       </div>
+      ) : null}
 
+      {showHeroFrame ? (
       <ConfirmDialog
         isOpen={confirmRemoveOpen}
         onClose={() => setConfirmRemoveOpen(false)}
@@ -361,6 +405,7 @@ function HeroPhotoSection({
         danger
         overlayClassName="z-[80]"
       />
+      ) : null}
     </div>
   )
 }
@@ -396,14 +441,19 @@ export default function PhotoUrlSection({
   }
 
   const filledInVisible = photos.slice(0, visiblePhotoSlots).filter((url) => url.trim()).length
+  const primarySampleSelected = showSamplePhotos && isSampleProfilePhoto(photos[0])
 
   return (
     <div>
       {label ? <label className="text-sm text-white/60 mb-3 block">{label}</label> : null}
 
-      {showSamplePhotos && <SamplePhotoPicker photos={photos} updatePhoto={updatePhoto} />}
+      {showSamplePhotos && (primarySampleSelected || !photos[0]?.trim()) ? (
+        <SamplePhotoPicker photos={photos} updatePhoto={updatePhoto} />
+      ) : null}
 
       {Array.from({ length: visiblePhotoSlots }).map((_, i) => {
+        if (i === 0 && primarySampleSelected) return null
+
         const hasPreview = photos[i]?.trim()
 
         return (

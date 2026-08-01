@@ -9,7 +9,7 @@ import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../util
 import { normalizeSocials, SOCIAL_PLATFORMS } from '../../utils/socialLinks'
 import { setProfileEditorOpen } from '../../utils/profileOverlay'
 import AgeSlider from './AgeSlider'
-import PhotoUrlSection, { getVisiblePhotoSlotCount, promotePhotoToPrimary, compactPhotos } from './PhotoUrlSection'
+import PhotoUrlSection, { getVisiblePhotoSlotCount, promotePhotoToPrimary, compactPhotos, isSampleProfilePhoto } from './PhotoUrlSection'
 import SocialLinksEditor from './SocialLinksEditor'
 import CitySelect from './CitySelect'
 import HobbiesSelect from './HobbiesSelect'
@@ -217,6 +217,7 @@ export default function EditProfile({ onCancel }) {
             updatePhoto={updatePhoto}
             visiblePhotoSlots={visiblePhotoSlots}
             setVisiblePhotoSlots={setVisiblePhotoSlots}
+            showSamplePhotos={!photos[0]?.trim() || isSampleProfilePhoto(photos[0])}
             activeSlot={activePhotoSlot}
             onActiveSlotChange={setActivePhotoSlot}
             heroRef={heroSectionRef}
