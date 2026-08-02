@@ -90,7 +90,7 @@ export default function PhotoHeroView({
   }
 
   const shellClass = fullscreen
-    ? 'fixed inset-0 z-[90] flex items-center justify-center bg-black'
+    ? 'absolute inset-0 flex items-center justify-center bg-black'
     : `relative w-full bg-black ${className}`
 
   const frameClass = fullscreen ? photoHeroFullscreenFrameClass : photoHeroFrameClass

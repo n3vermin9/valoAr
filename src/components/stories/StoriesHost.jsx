@@ -113,7 +113,7 @@ export default function StoriesHost({
         userId={user.uid}
       />
 
-      {viewerState !== null && feed.length > 0 && (
+      {viewerState !== null ? (
         <StoryViewer
           queue={feed}
           startIndex={viewerState.userIndex}
@@ -127,7 +127,7 @@ export default function StoriesHost({
           onClose={() => setViewerState(null)}
           onStoryViewed={handleStoryViewed}
         />
-      )}
+      ) : null}
     </>
   )
 }

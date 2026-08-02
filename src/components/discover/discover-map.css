@@ -1,15 +1,15 @@
 .discover-map-container .leaflet-container {
-  background: #323232;
+  background: #454545;
   font-family: var(--ios-font);
 }
 
-/* Match Carto basemap base colors so unloaded tiles don't flash black. */
+/* Match the brightness-lifted basemap so empty tiles don't flash darker mid-zoom. */
 .discover-map-container.discover-map-theme-dark .leaflet-container {
-  background: #323232;
+  background: #454545;
 }
 
 .discover-map-container.discover-map-theme-labeled .leaflet-container {
-  background: #2e2e2e;
+  background: #3f3f3f;
 }
 
 .discover-map-container.discover-map-theme-light .leaflet-container {
@@ -29,10 +29,10 @@
   filter: brightness(1.28) contrast(0.95) saturate(0.95);
 }
 
-/* Suppress tile cross-fade, but keep Leaflet's zoom transform smooth. */
+/* Suppress tile cross-fade; zoom uses a short transform below. */
 .discover-map-container .leaflet-tile {
   transition: none !important;
-  background-color: #323232;
+  background-color: #454545;
 }
 
 .discover-map-container.discover-map-theme-light .leaflet-tile {
@@ -40,11 +40,11 @@
 }
 
 .discover-map-container.discover-map-theme-dark .leaflet-tile {
-  background-color: #323232;
+  background-color: #454545;
 }
 
 .discover-map-container.discover-map-theme-labeled .leaflet-tile {
-  background-color: #2e2e2e;
+  background-color: #3f3f3f;
 }
 
 .discover-map-container .leaflet-tile-container {
@@ -52,8 +52,9 @@
   transition: none !important;
 }
 
+/* Snappy zoom — short ease-out, not the default draggy 250ms+ curve. */
 .discover-map-container .leaflet-zoom-anim .leaflet-zoom-animated {
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition: transform 0.11s cubic-bezier(0.2, 0, 0.2, 1) !important;
   will-change: transform;
 }
 

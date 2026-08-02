@@ -7,31 +7,27 @@ import ChatRoom from '../chat/ChatRoom'
 import LikedYou from '../liked/LikedYou'
 import ProfileView from '../profile/ProfileView'
 import DebugTools from '../debug/DebugTools'
+import useNavTabSwipe, { NAV_TAB_PATHS, getNavTabIndex } from '../../hooks/useNavTabSwipe'
 
-const NAV_TAB_PATHS = ['/discover', '/chats', '/liked', '/profile']
 const SHOW_DEBUG_TOOLS = import.meta.env.DEV
-
-function getNavTabIndex(pathname) {
-  if (pathname.startsWith('/chats/') && pathname !== '/chats') return null
-  if (SHOW_DEBUG_TOOLS && pathname.startsWith('/debug')) return NAV_TAB_PATHS.length
-
-  const index = NAV_TAB_PATHS.findIndex((path) =>
-    path === '/discover' ? pathname === path : pathname.startsWith(path)
-  )
-  return index >= 0 ? index : 0
-}
 
 function getRouteTransitionKey(pathname) {
   if (pathname.startsWith('/chats/') && pathname !== '/chats') return pathname
   if (SHOW_DEBUG_TOOLS && pathname.startsWith('/debug')) return '/debug'
 
   const index = getNavTabIndex(pathname)
-  return index !== null ? NAV_TAB_PATHS[index] : pathname
+  if (index !== null) return NAV_TAB_PATHS[index]
+  // Fallback for unknown paths still under a tab prefix.
+  const tab = NAV_TAB_PATHS.find((path) =>
+    path === '/discover' ? pathname === path : pathname.startsWith(path)
+  )
+  return tab || pathname
 }
 
 export default function AnimatedNavRoutes() {
   const location = useLocation()
   const transitionKey = getRouteTransitionKey(location.pathname)
+  useNavTabSwipe()
 
   return (
     <div className="relative h-full overflow-hidden bg-[var(--ios-bg)]">

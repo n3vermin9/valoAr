@@ -111,7 +111,7 @@ export default function StoryAvatarButton({
         className={`no-tap-scale ${className}`}
       />
 
-      {viewerSession && queue.length > 0 && (
+      {viewerSession ? (
         <StoryViewer
           key={viewerSession.id}
           queue={queue}
@@ -125,7 +125,7 @@ export default function StoryAvatarButton({
           friendIds={friendIds}
           onClose={() => setViewerSession(null)}
         />
-      )}
+      ) : null}
     </>
   )
 }

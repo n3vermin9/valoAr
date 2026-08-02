@@ -235,7 +235,12 @@ export default function MessageBubble({
             src={message.imageUrl}
             alt=""
             className="rounded-xl max-w-full cursor-pointer"
-            onClick={() => message.onImageClick?.(message.imageUrl)}
+            onClick={(e) =>
+              message.onImageClick?.(
+                message.imageUrl,
+                e.currentTarget.getBoundingClientRect()
+              )
+            }
             onDoubleClick={(e) => e.stopPropagation()}
           />
           {!displayText && !message.audioUrl && meta}

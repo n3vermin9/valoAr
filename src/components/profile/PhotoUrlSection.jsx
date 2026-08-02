@@ -7,6 +7,7 @@ import {
   photoHeroFrameClass,
   photoHeroImageClass,
 } from '../../utils/designSystem'
+import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
 
 const photoControlSpring = { type: 'spring', stiffness: 520, damping: 30 }
 const photoOverlayControlClass = `${chatFloatingButtonClass} text-white/80`
@@ -193,11 +194,13 @@ function HeroPhotoSection({
       return
     }
 
+    const origin = storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect())
+
     if (photoTapTimeoutRef.current) {
       clearTimeout(photoTapTimeoutRef.current)
       photoTapTimeoutRef.current = null
       setShowPhotoControls(false)
-      onOpenGallery(safeViewIndex)
+      onOpenGallery(safeViewIndex, origin)
       return
     }
 
@@ -215,7 +218,10 @@ function HeroPhotoSection({
       photoTapTimeoutRef.current = null
     }
     setShowPhotoControls(false)
-    onOpenGallery(safeViewIndex)
+    onOpenGallery(
+      safeViewIndex,
+      storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect())
+    )
   }
 
   const handleAddMore = (e) => {

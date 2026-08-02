@@ -67,6 +67,7 @@ export default function EditProfile({ onCancel }) {
   const [activePhotoSlot, setActivePhotoSlot] = useState(null)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
+  const [galleryOrigin, setGalleryOrigin] = useState(null)
   const extraPhotoInputRef = useRef(null)
   const heroSectionRef = useRef(null)
 
@@ -156,8 +157,9 @@ export default function EditProfile({ onCancel }) {
     setPhotos(next)
   }
 
-  const openGallery = (index = 0) => {
+  const openGallery = (index = 0, origin = null) => {
     setGalleryInitialIndex(index)
+    setGalleryOrigin(origin)
     setGalleryOpen(true)
   }
 
@@ -360,7 +362,11 @@ export default function EditProfile({ onCancel }) {
         <PhotoGallery
           photos={photos.filter(Boolean)}
           initialIndex={galleryInitialIndex}
-          onClose={() => setGalleryOpen(false)}
+          openOrigin={galleryOrigin}
+          onClose={() => {
+            setGalleryOpen(false)
+            setGalleryOrigin(null)
+          }}
         />
       ) : null}
     </div>

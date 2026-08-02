@@ -121,7 +121,7 @@ export default function MapPlaceEditor({ isOpen, place, onClose, onSave, onDelet
           </div>
         </div>
 
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+        <div className="flex gap-1.5 overflow-x-auto touch-pan-x pb-0.5 -mx-0.5 px-0.5">
           {PLACE_TYPES.map((placeType) => {
             const selected = type === placeType.id
             return (

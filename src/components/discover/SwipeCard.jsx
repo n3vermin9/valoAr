@@ -50,8 +50,7 @@ export default function SwipeCard({
           <div
             ref={galleryRef}
             onScroll={handleGalleryScroll}
-            className="flex overflow-x-auto snap-x snap-mandatory overscroll-x-contain scrollbar-hide"
-            style={{ touchAction: 'pan-x pan-y' }}
+            className="flex overflow-x-auto snap-x snap-mandatory overscroll-x-contain scrollbar-hide touch-pan-x"
           >
             {displayPhotos.map((src, i) => (
               <img

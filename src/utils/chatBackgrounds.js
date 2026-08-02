@@ -5,7 +5,7 @@ export const CHAT_BACKGROUNDS = [
     id: 'midnight',
     label: 'Midnight',
     style: {
-      backgroundColor: '#000000',
+      backgroundColor: '#111111',
     },
   },
   {

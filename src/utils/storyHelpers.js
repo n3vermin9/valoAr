@@ -14,31 +14,37 @@ export const STORY_COLORS = [
     id: 'violet',
     className: 'bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-900',
     quoteClassName: 'bg-gradient-to-br from-violet-600/45 via-purple-700/45 to-indigo-900/45',
+    cardClassName: 'bg-gradient-to-br from-violet-950 via-purple-950 to-indigo-950',
   },
   {
     id: 'blue',
     className: 'bg-gradient-to-br from-blue-600 via-sky-700 to-cyan-900',
     quoteClassName: 'bg-gradient-to-br from-blue-600/45 via-sky-700/45 to-cyan-900/45',
+    cardClassName: 'bg-gradient-to-br from-blue-950 via-sky-950 to-cyan-950',
   },
   {
     id: 'rose',
     className: 'bg-gradient-to-br from-rose-600 via-pink-700 to-red-900',
     quoteClassName: 'bg-gradient-to-br from-rose-600/45 via-pink-700/45 to-red-900/45',
+    cardClassName: 'bg-gradient-to-br from-rose-950 via-pink-950 to-red-950',
   },
   {
     id: 'amber',
     className: 'bg-gradient-to-br from-amber-500 via-orange-600 to-red-800',
     quoteClassName: 'bg-gradient-to-br from-amber-500/45 via-orange-600/45 to-red-800/45',
+    cardClassName: 'bg-gradient-to-br from-amber-950 via-orange-950 to-red-950',
   },
   {
     id: 'emerald',
     className: 'bg-gradient-to-br from-emerald-600 via-teal-700 to-green-900',
     quoteClassName: 'bg-gradient-to-br from-emerald-600/45 via-teal-700/45 to-green-900/45',
+    cardClassName: 'bg-gradient-to-br from-emerald-950 via-teal-950 to-green-950',
   },
   {
     id: 'slate',
     className: 'bg-gradient-to-br from-slate-600 via-zinc-700 to-neutral-900',
     quoteClassName: 'bg-gradient-to-br from-slate-600/45 via-zinc-700/45 to-neutral-900/45',
+    cardClassName: 'bg-gradient-to-br from-slate-950 via-zinc-950 to-neutral-950',
   },
 ]
 
@@ -79,6 +85,15 @@ export function getStoryColorClass(colorId) {
 export function getStoryReplyQuoteColorClass(colorId) {
   const entry = STORY_COLORS.find((c) => c.id === colorId) || STORY_COLORS[0]
   return entry.quoteClassName || entry.className
+}
+
+/** Darker tint of the story gradient for meetup announcement cards. */
+export function getStoryCardColorClass(colorId) {
+  if (!colorId) {
+    return 'bg-gradient-to-br from-neutral-950 via-zinc-950 to-black'
+  }
+  const entry = STORY_COLORS.find((c) => c.id === colorId) || STORY_COLORS[0]
+  return entry.cardClassName || 'bg-gradient-to-br from-neutral-950 via-zinc-950 to-black'
 }
 
 export function hasUnseenStories(stories, viewedAtMs = 0) {
@@ -332,7 +347,9 @@ export function getStoryOpenMotion(origin) {
   const h = window.innerHeight || 1
 
   if (!origin) {
-    return { transformOrigin: '50% 42%', initialScale: 0.92 }
+    // Strong enough that close still reads as a zoom-out when origin is unknown
+    // (e.g. opening a non-friend story from chat / deep link).
+    return { transformOrigin: '50% 42%', initialScale: 0.84 }
   }
 
   const cx = origin.x + origin.width / 2

@@ -72,7 +72,7 @@ export default function StoryReplyQuote({
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            onClick(storyReply)
+            onClick(storyReply, e)
           }}
           className={`text-left ${boxClass}`}
           aria-label={`Open ${label}`}

@@ -39,6 +39,7 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
   const [photos, setPhotos] = useState([chat.photoUrl || ''])
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
+  const [galleryOrigin, setGalleryOrigin] = useState(null)
   const heroSectionRef = useRef(null)
 
   const isPublic = chat.settings?.visibility === 'public'
@@ -73,8 +74,9 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
     })
   }
 
-  const openGallery = (index = 0) => {
+  const openGallery = (index = 0, origin = null) => {
     setGalleryInitialIndex(index)
+    setGalleryOrigin(origin)
     setGalleryOpen(true)
   }
 
@@ -216,7 +218,11 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
         <PhotoGallery
           photos={photos.filter(Boolean)}
           initialIndex={galleryInitialIndex}
-          onClose={() => setGalleryOpen(false)}
+          openOrigin={galleryOrigin}
+          onClose={() => {
+            setGalleryOpen(false)
+            setGalleryOrigin(null)
+          }}
         />
       ) : null}
     </div>

@@ -100,7 +100,7 @@ export default function ProfileStoryAvatar({
       openViewer(e)
       return
     }
-    onOpenGallery?.()
+    onOpenGallery?.(storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect()))
   }
 
   if (hideWhenNoStories && !isOwn && stories.length === 0) {
@@ -109,7 +109,13 @@ export default function ProfileStoryAvatar({
 
   if (!isOwn && stories.length === 0) {
     return (
-      <button type="button" onClick={onOpenGallery} className="rounded-full">
+      <button
+        type="button"
+        onClick={(e) =>
+          onOpenGallery?.(storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect()))
+        }
+        className="rounded-full"
+      >
         <StoryRing
           as="div"
           photo={profile?.photos?.[0]}
@@ -146,7 +152,7 @@ export default function ProfileStoryAvatar({
         />
       )}
 
-      {!onOpenStories && viewerSession && viewerSession.queue[0]?.stories?.length > 0 && (
+      {!onOpenStories && viewerSession ? (
         <StoryViewer
           key={viewerSession.id}
           queue={viewerSession.queue}
@@ -161,7 +167,7 @@ export default function ProfileStoryAvatar({
           onClose={() => setViewerSession(null)}
           onNavigateToProfile={onNavigateToProfile}
         />
-      )}
+      ) : null}
     </>
   )
 }

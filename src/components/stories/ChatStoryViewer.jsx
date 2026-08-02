@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { subscribeUserStories, subscribeStoryViews } from '../../services/storyService'
 import { fetchUser } from '../../services/userService'
@@ -21,13 +21,14 @@ function computeStartIndex(stories, storyId, ownerId, viewerId, viewedAtMs) {
   return 0
 }
 
-export default function ChatStoryViewer({ ownerId, storyId, onClose }) {
+export default function ChatStoryViewer({ ownerId, storyId, onClose, openOrigin = null }) {
   const { user, profile } = useAuth()
   const [allStories, setAllStories] = useState([])
   const [storiesLoaded, setStoriesLoaded] = useState(false)
   const [views, setViews] = useState({})
   const [owner, setOwner] = useState(null)
   const [viewerSession, setViewerSession] = useState(null)
+  const sessionStartedRef = useRef(false)
 
   const friendIds = profile?.matches || []
 
@@ -44,6 +45,7 @@ export default function ChatStoryViewer({ ownerId, storyId, onClose }) {
   useEffect(() => {
     setViewerSession(null)
     setStoriesLoaded(false)
+    sessionStartedRef.current = false
   }, [ownerId, storyId])
 
   useEffect(() => {
@@ -59,15 +61,20 @@ export default function ChatStoryViewer({ ownerId, storyId, onClose }) {
     if (!ownerId || !user?.uid || !storiesLoaded) return
 
     if (storyId && !stories.some((s) => s.id === storyId)) {
-      setViewerSession(null)
+      // Don't tear down an in-flight viewer — let StoryViewer finish its close anim.
+      if (!sessionStartedRef.current) setViewerSession(null)
       return
     }
 
     if (!stories.length) {
-      setViewerSession(null)
+      if (!sessionStartedRef.current) setViewerSession(null)
       return
     }
 
+    // Open once; ignore later view-map updates so we don't remount mid-session.
+    if (sessionStartedRef.current) return
+
+    sessionStartedRef.current = true
     setViewerSession({
       storyIndex: computeStartIndex(stories, storyId, ownerId, user.uid, views[ownerId]),
     })
@@ -98,22 +105,23 @@ export default function ChatStoryViewer({ ownerId, storyId, onClose }) {
 
   if (!ownerId || !user?.uid) return null
 
-  if (storiesLoaded && storyId && !stories.some((s) => s.id === storyId)) {
-    return <StoryUnavailableViewer onClose={onClose} />
+  if (storiesLoaded && storyId && !stories.some((s) => s.id === storyId) && !sessionStartedRef.current) {
+    return <StoryUnavailableViewer onClose={onClose} openOrigin={openOrigin} />
   }
 
-  if (storiesLoaded && !stories.length && storyId) {
-    return <StoryUnavailableViewer onClose={onClose} />
+  if (storiesLoaded && !stories.length && storyId && !sessionStartedRef.current) {
+    return <StoryUnavailableViewer onClose={onClose} openOrigin={openOrigin} />
   }
 
   if (!viewerSession || !queue.length) return null
 
   return (
     <StoryViewer
-      key={`${ownerId}-${storyId || 'all'}-${viewerSession.storyIndex}`}
+      key={`${ownerId}-${storyId || 'all'}`}
       queue={queue}
       startIndex={0}
       initialStoryIndex={viewerSession.storyIndex}
+      openOrigin={openOrigin}
       users={users}
       viewerId={user.uid}
       viewerUsername={profile?.username}

@@ -51,6 +51,7 @@ import Button from '../ui/Button'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import MapPlaceEditor from './MapPlaceEditor'
 import CreateMeetupModal from './CreateMeetupModal'
+import MeetupInfoModal from './MeetupInfoModal'
 import { PageSkeleton } from '../ui/Skeleton'
 import { optimizeAvatarUrl } from '../../services/avatarImageCache'
 import {
@@ -89,8 +90,8 @@ const MAP_THEMES = [
     id: 'dark',
     label: 'Dark',
     url: 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
-    // Approx. Carto land after our brightness lift — fills gaps while tiles load.
-    accent: '#323232',
+    // Match brightness-lifted tiles so zoom gaps don't flash darker.
+    accent: '#454545',
   },
   {
     id: 'light',
@@ -102,7 +103,7 @@ const MAP_THEMES = [
     id: 'labeled',
     label: 'Streets',
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    accent: '#2e2e2e',
+    accent: '#3f3f3f',
   },
 ]
 
@@ -128,7 +129,7 @@ const mapSession = {
 const OfflineTileLayer = L.TileLayer.extend({
   options: {
     crossOrigin: true,
-    placeholderColor: '#323232',
+    placeholderColor: '#454545',
   },
 
   createTile(coords, done) {
@@ -186,7 +187,7 @@ function CachedBasemapTiles({ url, maxZoom, placeholderColor }) {
       keepBuffer: 6,
       crossOrigin: true,
       className: 'discover-map-tiles',
-      placeholderColor: placeholderColor || '#323232',
+      placeholderColor: placeholderColor || '#454545',
     })
 
     map.addLayer(layer)
@@ -585,6 +586,8 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
   const [selectedSub, setSelectedSub] = useState(null)
   const [photoFailed, setPhotoFailed] = useState(false)
   const [showMeetups, setShowMeetups] = useState(false)
+  const [joinTarget, setJoinTarget] = useState(null)
+  const [joining, setJoining] = useState(false)
   const typeLabel = PLACE_TYPES.find((t) => t.id === place.type)?.label || 'Place'
   const subplaces = place.subplaces || []
   const photoUrl = place.photoUrl?.trim() || ''
@@ -594,11 +597,31 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
     setSelectedSub(null)
     setPhotoFailed(false)
     setShowMeetups(false)
+    setJoinTarget(null)
   }, [place.id, photoUrl])
 
   useEffect(() => {
     if (!hasMeetups) setShowMeetups(false)
   }, [hasMeetups])
+
+  const handleMeetupAction = (meetup, isMember) => {
+    if (isMember) {
+      onJoinMeetup(meetup)
+      return
+    }
+    setJoinTarget(meetup)
+  }
+
+  const handleConfirmJoin = async () => {
+    if (!joinTarget || joining) return
+    setJoining(true)
+    try {
+      await onJoinMeetup(joinTarget)
+      setJoinTarget(null)
+    } finally {
+      setJoining(false)
+    }
+  }
 
   return (
     <motion.div
@@ -650,7 +673,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
                       </div>
                       <button
                         type="button"
-                        onClick={() => onJoinMeetup(meetup)}
+                        onClick={() => handleMeetupAction(meetup, isMember)}
                         disabled={full && !isMember}
                         className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium bg-[var(--ios-blue)] text-white disabled:opacity-50"
                       >
@@ -661,6 +684,21 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
                 )
               })}
             </div>
+
+            <ConfirmDialog
+              isOpen={Boolean(joinTarget)}
+              onClose={() => !joining && setJoinTarget(null)}
+              onConfirm={handleConfirmJoin}
+              title="Join this meetup?"
+              message={
+                joinTarget
+                  ? `Join "${joinTarget.title}" at ${place.name || 'this place'}? You'll be added to the group chat.`
+                  : 'Join this meetup and enter the group chat?'
+              }
+              confirmLabel="Join"
+              loading={joining}
+              overlayClassName="z-[1200]"
+            />
           </>
         ) : (
           <>
@@ -757,7 +795,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
   )
 }
 
-function MeetupManagerCard({ meetup, isMember, onAction }) {
+function MeetupManagerCard({ meetup, isMember, onAction, onOpenInfo }) {
   const members = meetup.participants?.length || 0
   const maxMembers = meetup.maxMembers || 0
   const full = maxMembers > 0 && members >= maxMembers
@@ -766,7 +804,18 @@ function MeetupManagerCard({ meetup, isMember, onAction }) {
     : meetup.placeName || 'Place'
 
   return (
-    <div className="rounded-[var(--ios-radius-md)] border border-white/10 bg-white/[0.05] p-2.5">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenInfo?.(meetup)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpenInfo?.(meetup)
+        }
+      }}
+      className="rounded-[var(--ios-radius-md)] border border-white/10 bg-white/[0.05] p-2.5 cursor-pointer hover:bg-white/[0.08] transition-colors"
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[14px] font-medium text-[var(--ios-label)] truncate">{meetup.title}</p>
@@ -777,7 +826,10 @@ function MeetupManagerCard({ meetup, isMember, onAction }) {
         </div>
         <button
           type="button"
-          onClick={() => onAction(meetup)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onAction(meetup)
+          }}
           disabled={full && !isMember}
           className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium bg-[var(--ios-blue)] text-white disabled:opacity-50"
         >
@@ -797,6 +849,7 @@ function MeetupManager({
   onOpenMeetupChat,
   onSelectPlace,
   onBeforeExpand,
+  currentUserId,
 }) {
   const myCount = myMeetups.length
   const availCount = availableMeetups.length
@@ -804,12 +857,14 @@ function MeetupManager({
   const [searchActive, setSearchActive] = useState(false)
   const [joinTarget, setJoinTarget] = useState(null)
   const [joining, setJoining] = useState(false)
+  const [infoMeetup, setInfoMeetup] = useState(null)
 
   useEffect(() => {
     if (!expanded) {
       setPlaceSearchQuery('')
       setSearchActive(false)
       if (!joining) setJoinTarget(null)
+      // Keep meetup info modal open even if the manager collapses underneath.
     }
   }, [expanded, joining])
 
@@ -819,6 +874,25 @@ function MeetupManager({
       setJoinTarget(null)
     }
   }, [availableMeetups, joinTarget])
+
+  useEffect(() => {
+    if (!infoMeetup) return
+    const stillListed =
+      myMeetups.some((meetup) => meetup.id === infoMeetup.id) ||
+      availableMeetups.some((meetup) => meetup.id === infoMeetup.id)
+    if (!stillListed) setInfoMeetup(null)
+  }, [myMeetups, availableMeetups, infoMeetup])
+
+  const infoPlace = useMemo(() => {
+    if (!infoMeetup?.placeId) return null
+    return places.find((place) => place.id === infoMeetup.placeId) || null
+  }, [infoMeetup, places])
+
+  const infoIsMember = Boolean(
+    infoMeetup &&
+      (infoMeetup.participants?.includes(currentUserId) ||
+        myMeetups.some((meetup) => meetup.id === infoMeetup.id))
+  )
 
   const handleExpand = () => {
     onBeforeExpand?.()
@@ -1047,6 +1121,7 @@ function MeetupManager({
                         key={meetup.id}
                         meetup={meetup}
                         isMember
+                        onOpenInfo={setInfoMeetup}
                         onAction={() => onOpenMeetupChat(meetup)}
                       />
                     ))
@@ -1067,6 +1142,7 @@ function MeetupManager({
                         key={meetup.id}
                         meetup={meetup}
                         isMember={false}
+                        onOpenInfo={setInfoMeetup}
                         onAction={() => setJoinTarget(meetup)}
                       />
                     ))
@@ -1093,6 +1169,28 @@ function MeetupManager({
         loading={joining}
         overlayClassName="z-[1200]"
       />
+
+      {infoMeetup ? (
+        <MeetupInfoModal
+          meetup={infoMeetup}
+          place={infoPlace}
+          isMember={infoIsMember}
+          isOwn={infoMeetup.creatorId === currentUserId}
+          onClose={() => setInfoMeetup(null)}
+          onJoin={async (meetup) => {
+            setInfoMeetup(null)
+            setJoinTarget(meetup)
+          }}
+          onOpenChat={(meetup) => {
+            setInfoMeetup(null)
+            onOpenMeetupChat(meetup)
+          }}
+          onShowMap={(meetup) => {
+            const placeMatch = places.find((p) => p.id === meetup.placeId)
+            if (placeMatch) onSelectPlace?.(placeMatch)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -1510,15 +1608,16 @@ export default function DiscoverMap({
         maxZoom={MAP_MAX_ZOOM}
         zoomControl={false}
         attributionControl={false}
-        zoomSnap={0.25}
-        zoomDelta={0.5}
-        wheelPxPerZoomLevel={60}
+        zoomSnap={0.5}
+        zoomDelta={1}
+        wheelPxPerZoomLevel={90}
+        wheelDebounceTime={40}
         zoomAnimation
-        zoomAnimationThreshold={4}
+        zoomAnimationThreshold={6}
         fadeAnimation={false}
-        markerZoomAnimation
+        markerZoomAnimation={false}
         inertia
-        inertiaDeceleration={2500}
+        inertiaDeceleration={3200}
         className="h-full w-full discover-map-leaflet"
       >
         <MapRecenter center={center} />
@@ -1574,6 +1673,7 @@ export default function DiscoverMap({
                 onOpenMeetupChat={handleOpenMeetupFromManager}
                 onSelectPlace={handleSelectPlaceFromSearch}
                 onBeforeExpand={dismissMapSelection}
+                currentUserId={userId}
               />
             </div>
           ) : (

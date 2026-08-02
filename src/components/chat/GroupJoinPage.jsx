@@ -10,6 +10,7 @@ import { PageSkeleton } from '../ui/Skeleton'
 import { typoTitle2Class } from '../../utils/designSystem'
 import PhotoGallery from '../ui/PhotoGallery'
 import PageShell from '../layout/PageShell'
+import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
 
 export default function GroupJoinPage() {
   const { inviteCode: joinSlug } = useParams()
@@ -19,6 +20,7 @@ export default function GroupJoinPage() {
   const [loading, setLoading] = useState(true)
   const [joining, setJoining] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryOrigin, setGalleryOrigin] = useState(null)
 
   useEffect(() => {
     if (!joinSlug) return
@@ -94,7 +96,10 @@ export default function GroupJoinPage() {
         <div className="flex flex-col items-center px-6 pt-8 text-center">
           <button
             type="button"
-            onClick={() => setGalleryOpen(true)}
+            onClick={(e) => {
+              setGalleryOrigin(storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect()))
+              setGalleryOpen(true)
+            }}
             className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
             aria-label="View group photo"
           >
@@ -114,7 +119,14 @@ export default function GroupJoinPage() {
       </div>
 
       {galleryOpen && (
-        <PhotoGallery photos={[getGroupPhotoUrl(group)]} onClose={() => setGalleryOpen(false)} />
+        <PhotoGallery
+          photos={[getGroupPhotoUrl(group)]}
+          openOrigin={galleryOrigin}
+          onClose={() => {
+            setGalleryOpen(false)
+            setGalleryOrigin(null)
+          }}
+        />
       )}
     </PageShell>
   )

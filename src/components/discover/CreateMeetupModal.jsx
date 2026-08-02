@@ -257,7 +257,7 @@ export default function CreateMeetupModal({
         <>
           <div className="space-y-4">
             {subplaces.length > 0 ? (
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+              <div className="flex gap-1.5 overflow-x-auto touch-pan-x pb-0.5 -mx-0.5 px-0.5">
                 <button
                   type="button"
                   onClick={() => setSelectedSubId(null)}
@@ -340,7 +340,7 @@ export default function CreateMeetupModal({
       ) : (
         <>
           <div className="space-y-4">
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+            <div className="flex gap-1.5 overflow-x-auto touch-pan-x pb-0.5 -mx-0.5 px-0.5">
               {presets.map((preset) => (
                 <button
                   key={preset.id}

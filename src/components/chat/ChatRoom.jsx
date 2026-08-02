@@ -92,7 +92,7 @@ import { leaveGroupChat, joinGroupViaButton, joinGroupByInviteCode } from '../..
 import { cancelMeetup } from '../../services/meetupService'
 import { getMessageClusterMeta } from '../../utils/messageCluster'
 import { isMeetupInfoMessage } from '../../services/systemChatMessage'
-import { getStoryReplyDisplay } from '../../utils/storyHelpers'
+import { getStoryReplyDisplay, storyOpenOriginFromRect } from '../../utils/storyHelpers'
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
 import UsernameLabel from '../ui/UsernameLabel'
@@ -831,11 +831,13 @@ export default function ChatRoom() {
     setDeleteTarget(null)
   }
 
-  const handleStoryReplyClick = (storyReply) => {
+  const handleStoryReplyClick = (storyReply, originEvent) => {
     if (!storyReply?.ownerId) return
+    const rect = originEvent?.currentTarget?.getBoundingClientRect?.()
     setStoryViewerTarget({
       ownerId: storyReply.ownerId,
       storyId: storyReply.storyId || null,
+      origin: rect ? storyOpenOriginFromRect(rect) : null,
     })
   }
 
@@ -1392,7 +1394,11 @@ export default function ChatRoom() {
               key={msg.id}
               message={{
                 ...msg,
-                onImageClick: setImageViewer,
+                onImageClick: (url, rect) =>
+                  setImageViewer({
+                    src: url,
+                    origin: storyOpenOriginFromRect(rect),
+                  }),
               }}
               isOwn={msg.senderId === user.uid}
               currentUserId={user.uid}
@@ -1677,7 +1683,11 @@ export default function ChatRoom() {
         )}
       </AnimatePresence>
 
-      <ImageViewer src={imageViewer} onClose={() => setImageViewer(null)} />
+      <ImageViewer
+        src={imageViewer?.src}
+        openOrigin={imageViewer?.origin}
+        onClose={() => setImageViewer(null)}
+      />
 
       <ConfirmDialog
         isOpen={confirmAction === 'leaveGroup'}
@@ -1735,6 +1745,7 @@ export default function ChatRoom() {
         <ChatStoryViewer
           ownerId={storyViewerTarget.ownerId}
           storyId={storyViewerTarget.storyId}
+          openOrigin={storyViewerTarget.origin}
           onClose={() => setStoryViewerTarget(null)}
         />
       )}

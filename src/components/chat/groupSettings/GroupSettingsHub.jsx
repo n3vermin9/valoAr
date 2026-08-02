@@ -9,6 +9,7 @@ import GroupAvatar from '../GroupAvatar'
 import { FormSkeleton } from '../../ui/Skeleton'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import PhotoGallery from '../../ui/PhotoGallery'
+import { storyOpenOriginFromRect } from '../../../utils/storyHelpers'
 import { useGroupSettingsChat } from './useGroupSettingsChat'
 import GroupSettingsShell from './GroupSettingsShell'
 import { SettingsNavRow, SettingsSection } from '../../ui/SettingsUI'
@@ -31,18 +32,24 @@ function PreviewInfoRow({ label, value }) {
 
 function GroupInfoPreview({ chat }) {
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryOrigin, setGalleryOrigin] = useState(null)
   const description = chat.description?.trim() || 'No description yet'
   const hasPhoto = Boolean(chat.photoUrl?.trim())
   const memberSince = chat.createdAt?.toDate?.()
     ? chat.createdAt.toDate().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently'
 
+  const openGallery = (e) => {
+    setGalleryOrigin(storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect()))
+    setGalleryOpen(true)
+  }
+
   return (
     <section>
       <div className="flex flex-col items-center px-6 pt-4">
         <button
           type="button"
-          onClick={() => setGalleryOpen(true)}
+          onClick={openGallery}
           disabled={!hasPhoto}
           className="relative shrink-0 rounded-full border border-dashed border-white/35 p-[7px] disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
           aria-label={hasPhoto ? 'View group photo' : 'No group photo'}
@@ -52,7 +59,7 @@ function GroupInfoPreview({ chat }) {
         {hasPhoto ? (
           <button
             type="button"
-            onClick={() => setGalleryOpen(true)}
+            onClick={openGallery}
             className={`${typoSubheadClass} mt-2 hover:text-white transition-colors`}
           >
             View photos
@@ -74,7 +81,14 @@ function GroupInfoPreview({ chat }) {
       </div>
 
       {galleryOpen && hasPhoto ? (
-        <PhotoGallery photos={[chat.photoUrl]} onClose={() => setGalleryOpen(false)} />
+        <PhotoGallery
+          photos={[chat.photoUrl]}
+          openOrigin={galleryOrigin}
+          onClose={() => {
+            setGalleryOpen(false)
+            setGalleryOrigin(null)
+          }}
+        />
       ) : null}
     </section>
   )

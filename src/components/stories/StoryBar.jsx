@@ -65,7 +65,7 @@ export default function StoryBar({
   }
 
   return (
-    <div className="px-[var(--ios-page-x-lg)] pb-3 overflow-x-auto">
+    <div className="px-[var(--ios-page-x-lg)] pb-3 overflow-x-auto touch-pan-x">
       <div className="flex gap-4">
         <div className="flex flex-col items-center gap-1.5 shrink-0 w-16">
           <StoryRing

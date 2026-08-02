@@ -41,6 +41,7 @@ import PhotoHeroView, {
   PhotoHeroFixedBack,
   PhotoHeroPlaceholder,
 } from '../ui/PhotoHeroView'
+import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
 
 export default function GroupInfoView() {
   const { chatId } = useParams()
@@ -54,6 +55,7 @@ export default function GroupInfoView() {
   const [joining, setJoining] = useState(false)
   const [showMuteModal, setShowMuteModal] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryOrigin, setGalleryOrigin] = useState(null)
   const [profileUserId, setProfileUserId] = useState(null)
 
   const fromChat = location.state?.fromChat === true
@@ -214,7 +216,10 @@ export default function GroupInfoView() {
         {groupPhotos.length > 0 ? (
           <PhotoHeroView
             photos={groupPhotos}
-            onPhotoTap={() => setGalleryOpen(true)}
+            onPhotoTap={(e) => {
+              setGalleryOrigin(storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect()))
+              setGalleryOpen(true)
+            }}
           />
         ) : (
           <PhotoHeroPlaceholder>
@@ -364,7 +369,14 @@ export default function GroupInfoView() {
       />
 
       {galleryOpen && groupPhotos.length > 0 && (
-        <PhotoGallery photos={groupPhotos} onClose={() => setGalleryOpen(false)} />
+        <PhotoGallery
+          photos={groupPhotos}
+          openOrigin={galleryOrigin}
+          onClose={() => {
+            setGalleryOpen(false)
+            setGalleryOrigin(null)
+          }}
+        />
       )}
 
       <Modal isOpen={Boolean(profileUserId)} onClose={() => setProfileUserId(null)} fullscreen>

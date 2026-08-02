@@ -3,6 +3,7 @@ import { IconCalendarPlus, IconClockHour4, IconMapPin, IconUsers } from '@tabler
 import {
   parseMeetupStoryContent,
   getMeetupMapCoords,
+  getStoryCardColorClass,
 } from '../../utils/storyHelpers'
 import { getLowQualityImageSrc } from '../../utils/helpers'
 import {
@@ -99,6 +100,7 @@ export default function MeetupStoryCard({
   const { title, venue, time, description } = parseMeetupStoryContent(story, meetupData, {
     militaryTime,
   })
+  const cardBgClass = getStoryCardColorClass(story?.color)
   const resolvedMapCoords = mapCoords || getMeetupMapCoords(story, meetupData)
   const placePinName = meetupData?.placeName || venue.split(' · ')[0] || venue
   const placePinEmoji = story?.meetupPlaceEmoji || meetupData?.placeEmoji || '📍'
@@ -210,7 +212,7 @@ export default function MeetupStoryCard({
       </div>
 
       <div
-        className={`relative rounded-[var(--ios-radius-xl)] border border-white/15 bg-black shadow-[0_12px_40px_rgba(0,0,0,0.45)] ${
+        className={`relative rounded-[var(--ios-radius-xl)] border border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.45)] ${cardBgClass} ${
           compact ? 'px-4 pb-5 pt-8' : 'px-6 pb-6 pt-9'
         }`}
       >

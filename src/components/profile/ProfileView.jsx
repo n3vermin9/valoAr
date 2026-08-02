@@ -10,6 +10,7 @@ import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { getMatchId } from '../../utils/helpers'
+import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
 import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoCaptionClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
 import { canDirectMessage } from '../../utils/directMessages'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
@@ -64,6 +65,7 @@ export default function ProfileView() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryOrigin, setGalleryOrigin] = useState(null)
   const [savingSettings, setSavingSettings] = useState(false)
   const [allowDirectMessages, setAllowDirectMessages] = useState(false)
   const [showFriendCount, setShowFriendCount] = useState(true)
@@ -180,7 +182,10 @@ export default function ProfileView() {
         {profilePhotos.length > 0 ? (
           <PhotoHeroView
             photos={profilePhotos}
-            onPhotoTap={() => setGalleryOpen(true)}
+            onPhotoTap={(e) => {
+              setGalleryOrigin(storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect()))
+              setGalleryOpen(true)
+            }}
           />
         ) : (
           <PhotoHeroPlaceholder>
@@ -190,7 +195,10 @@ export default function ProfileView() {
                 profile={profile}
                 isOwn
                 size={128}
-                onOpenGallery={() => setGalleryOpen(true)}
+                onOpenGallery={(origin) => {
+                  setGalleryOrigin(origin || null)
+                  setGalleryOpen(true)
+                }}
               />
             </div>
           </PhotoHeroPlaceholder>
@@ -204,7 +212,10 @@ export default function ProfileView() {
               isOwn
               size={72}
               hideWhenNoStories
-              onOpenGallery={() => setGalleryOpen(true)}
+              onOpenGallery={(origin) => {
+                setGalleryOrigin(origin || null)
+                setGalleryOpen(true)
+              }}
             />
           </div>
         ) : null}
@@ -423,7 +434,14 @@ export default function ProfileView() {
       </Modal>
 
       {galleryOpen && (
-        <PhotoGallery photos={profilePhotos} onClose={() => setGalleryOpen(false)} />
+        <PhotoGallery
+          photos={profilePhotos}
+          openOrigin={galleryOrigin}
+          onClose={() => {
+            setGalleryOpen(false)
+            setGalleryOrigin(null)
+          }}
+        />
       )}
     </div>
   )
@@ -457,6 +475,7 @@ export function PublicProfileView({
   const [viewerProfile, setViewerProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [galleryOpen, setGalleryOpen] = useState(false)
+  const [galleryOrigin, setGalleryOrigin] = useState(null)
   const [requesting, setRequesting] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [confirmRemoveMatch, setConfirmRemoveMatch] = useState(false)
@@ -778,7 +797,10 @@ export function PublicProfileView({
         {hasHeroPhoto ? (
           <PhotoHeroView
             photos={viewablePhotos}
-            onPhotoTap={() => setGalleryOpen(true)}
+            onPhotoTap={(e) => {
+              setGalleryOrigin(storyOpenOriginFromRect(e.currentTarget.getBoundingClientRect()))
+              setGalleryOpen(true)
+            }}
           />
         ) : (
           <PhotoHeroPlaceholder>
@@ -793,7 +815,10 @@ export function PublicProfileView({
                 viewerPhoto={me?.photos?.[0]}
                 size={128}
                 suppressStoryViewer={suppressStoryViewer}
-                onOpenGallery={() => setGalleryOpen(true)}
+                onOpenGallery={(origin) => {
+                  setGalleryOrigin(origin || null)
+                  setGalleryOpen(true)
+                }}
                 onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
                 onOpenStories={suppressStoryViewer ? undefined : setStorySession}
               />
@@ -813,7 +838,10 @@ export function PublicProfileView({
               viewerPhoto={me?.photos?.[0]}
               size={72}
               hideWhenNoStories
-              onOpenGallery={() => setGalleryOpen(true)}
+              onOpenGallery={(origin) => {
+                setGalleryOrigin(origin || null)
+                setGalleryOpen(true)
+              }}
               onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
               onOpenStories={setStorySession}
             />
@@ -951,7 +979,14 @@ export function PublicProfileView({
       </PhotoHeroContentOverlap>
 
       {galleryOpen && (
-        <PhotoGallery photos={viewablePhotos} onClose={() => setGalleryOpen(false)} />
+        <PhotoGallery
+          photos={viewablePhotos}
+          openOrigin={galleryOrigin}
+          onClose={() => {
+            setGalleryOpen(false)
+            setGalleryOrigin(null)
+          }}
+        />
       )}
 
       <Modal isOpen={confirmRemoveMatch} onClose={() => !removeMatchLoading && setConfirmRemoveMatch(false)} glass>
@@ -993,7 +1028,7 @@ export function PublicProfileView({
         </div>
       </Modal>
 
-      {storySession && storySession.queue[0]?.stories?.length > 0 && (
+      {storySession ? (
         <StoryViewer
           key={storySession.id}
           queue={storySession.queue}
@@ -1008,7 +1043,7 @@ export function PublicProfileView({
           onClose={() => setStorySession(null)}
           onNavigateToProfile={(watcherId) => navigate(`/profile/${watcherId}`)}
         />
-      )}
+      ) : null}
 
       <MuteChatModal
         isOpen={showMuteModal}

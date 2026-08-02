@@ -55,7 +55,7 @@ import {
   storyProgressTrackClass,
   storyProgressFillClass,
   storyPausedBadgeClass,
-  navGlassMenuClass,
+  storyGlassBlur,
   typoCaptionClass,
 } from '../../utils/designSystem'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -139,26 +139,36 @@ function StoryReactionButton({
   onReact,
   iconSize = 20,
   className = '',
+  /** When the heart sits alone in the footer, center the tray over it. */
+  pickerAlign = 'end',
 }) {
   const myReaction = storyReactions[viewerId]
+  const centered = pickerAlign === 'center'
+  const pickerAnchorClass = centered
+    ? 'absolute bottom-full left-1/2 mb-2 z-10'
+    : 'absolute bottom-full right-0 mb-2 z-10'
+  const centerX = centered ? '-50%' : 0
 
   return (
     <div data-reaction-ui className={`relative shrink-0 ${STORY_FOOTER_ROW_H} ${className}`}>
       <AnimatePresence>
         {showReactionPicker && (
           <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+            key="story-reaction-picker"
+            initial={{ opacity: 0, y: 6, scale: 0.96, x: centerX }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: centerX }}
+            exit={{ opacity: 0, y: 6, scale: 0.96, x: centerX }}
             transition={{ duration: 0.12 }}
-            className="absolute bottom-full right-0 mb-2 z-10"
+            className={pickerAnchorClass}
           >
-            <div className={`liquid-glass-pill rounded-full ${navGlassMenuClass}`}>
+            <div
+              className={`${storyGlassBlur} liquid-glass-pill rounded-full px-1.5 py-1`}
+            >
               <ReactionPicker
                 reactions={storyReactions}
                 currentUserId={viewerId}
                 onReact={onReact}
-                className="justify-center gap-0.5 px-1 py-1"
+                className="justify-center gap-0.5 px-0.5 py-0"
               />
             </div>
           </motion.div>
@@ -229,6 +239,7 @@ export default function StoryViewer({
   const [isPresent, setIsPresent] = useState(true)
   const [slideGeneration, setSlideGeneration] = useState(0)
   const slideDirectionRef = useRef(1)
+  const frameRef = useRef(null)
   const rafRef = useRef(null)
   const startRef = useRef(0)
   const elapsedRef = useRef(0)
@@ -323,8 +334,14 @@ export default function StoryViewer({
   }
 
   const resolved = resolveStoryNav(sessionQueue, nav)
-  const { userIndex, storyIndex, entry, stories, story } = resolved
   const openMotion = useMemo(() => getStoryOpenMotion(openOrigin), [openOrigin])
+  // Keep last valid frame so close can animate even if the story drops out mid-exit
+  // (common for non-friend / public stories when the parent feed refreshes).
+  if (resolved.entry && resolved.story) {
+    frameRef.current = resolved
+  }
+  const frame = resolved.entry && resolved.story ? resolved : frameRef.current
+  const { userIndex, storyIndex, entry, stories, story } = frame || resolved
   const ownerId = entry?.userId
   const owner = users[ownerId]
   const isOwn = viewerId === ownerId
@@ -932,7 +949,24 @@ export default function StoryViewer({
     }
   }
 
-  if (!entry || !story) return null
+  const closeScale = Math.min(openMotion.initialScale, 0.86)
+
+  // While closing, keep a shell mounted even if the story became unavailable.
+  if (!entry || !story) {
+    if (isPresent) return null
+    return createPortal(
+      <motion.div
+        data-story-viewer
+        initial={{ scale: 1, opacity: 1 }}
+        animate={{ scale: closeScale, opacity: 0 }}
+        transition={storyShellTransition}
+        onAnimationComplete={handleShellAnimationComplete}
+        style={{ transformOrigin: openMotion.transformOrigin }}
+        className="fixed inset-0 z-[95] overflow-hidden will-change-transform bg-black"
+      />,
+      document.body
+    )
+  }
 
   const userSlideKey = `${userIndex}-${ownerId}`
   const slideCustom = { direction: slideDirectionRef.current }
@@ -944,7 +978,7 @@ export default function StoryViewer({
       animate={
         isPresent
           ? { scale: 1, opacity: 1 }
-          : { scale: openMotion.initialScale, opacity: 0 }
+          : { scale: closeScale, opacity: 0 }
       }
       transition={storyShellTransition}
       onAnimationComplete={handleShellAnimationComplete}
@@ -1240,6 +1274,7 @@ export default function StoryViewer({
                 storyReactions={effectiveReactions}
                 viewerId={viewerId}
                 iconSize={22}
+                pickerAlign="center"
                 onReact={(emoji) => {
                   handleStoryReaction(emoji)
                   setShowReactionPicker(false)
