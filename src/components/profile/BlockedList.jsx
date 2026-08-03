@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
+import { IconBan } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, unblockUser, subscribeToUser } from '../../services/userService'
 import { ListSkeleton } from '../ui/Skeleton'
@@ -37,12 +38,17 @@ export default function BlockedList() {
   }
 
   return (
-    <div className="pb-4">
-      <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-4`}>Blocked Users</h2>
+    <div className="pt-5 pb-5">
+      <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-3`}>Blocked Users</h2>
       {loading ? (
         <ListSkeleton rows={4} className="px-[var(--ios-page-x-lg)]" />
       ) : blockedUsers.length === 0 ? (
-        <EmptyState message="No blocked users" />
+        <EmptyState
+          icon={IconBan}
+          iconTone="red"
+          title="No blocked users"
+          description="People you block won’t be able to message or find you."
+        />
       ) : (
         <SettingsSection>
           {blockedUsers.map((blockedUser) => (

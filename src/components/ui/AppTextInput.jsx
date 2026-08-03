@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import { useAppKeyboard } from './AppKeyboard'
+import { allowAutofocus } from '../../utils/iosInput'
 import { handleInputFocusCursor } from '../../utils/inputHelpers'
 import { scrollFieldAboveKeyboard } from '../../utils/keyboardFocus'
 import { compactInputClass, compactInputInnerClass } from '../../utils/designSystem'
@@ -33,6 +34,7 @@ export default function AppTextInput({
   const { enabled, open, activeId, close, patch } = useAppKeyboard()
   const inputRef = useRef(null)
   const active = activeId === id
+  const focusOnMount = Boolean(autoFocus && allowAutofocus())
 
   const openSession = (el) => {
     open({
@@ -53,12 +55,12 @@ export default function AppTextInput({
   }
 
   useEffect(() => {
-    if (!enabled || !autoFocus || disabled) return undefined
+    if (!enabled || !focusOnMount || disabled) return undefined
     const t = window.setTimeout(() => openSession(inputRef.current), 0)
     return () => window.clearTimeout(t)
     // intentionally only on mount for autofocus
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, autoFocus])
+  }, [enabled, focusOnMount])
 
   useEffect(() => {
     if (enabled && active) patch(id, { value })
@@ -83,7 +85,7 @@ export default function AppTextInput({
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           maxLength={maxLength}
-          autoFocus={autoFocus}
+          autoFocus={focusOnMount}
           disabled={disabled}
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
@@ -105,7 +107,7 @@ export default function AppTextInput({
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         maxLength={maxLength}
-        autoFocus={autoFocus}
+        autoFocus={focusOnMount}
         disabled={disabled}
         autoCapitalize={autoCapitalize}
         autoCorrect={autoCorrect}

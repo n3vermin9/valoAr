@@ -14,6 +14,7 @@ import CreateGroupPage from './components/chat/CreateGroupPage'
 import GroupSettingsRoutes from './components/chat/groupSettings/GroupSettingsRoutes'
 import { PageSkeleton } from './components/ui/Skeleton'
 import Modal from './components/ui/Modal'
+import DevAssistiveTouch from './components/debug/DevAssistiveTouch'
 import { subscribeChats, getUnreadCount } from './services/chatService'
 import { isChatFullyMuted } from './utils/chatMute'
 import { subscribeLikesReceived } from './services/userService'
@@ -124,15 +125,13 @@ function PublicProfileRoute() {
 export default function App() {
   const { user, profile, loading } = useAuth()
 
-  if (loading) {
-    return (
-      <div className="h-full">
-        <PageSkeleton />
-      </div>
-    )
-  }
-
   return (
+    <>
+      {loading ? (
+        <div className="h-full">
+          <PageSkeleton />
+        </div>
+      ) : (
     <Routes>
       <Route
         path="/login"
@@ -141,7 +140,15 @@ export default function App() {
       <Route path="/register" element={!user ? <Register /> : <Navigate to="/setup" />} />
       <Route
         path="/setup"
-        element={user && !profile?.username ? <ProfileSetup /> : <Navigate to="/discover" />}
+        element={
+          !user ? (
+            <Navigate to="/login" replace />
+          ) : profile?.username ? (
+            <Navigate to="/discover" replace />
+          ) : (
+            <ProfileSetup />
+          )
+        }
       />
       <Route path="/profile/:userId" element={<PublicProfileRoute />} />
       <Route
@@ -215,5 +222,8 @@ export default function App() {
         }
       />
     </Routes>
+      )}
+      <DevAssistiveTouch />
+    </>
   )
 }

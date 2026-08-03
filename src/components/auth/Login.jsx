@@ -4,15 +4,18 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import AuthLogo from './AuthLogo'
 import { APP_NAME } from '../../utils/helpers'
+import { SEED_ACCOUNTS } from '../../utils/seedAccounts'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import TextField from '../ui/TextField'
 import Button from '../ui/Button'
+import StoryRing from '../stories/StoryRing'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, enterSeedAccount } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [seedBusyId, setSeedBusyId] = useState(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,6 +27,19 @@ export default function Login() {
       toast.error(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSeed = async (seed) => {
+    if (seedBusyId || loading) return
+    setSeedBusyId(seed.id)
+    try {
+      await enterSeedAccount(seed)
+      toast.success(`Logged in as @${seed.username}`)
+    } catch (err) {
+      toast.error(err.message || `Couldn’t open @${seed.username}`)
+    } finally {
+      setSeedBusyId(null)
     }
   }
 
@@ -54,10 +70,34 @@ export default function Login() {
             required
           />
         </div>
-        <Button type="submit" fullWidth disabled={loading} className="mt-8">
+        <Button type="submit" fullWidth disabled={loading || Boolean(seedBusyId)} className="mt-8">
           {loading ? <LoadingSpinner size="w-5 h-5" /> : 'Log In'}
         </Button>
       </form>
+
+      {/* TEMP dev: one-tap seed profiles — remove soon */}
+      <div className="w-full max-w-sm mt-8 flex justify-center gap-4">
+        {SEED_ACCOUNTS.map((seed) => {
+          const busy = seedBusyId === seed.id
+          return (
+            <div key={seed.id} className="flex flex-col items-center gap-1.5 shrink-0 w-16">
+              <StoryRing
+                photo={seed.photos?.[0]}
+                username={seed.username}
+                size={64}
+                hasStories
+                unseen={!busy}
+                seen={busy}
+                onClick={() => handleSeed(seed)}
+                className={loading || seedBusyId ? 'opacity-50 pointer-events-none' : ''}
+              />
+              <span className="text-xs text-[var(--ios-label-secondary)] truncate w-full text-center">
+                {busy ? '…' : seed.username}
+              </span>
+            </div>
+          )
+        })}
+      </div>
 
       <p className="mt-6 text-[var(--ios-label-secondary)] text-[15px]">
         Don't have an account?{' '}

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { IconSearch } from '@tabler/icons-react'
 import { glassInputBarClass } from '../../utils/designSystem'
 import { focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
+import { allowAutofocus } from '../../utils/iosInput'
 
 export default function ChatSearchBar({
   inline = false,
@@ -15,7 +16,7 @@ export default function ChatSearchBar({
   const inputRef = useRef(null)
 
   useEffect(() => {
-    if (!active) return
+    if (!active || !allowAutofocus()) return undefined
     const timer = setTimeout(() => focusInputRefAtEnd(inputRef), inline ? 120 : 0)
     return () => clearTimeout(timer)
   }, [inline, active])

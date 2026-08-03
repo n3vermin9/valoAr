@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { IconCheck, IconX } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -65,11 +65,16 @@ function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
   )
 }
 
+function inboxTabFromSearch(searchParams) {
+  return searchParams.get('tab') === 'requests' ? 'requests' : 'inbox'
+}
+
 export default function LikedYou() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user, profile, setProfile } = useAuth()
   const snapshot = user?.uid ? getInboxPageSnapshot(user.uid) : null
-  const [section, setSection] = useState('inbox')
+  const [section, setSection] = useState(() => inboxTabFromSearch(searchParams))
   const [likes, setLikes] = useState(() => snapshot?.likes || [])
   const [profiles, setProfiles] = useState(() => snapshot?.profiles || {})
   const [inboxItems, setInboxItems] = useState(() => snapshot?.inboxItems || [])
@@ -88,6 +93,15 @@ export default function LikedYou() {
   const profilesRef = useRef(profiles)
   const inboxItemsRef = useRef(inboxItems)
   const inboxProfilesRef = useRef(inboxProfiles)
+
+  useEffect(() => {
+    setSection(inboxTabFromSearch(searchParams))
+  }, [searchParams])
+
+  const handleSectionChange = (next) => {
+    setSection(next)
+    setSearchParams(next === 'requests' ? { tab: 'requests' } : {}, { replace: true })
+  }
   const outgoingIdsRef = useRef(outgoingIds)
   const outgoingProfilesRef = useRef(outgoingProfiles)
   const mountAtRef = useRef(Date.now())
@@ -665,7 +679,7 @@ export default function LikedYou() {
     <PageShell title="Inbox" contentClassName="flex flex-col min-h-0">
       <InboxSectionTabs
         section={section}
-        onSectionChange={setSection}
+        onSectionChange={handleSectionChange}
         requestCount={likes.length}
         inboxUnread={unreadInbox.length}
       />

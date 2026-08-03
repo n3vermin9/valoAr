@@ -7,11 +7,12 @@ import App from './App'
 import './index.css'
 import { setupInteractionGuards } from './utils/interactionGuards'
 import { setupNativeShell } from './native/setupNativeShell'
-import { setupKeyboardFocusScroll } from './utils/keyboardFocus'
+import { setupKeyboardFocusScroll, setupKeyboardInset } from './utils/keyboardFocus'
 import { AppKeyboardProvider } from './components/ui/AppKeyboard'
 
 setupInteractionGuards()
 setupKeyboardFocusScroll()
+setupKeyboardInset()
 void setupNativeShell()
 
 createRoot(document.getElementById('root')).render(

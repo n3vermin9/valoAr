@@ -27,12 +27,14 @@ function getRouteTransitionKey(pathname) {
 export default function AnimatedNavRoutes() {
   const location = useLocation()
   const transitionKey = getRouteTransitionKey(location.pathname)
+  const isChatRoom =
+    location.pathname.startsWith('/chats/') && location.pathname !== '/chats'
   useNavTabSwipe()
 
   return (
     <div className="relative h-full overflow-hidden bg-[var(--ios-bg)]">
       <AnimatePresence mode="sync" initial={false}>
-        <PageTransition key={transitionKey}>
+        <PageTransition key={transitionKey} disableTransform={isChatRoom}>
           <Routes location={location}>
             <Route path="/discover" element={<Discover />} />
             <Route path="/chats" element={<ChatList />} />

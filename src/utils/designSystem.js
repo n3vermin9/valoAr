@@ -107,6 +107,13 @@ export const compactInputAffixClass = `${compactInputBase} flex items-center out
 export const compactInputInnerClass =
   'flex-1 min-w-0 h-[var(--ios-control-min)] pr-4 bg-transparent outline-none text-[15px] leading-none'
 
+/** Compact search pill (iOS ~36px) — use in fullscreen Cap / no Safari chrome. */
+export const searchFieldShellClass =
+  'flex items-center gap-2 h-9 min-h-9 max-h-9 rounded-full border border-white/10 bg-white/10 px-3'
+
+export const searchFieldInputClass =
+  'flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] leading-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] appearance-none'
+
 export const compactTextareaClass =
   'w-full min-h-[56px] px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-y text-[15px] leading-snug text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
 export const linkActionClass =
@@ -137,7 +144,7 @@ export const insetListClass =
   'mx-4 rounded-[var(--ios-radius-xl)] overflow-hidden border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]'
 
 export const textFieldClass =
-  'ios-emoji-field w-full px-5 py-3 min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-glass-border)] text-[17px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none focus:border-[var(--ios-blue)] transition-colors'
+  'w-full px-5 py-3 min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-glass-border)] text-[17px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none focus:border-[var(--ios-blue)] transition-colors'
 
 export const btnFilledClass =
   'inline-flex items-center justify-center h-11 px-5 rounded-full text-[15px] font-medium leading-none bg-[var(--ios-blue)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
@@ -184,6 +191,14 @@ export const pageSwitchMotion = {
   transition: pageSwitchTransition,
 }
 
+/** Chat room — opacity only so fixed/portaled layers are not trapped in a transform. */
+export const chatPageSwitchMotion = {
+  initial: { opacity: 0.92 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0, transition: pageSwitchExitTransition },
+  transition: pageSwitchTransition,
+}
+
 export const pageSwitchVariants = {
   enter: { scale: 1.05, opacity: 0.92 },
   center: { scale: 1, opacity: 1 },
@@ -191,7 +206,7 @@ export const pageSwitchVariants = {
 }
 
 export const chatRoomTopScrimClass =
-  'absolute top-0 inset-x-0 z-[15] pointer-events-none bg-gradient-to-b from-black via-black/60 to-transparent'
+  'chat-room-top-scrim fixed inset-x-0 z-[15] pointer-events-none bg-gradient-to-b from-black via-black/60 to-transparent'
 
 /** Square profile/group hero — crops non-square photos to center fill */
 export const photoHeroFrameClass = 'relative w-full aspect-square overflow-hidden bg-black'
@@ -201,7 +216,25 @@ export const photoHeroImageClass =
   'absolute inset-0 block h-full w-full object-cover object-center'
 
 export const chatRoomBottomScrimClass =
-  'absolute bottom-0 inset-x-0 z-[15] pointer-events-none bg-gradient-to-t from-black via-black/60 to-transparent'
+  'chat-room-bottom-scrim fixed inset-x-0 z-[15] pointer-events-none bg-gradient-to-t from-black via-black/60 to-transparent'
+
+/** Message list — fixed to viewport so WKWebView pan does not shift the header. */
+export const chatRoomMessagesClass =
+  'chat-room-messages-pane fixed inset-x-0 overflow-y-auto px-[var(--chat-room-page-x)]'
+
+/** Bottom-anchored message column (newest at bottom, scroll up for history). */
+export const chatRoomMessagesInnerClass = 'chat-room-messages-inner min-h-full flex flex-col'
+export const chatRoomMessagesStackClass = 'chat-room-messages-stack flex flex-1 flex-col justify-end pb-2'
+
+/** Composer / typing / join bar dock. */
+export const chatRoomComposerDockClass =
+  'chat-room-keyboard-lift chat-room-composer-dock fixed inset-x-0 z-20 pointer-events-none'
+
+export const chatRoomScrollFabClass =
+  'chat-room-keyboard-lift chat-room-scroll-fab fixed right-4 z-10'
+
+export const chatRoomHeaderClass =
+  'chat-room-header-pinned fixed inset-x-0 z-[25] !bg-transparent pointer-events-none'
 
 /** Optional class for non-button tap targets */
 export const tapScaleClass = 'tap-scale'

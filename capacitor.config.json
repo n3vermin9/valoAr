@@ -3,6 +3,14 @@
   "appName": "valoAr",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "url": "http://192.168.3.88:5173",
+    "cleartext": true
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "none",
+      "style": "dark"
+    }
   }
 }

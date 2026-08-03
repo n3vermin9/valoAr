@@ -1,14 +1,31 @@
 import { Capacitor } from '@capacitor/core'
 
-/** True on iOS Safari / home-screen PWA where the system ↑↓ Done bar cannot be hidden. */
-export function shouldUseAppKeyboard() {
+/** Coarse pointer / iOS / Android — treat as mobile for input UX. */
+export function isMobileInputDevice() {
   if (typeof navigator === 'undefined') return false
-  // Capacitor WKWebView can hide the accessory bar — keep the system keyboard.
-  if (Capacitor.isNativePlatform()) return false
+  if (Capacitor.isNativePlatform()) return true
 
   const ua = navigator.userAgent || ''
   const iOS =
     /iPhone|iPad|iPod/i.test(ua) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  return iOS
+  if (iOS) return true
+  if (/Android/i.test(ua)) return true
+  if (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) {
+    return true
+  }
+  return false
+}
+
+/**
+ * In-app keyboard was a Safari accessory-bar workaround. Prefer the system
+ * keyboard everywhere (including iOS Safari / Capacitor).
+ */
+export function shouldUseAppKeyboard() {
+  return false
+}
+
+/** Autofocus on page load steals focus and fights the system keyboard on mobile. */
+export function allowAutofocus() {
+  return !isMobileInputDevice()
 }

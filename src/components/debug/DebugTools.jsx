@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth'
+import { createUserWithEmailAndPassword } from 'firebase/auth'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { auth } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   createUserProfile,
-  deleteAllAccountsData,
   resetAllMatchesForUser,
   suggestUniqueUsername,
 } from '../../services/userService'
@@ -59,7 +58,7 @@ function randomUserData() {
 
 export default function DebugTools() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, wipeAllAccounts } = useAuth()
   const [busy, setBusy] = useState(false)
 
   const runAction = async (fn) => {
@@ -83,12 +82,10 @@ export default function DebugTools() {
 
   const handleDeleteAll = () =>
     runAction(async () => {
-      if (!window.confirm('Delete ALL Firestore/RTDB account data? This cannot be undone.')) {
-        return
-      }
-      await deleteAllAccountsData()
-      await signOut(auth)
-      toast.success('All account data deleted (Auth logins may still exist)')
+      const result = await wipeAllAccounts()
+      toast.success(
+        `Wiped ${result?.wipedCount ?? 0} profiles (${result?.deletedDocs ?? 0} docs)`
+      )
       navigate('/login', { replace: true })
     })
 

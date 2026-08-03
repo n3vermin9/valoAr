@@ -10,14 +10,97 @@
   display: none;
 }
 
+@property --app-keyboard-inset {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 html {
   /* pan-y only: vertical scroll stays native; horizontal swipes go to JS (tab swipe). */
   touch-action: pan-y;
   -webkit-text-size-adjust: 100%;
   -ms-touch-action: pan-y;
-  /* In-app keyboard clearance on iOS Safari/PWA (see AppKeyboard). */
-  padding-bottom: var(--app-keyboard-inset, 0px);
-  transition: padding-bottom 0.2s ease;
+  --app-keyboard-inset: 0px;
+}
+
+/* Chat keyboard — animate composer dock only; message pane snaps (no bounce). */
+.chat-room-keyboard-lift {
+  transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.chat-room-composer-dock {
+  bottom: var(--app-keyboard-inset);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.chat-room-bottom-scrim {
+  bottom: 0;
+  height: calc(var(--chat-room-composer-min-height) + 1.5rem);
+}
+
+.chat-room-header-pinned {
+  position: fixed !important;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 25;
+  width: 100%;
+  transform: translate3d(0, var(--chat-header-pin-y, 0px), 0);
+  transition: none;
+  will-change: transform;
+}
+
+.chat-room-top-scrim {
+  top: 0;
+  transform: translate3d(0, var(--chat-header-pin-y, 0px), 0);
+  transition: none;
+  will-change: transform;
+}
+
+.chat-room-messages-pane {
+  top: var(--chat-room-header-height);
+  bottom: calc(
+    var(--chat-room-composer-height) +
+    var(--app-keyboard-inset) +
+    var(--chat-room-message-gap)
+  );
+  transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.chat-room-messages-inner {
+  min-height: 100%;
+}
+
+.chat-room-messages-stack {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.chat-room-scroll-fab {
+  bottom: calc(var(--chat-room-composer-min-height) + var(--app-keyboard-inset) + 0.5rem);
+  transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.page-transition-no-transform {
+  transform: none !important;
+}
+
+/* Prevent WKWebView from scrolling the layout viewport in chat. */
+html.chat-room-active,
+html.chat-room-active body {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-room-keyboard-lift,
+  .chat-room-messages-pane {
+    transition: none;
+  }
 }
 
 img,
@@ -34,13 +117,38 @@ video {
   -webkit-touch-callout: none;
 }
 
+/* WebKit: user-select:none on ancestors breaks contentEditable + can block the keyboard. */
+input,
+textarea,
+select,
+[contenteditable='true'],
+[contenteditable=''],
+.ios-emoji-field,
 [data-allow-copy] {
   user-select: text;
   -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 
 .ios-emoji-field {
   font-family: var(--ios-font), var(--ios-emoji-font);
+  /* Keep caret/keyboard alive on iOS even when empty. */
+  -webkit-user-modify: read-write;
+  cursor: text;
+}
+
+/* iOS UA styles inflate search fields once Safari chrome is gone (Cap / standalone). */
+input[type='search'] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='search']::-webkit-search-decoration,
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-results-button,
+input[type='search']::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .ios-emoji-field:empty::before,

@@ -11,6 +11,7 @@ import {
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import TextField from '../ui/TextField'
+import { allowAutofocus } from '../../utils/iosInput'
 import { createMeetup } from '../../services/meetupService'
 import { postMeetupStory } from '../../services/storyService'
 import { STORY_PRIVACY } from '../../utils/storyHelpers'
@@ -283,7 +284,7 @@ export default function CreateMeetupModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={`Meetup at ${place.name}`}
               maxLength={60}
-              autoFocus
+              autoFocus={allowAutofocus()}
             />
 
             <input

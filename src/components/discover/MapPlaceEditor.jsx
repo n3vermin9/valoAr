@@ -4,6 +4,7 @@ import { IconTrash, IconPlus, IconPhoto } from '@tabler/icons-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import TextField from '../ui/TextField'
+import { allowAutofocus } from '../../utils/iosInput'
 import { PLACE_TYPES, getPlaceTypeEmoji } from '../../utils/discoverMapData'
 import { typoTitle3Class, fieldLabelClass } from '../../utils/designSystem'
 
@@ -116,7 +117,7 @@ export default function MapPlaceEditor({ isOpen, place, onClose, onSave, onDelet
               onChange={(e) => setName(e.target.value)}
               placeholder="Place name"
               maxLength={40}
-              autoFocus={isNew}
+              autoFocus={isNew && allowAutofocus()}
             />
           </div>
         </div>

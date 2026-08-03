@@ -26,10 +26,20 @@ import { PublicProfileView } from '../profile/ProfileView'
 import StoriesHost from '../stories/StoriesHost'
 import ChevronBack from '../ui/ChevronBack'
 import { handleInputFocusCursor } from '../../utils/inputHelpers'
+import { allowAutofocus } from '../../utils/iosInput'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 import PageShell from '../layout/PageShell'
-import { pageSwitchMotion, pageSwitchTransition, pageSwitchVariants, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
+import {
+  pageSwitchMotion,
+  pageSwitchTransition,
+  pageSwitchVariants,
+  searchFieldInputClass,
+  searchFieldShellClass,
+  segmentedControlClass,
+  segmentedItemClass,
+  segmentedItemActiveClass,
+} from '../../utils/designSystem'
 import { setMapModeOverlayOpen } from '../../utils/mapModeOverlay'
 import {
   getDiscoverCardsSnapshot,
@@ -895,28 +905,30 @@ function DiscoverSearchPage({
       {isOpen && (
         <motion.div
           {...pageSwitchMotion}
-          className="fixed inset-0 z-[70] bg-black origin-center"
+          className="fixed inset-0 z-[70] bg-black origin-center flex flex-col"
         >
-          <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-white/10">
+          <div className="flex items-center gap-2 px-4 pt-[max(0.5rem,var(--ios-safe-top))] pb-2 border-b border-white/10 shrink-0">
             <ChevronBack onClick={onClose} />
-            <div className="flex-1 flex items-center bg-white/10 rounded-full border border-white/10 px-4">
-              <IconSearch size={18} className="text-white/50 mr-2 shrink-0" />
+            <div className={`flex-1 min-w-0 ${searchFieldShellClass}`}>
+              <IconSearch size={16} stroke={2} className="text-white/50 shrink-0" />
               <input
-                autoFocus
+                type="search"
+                autoFocus={allowAutofocus()}
                 value={query}
                 onChange={(e) => setQuery(e.target.value.toLowerCase())}
                 onFocus={handleInputFocusCursor}
                 onKeyDown={(e) => e.key === 'Enter' && handleEnter()}
                 placeholder="Search users and groups"
-                className="w-full py-2.5 bg-transparent outline-none text-sm"
+                className={searchFieldInputClass}
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
+                enterKeyHint="search"
               />
             </div>
           </div>
 
-          <div className="h-[calc(100%-64px)] overflow-y-auto pb-24">
+          <div className="flex-1 min-h-0 overflow-y-auto pb-[max(1.5rem,var(--ios-safe-bottom))]">
             {!hasQuery && (
               <p className="px-4 pt-4 text-sm text-white/50">Search by username or public group</p>
             )}

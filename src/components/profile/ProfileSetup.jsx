@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { IconInfoCircle } from '@tabler/icons-react'
@@ -33,6 +33,10 @@ export default function ProfileSetup() {
   const [showBothInfo, setShowBothInfo] = useState(false)
   const [showGenderConfirm, setShowGenderConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!user) navigate('/login', { replace: true })
+  }, [user, navigate])
 
   const { status, error: usernameError } = useUsernameCheck(username, user?.uid)
 

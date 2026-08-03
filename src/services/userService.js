@@ -19,7 +19,12 @@ import {
   runTransaction,
 } from 'firebase/firestore'
 import { ref, set, onDisconnect, onValue, off } from 'firebase/database'
-import { db, rtdb } from '../firebase/config'
+import { auth, db, rtdb } from '../firebase/config'
+import { SEED_ACCOUNTS } from '../utils/seedAccounts'
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+} from 'firebase/auth'
 import { getCachedUser, setCachedUser, invalidateUser } from './userCache'
 import { setProfileSnapshot } from './profileSnapshotCache'
 import { preloadAvatarImage } from './avatarImageCache'
@@ -180,6 +185,8 @@ export async function createUserProfile(userId, profileData) {
       swipeCount: 0,
     })
     transaction.set(usernameRef, { userId })
+    // Allow recreating a profile after a debug wipe / account deletion tombstone.
+    transaction.delete(doc(db, 'deletedUsers', userId))
   })
 
   invalidateUser(userId)
@@ -752,6 +759,16 @@ export async function fetchDeletedUser(userId) {
   }
 }
 
+/** Clears a wipe/deletion tombstone so the Auth uid can recreate a profile. */
+export async function clearDeletedUserTombstone(userId) {
+  if (!userId) return
+  try {
+    await deleteDoc(doc(db, 'deletedUsers', userId))
+  } catch {
+    // ignore missing / permission noise
+  }
+}
+
 export async function deleteAccount(userId, username) {
   const userSnap = await getDoc(doc(db, 'users', userId))
   const userData = userSnap.data() || {}
@@ -897,31 +914,67 @@ async function collectCollectionRefs(collectionRef, into) {
   return snap.docs
 }
 
+/** Firestore rules require auth — sign into a seed account if needed for wipes. */
+async function ensureAuthForWipe() {
+  if (auth.currentUser) return auth.currentUser
+  const seed = SEED_ACCOUNTS[0]
+  if (!seed) throw new Error('No seed account available to authorize wipe')
+  try {
+    const cred = await signInWithEmailAndPassword(auth, seed.email, seed.password)
+    return cred.user
+  } catch {
+    const cred = await createUserWithEmailAndPassword(auth, seed.email, seed.password)
+    return cred.user
+  }
+}
+
 /**
  * Dev/debug wipe of app data in Firestore + RTDB.
- * Does not delete Firebase Auth users (requires Admin SDK).
+ * Does not delete other Firebase Auth users (requires Admin SDK).
  */
 export async function deleteAllAccountsData() {
+  await ensureAuthForWipe()
+
   const refs = []
+  const wipedUsers = []
+  const seen = new Set()
+
+  const pushRef = (docRef) => {
+    if (!docRef?.path || seen.has(docRef.path)) return
+    seen.add(docRef.path)
+    refs.push(docRef)
+  }
 
   const usersSnap = await getDocs(collection(db, 'users'))
   for (const userDoc of usersSnap.docs) {
     const uid = userDoc.id
+    wipedUsers.push({
+      uid,
+      username: normalizeUsername(userDoc.data()?.username || '') || 'User',
+    })
 
-    await collectCollectionRefs(collection(db, 'users', uid, 'likesReceived'), refs)
-    await collectCollectionRefs(collection(db, 'users', uid, 'inbox'), refs)
-    await collectCollectionRefs(collection(db, 'users', uid, 'storyViews'), refs)
+    for (const d of await collectCollectionRefs(collection(db, 'users', uid, 'likesReceived'), [])) {
+      pushRef(d.ref)
+    }
+    for (const d of await collectCollectionRefs(collection(db, 'users', uid, 'inbox'), [])) {
+      pushRef(d.ref)
+    }
+    for (const d of await collectCollectionRefs(collection(db, 'users', uid, 'storyViews'), [])) {
+      pushRef(d.ref)
+    }
 
     const storiesSnap = await getDocs(collection(db, 'users', uid, 'stories'))
     for (const storyDoc of storiesSnap.docs) {
-      await collectCollectionRefs(
+      for (const d of await collectCollectionRefs(
         collection(db, 'users', uid, 'stories', storyDoc.id, 'views'),
-        refs
-      )
-      refs.push(storyDoc.ref)
+        []
+      )) {
+        pushRef(d.ref)
+      }
+      pushRef(storyDoc.ref)
     }
 
-    refs.push(userDoc.ref)
+    pushRef(userDoc.ref)
   }
 
   for (const name of [
@@ -932,20 +985,47 @@ export async function deleteAllAccountsData() {
     'meetups',
     'mapPlaces',
   ]) {
-    await collectCollectionRefs(collection(db, name), refs)
+    for (const d of await collectCollectionRefs(collection(db, name), [])) {
+      pushRef(d.ref)
+    }
   }
 
   const chatsSnap = await getDocs(collection(db, 'chats'))
   for (const chatDoc of chatsSnap.docs) {
-    await collectCollectionRefs(collection(db, 'chats', chatDoc.id, 'messages'), refs)
-    await collectCollectionRefs(collection(db, 'chats', chatDoc.id, 'joinRequests'), refs)
-    refs.push(chatDoc.ref)
+    for (const d of await collectCollectionRefs(collection(db, 'chats', chatDoc.id, 'messages'), [])) {
+      pushRef(d.ref)
+    }
+    for (const d of await collectCollectionRefs(
+      collection(db, 'chats', chatDoc.id, 'joinRequests'),
+      []
+    )) {
+      pushRef(d.ref)
+    }
+    pushRef(chatDoc.ref)
   }
 
   await commitDeleteRefs(refs)
 
+  // Tombstone wiped Auth users so clients sign out to /login instead of /setup.
+  for (let i = 0; i < wipedUsers.length; i += 400) {
+    const batch = writeBatch(db)
+    for (const { uid, username } of wipedUsers.slice(i, i + 400)) {
+      batch.set(doc(db, 'deletedUsers', uid), {
+        username,
+        deletedAt: serverTimestamp(),
+        wiped: true,
+      })
+    }
+    await batch.commit()
+  }
+
   // Clear Realtime Database app state (presence, typing, etc.).
-  await set(ref(rtdb), null)
+  try {
+    await set(ref(rtdb), null)
+  } catch (err) {
+    reportBackgroundError('RTDB wipe failed', err)
+  }
 
   clearAllAppCaches()
+  return { wipedCount: wipedUsers.length, deletedDocs: refs.length }
 }

@@ -52,6 +52,12 @@ import {
   chatFloatingButtonClass,
   chatRoomTopScrimClass,
   chatRoomBottomScrimClass,
+  chatRoomMessagesClass,
+  chatRoomComposerDockClass,
+  chatRoomScrollFabClass,
+  chatRoomHeaderClass,
+  chatRoomMessagesInnerClass,
+  chatRoomMessagesStackClass,
 } from '../../utils/designSystem'
 import GlassNavBar from '../layout/GlassNavBar'
 import ChevronBack from '../ui/ChevronBack'
@@ -96,6 +102,7 @@ import { getStoryReplyDisplay, storyOpenOriginFromRect } from '../../utils/story
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
 import UsernameLabel from '../ui/UsernameLabel'
+import { activateChatHeaderPin } from '../../utils/keyboardFocus'
 
 function getMessageTimeMs(message) {
   if (message.pending) {
@@ -197,6 +204,7 @@ export default function ChatRoom() {
   const messagesEndRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
+  const composerDockRef = useRef(null)
   const stickToBottomRef = useRef(true)
   const typingTimeoutRef = useRef(null)
   const menuButtonRef = useRef(null)
@@ -296,6 +304,16 @@ export default function ChatRoom() {
     setSearchMatchIndex(0)
   }
   const militaryTime = usesMilitaryTime(profile)
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.add('chat-room-active')
+    const stopPin = activateChatHeaderPin()
+    return () => {
+      root.classList.remove('chat-room-active')
+      stopPin()
+    }
+  }, [matchId])
 
   useEffect(() => {
     messagesRef.current = messages
@@ -556,6 +574,38 @@ export default function ChatRoom() {
     el.addEventListener('scroll', updateScrollToBottom, { passive: true })
     return () => el.removeEventListener('scroll', updateScrollToBottom)
   }, [updateScrollToBottom, matchId, messages.length])
+
+  useLayoutEffect(() => {
+    const dock = composerDockRef.current
+    if (!dock) return undefined
+
+    const root = document.documentElement
+    const updateComposerHeight = () => {
+      const height = Math.ceil(dock.getBoundingClientRect().height)
+      if (height > 0) root.style.setProperty('--chat-room-composer-height', `${height}px`)
+    }
+
+    updateComposerHeight()
+    const observer = new ResizeObserver(updateComposerHeight)
+    observer.observe(dock)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [matchId, loading])
+
+  useEffect(() => {
+    const el = messagesContainerRef.current
+    if (!el) return undefined
+
+    const observer = new ResizeObserver(() => {
+      if (!stickToBottomRef.current) return
+      el.scrollTop = el.scrollHeight
+    })
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [matchId, loading])
 
   useLayoutEffect(() => {
     if (deleteTarget) return
@@ -1261,28 +1311,101 @@ export default function ChatRoom() {
   }
 
   return (
+    <>
+      {createPortal(
+        <>
+          <div
+            aria-hidden
+            className={chatRoomTopScrimClass}
+            style={{ height: 'calc(var(--chat-room-header-height) + 1rem)' }}
+          />
+          <GlassNavBar liquid className={chatRoomHeaderClass}>
+            <div className="pointer-events-auto flex items-center w-full gap-2.5 h-12">
+              <div
+                className={`shrink-0 overflow-hidden transition-[width] duration-300 ${
+                  showSearch ? 'w-0 pointer-events-none' : 'w-12'
+                }`}
+              >
+                <ChevronBack
+                  onClick={() => (isGroupPreview ? navigate(previewReturnTo) : navigate('/chats'))}
+                  buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+                  className="w-6 h-6"
+                />
+              </div>
+
+              <div className="flex min-w-0 flex-1 justify-center">
+                <ChatHeaderCenter
+                  showSearch={showSearch}
+                  isSavedMessages={isSavedMessages}
+                  isGroupChat={isGroup}
+                  groupName={groupName}
+                  groupPhotoUrl={chatMeta?.photoUrl}
+                  otherDisplayName={otherDisplayName}
+                  otherUser={otherUser}
+                  opponentRemoved={opponentRemoved}
+                  presence={presence}
+                  isTyping={isTyping}
+                  isMuted={isGroupPreview ? false : isMuted}
+                  isTemporary={chatMeta?.isMeetup || Boolean(chatMeta?.expiresAt)}
+                  statusText={statusText}
+                  typingText={typingHeaderText}
+                  statusColor={statusColorHeader}
+                  onOpenProfile={openProfile}
+                  searchQuery={searchQuery}
+                  onSearchQueryChange={(value) => {
+                    setSearchQuery(value)
+                    setSearchMatchIndex(0)
+                    setShowSearchResultsList(false)
+                  }}
+                  onSearchPrev={goToOlderSearchMessage}
+                  onSearchNext={goToNewerSearchMessage}
+                  onSearchClose={closeSearch}
+                />
+              </div>
+
+              <div className="shrink-0 w-12 flex justify-end">
+                {showSearch ? (
+                  <button
+                    type="button"
+                    onClick={closeSearch}
+                    className={`${chatFloatingButtonClass} text-white/80 shrink-0`}
+                    aria-label="Close search"
+                  >
+                    <IconX size={22} stroke={2} />
+                  </button>
+                ) : isGroupPreview ? (
+                  <span className="w-12 h-12 shrink-0" aria-hidden />
+                ) : (
+                  <button
+                    ref={menuButtonRef}
+                    type="button"
+                    onClick={() => setShowMenu((open) => !open)}
+                    className={`${chatFloatingButtonClass} text-white/80`}
+                    aria-label="Chat options"
+                  >
+                    <IconDotsVertical size={22} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </GlassNavBar>
+        </>,
+        document.body
+      )}
     <div className="h-full flex flex-col">
       {headerMenu}
       <div className="relative flex-1 min-h-0">
         <ChatBackground profile={profile} className="absolute inset-0" />
-        <div
-          aria-hidden
-          className={chatRoomTopScrimClass}
-          style={{ height: 'calc(var(--chat-room-header-height) + 1rem)' }}
-        />
-        <div
-          aria-hidden
-          className={chatRoomBottomScrimClass}
-          style={{ height: 'calc(var(--chat-room-composer-min-height) + 1.5rem)' }}
-        />
+        <div aria-hidden className={chatRoomBottomScrimClass} />
         <div
           ref={messagesContainerRef}
-          className={`absolute inset-0 overflow-y-auto px-[var(--chat-room-page-x)] pt-[var(--chat-room-header-height)] pb-[var(--chat-room-composer-min-height)] ${
+          className={`${chatRoomMessagesClass} ${
             deleteTarget ? '!pb-52 pointer-events-none' : ''
           }`}
         >
-          <div className="sticky top-0 z-10 mb-3 flex justify-center pointer-events-none min-h-0">
+          <div className={chatRoomMessagesInnerClass}>
             {pinnedMessage ? (
+              <div className="sticky top-0 z-10 mb-3 flex justify-center pointer-events-none min-h-0 shrink-0">
                 <motion.button
                   key={pinnedMessage.id}
                   type="button"
@@ -1358,8 +1481,9 @@ export default function ChatRoom() {
                     </span>
                   )}
                 </motion.button>
-              ) : null}
-          </div>
+              </div>
+            ) : null}
+            <div className={chatRoomMessagesStackClass}>
           {isMeetupChat && !hasMeetupInfoMessage ? (
             <MeetupPinnedInfo
               meetupId={chatMeta?.meetupId}
@@ -1436,6 +1560,8 @@ export default function ChatRoom() {
             )
           })}
           <div ref={messagesEndRef} />
+            </div>
+          </div>
         </div>
 
         <AnimatePresence>
@@ -1464,8 +1590,7 @@ export default function ChatRoom() {
               exit={{ opacity: 0, scale: 0.85, y: 8 }}
               transition={{ duration: 0.18 }}
               onClick={scrollToBottom}
-              className={`absolute right-4 z-10 ${chatFloatingButtonClass} text-white/80`}
-              style={{ bottom: 'calc(var(--chat-room-composer-min-height) + 0.5rem)' }}
+              className={`${chatRoomScrollFabClass} ${chatFloatingButtonClass} text-white/80`}
               aria-label="Scroll to bottom"
             >
               <IconChevronDown size={22} />
@@ -1473,78 +1598,11 @@ export default function ChatRoom() {
           )}
         </AnimatePresence>
 
-        <GlassNavBar liquid className="absolute top-0 inset-x-0 z-20 !bg-transparent pointer-events-none">
-          <div className="pointer-events-auto flex items-center w-full gap-2.5 h-12">
-            <div
-              className={`shrink-0 overflow-hidden transition-[width] duration-300 ${
-                showSearch ? 'w-0 pointer-events-none' : 'w-12'
-              }`}
-            >
-              <ChevronBack
-                onClick={() => (isGroupPreview ? navigate(previewReturnTo) : navigate('/chats'))}
-                buttonClassName={`${chatFloatingButtonClass} text-white/80`}
-                className="w-6 h-6"
-              />
-            </div>
-
-            <div className="flex min-w-0 flex-1 justify-center">
-              <ChatHeaderCenter
-                showSearch={showSearch}
-                isSavedMessages={isSavedMessages}
-                isGroupChat={isGroup}
-                groupName={groupName}
-                groupPhotoUrl={chatMeta?.photoUrl}
-                otherDisplayName={otherDisplayName}
-                otherUser={otherUser}
-                opponentRemoved={opponentRemoved}
-                presence={presence}
-                isTyping={isTyping}
-                isMuted={isGroupPreview ? false : isMuted}
-                isTemporary={chatMeta?.isMeetup || Boolean(chatMeta?.expiresAt)}
-                statusText={statusText}
-                typingText={typingHeaderText}
-                statusColor={statusColorHeader}
-                onOpenProfile={openProfile}
-                searchQuery={searchQuery}
-                onSearchQueryChange={(value) => {
-                  setSearchQuery(value)
-                  setSearchMatchIndex(0)
-                  setShowSearchResultsList(false)
-                }}
-                onSearchPrev={goToOlderSearchMessage}
-                onSearchNext={goToNewerSearchMessage}
-                onSearchClose={closeSearch}
-              />
-            </div>
-
-            <div className="shrink-0 w-12 flex justify-end">
-              {showSearch ? (
-                <button
-                  type="button"
-                  onClick={closeSearch}
-                  className={`${chatFloatingButtonClass} text-white/80 shrink-0`}
-                  aria-label="Close search"
-                >
-                  <IconX size={22} stroke={2} />
-                </button>
-              ) : isGroupPreview ? (
-                <span className="w-12 h-12 shrink-0" aria-hidden />
-              ) : (
-                <button
-                  ref={menuButtonRef}
-                  type="button"
-                  onClick={() => setShowMenu((open) => !open)}
-                  className={`${chatFloatingButtonClass} text-white/80`}
-                  aria-label="Chat options"
-                >
-                  <IconDotsVertical size={22} />
-                </button>
-              )}
-            </div>
-          </div>
-        </GlassNavBar>
-
-        <div className="absolute bottom-0 inset-x-0 z-20 pointer-events-none">
+        <div
+          ref={composerDockRef}
+          data-chat-composer="true"
+          className={chatRoomComposerDockClass}
+        >
           <div className="pointer-events-auto">
             {!deleteTarget && iBlockedThem && (
               <div className="px-4 py-4">
@@ -1759,6 +1817,7 @@ export default function ChatRoom() {
         title={isGroup ? 'Group notifications' : 'Chat notifications'}
       />
     </div>
+    </>
   )
 }
 

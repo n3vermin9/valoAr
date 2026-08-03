@@ -318,7 +318,7 @@ export default function GroupInfoView() {
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
                   placeholder="Search members"
-                  className="w-full min-h-[40px] px-4 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 text-[15px] text-white placeholder:text-white/40 outline-none"
+                  className="w-full h-9 min-h-9 max-h-9 px-4 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 text-[15px] leading-none text-white placeholder:text-white/40 outline-none appearance-none"
                 />
               </div>
             )}

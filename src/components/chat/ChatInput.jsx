@@ -14,6 +14,7 @@ import {
 import ChatSearchControls from './ChatSearchControls'
 import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
 import { focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
+import { allowAutofocus } from '../../utils/iosInput'
 import IosEmojiField from '../ui/IosEmojiField'
 
 const actionButtonClass = chatFloatingButtonClass
@@ -225,11 +226,13 @@ export default function ChatInput({
   }, [recording, sendingVoice, resetVoiceUi, finishRecording])
 
   useLayoutEffect(() => {
+    // User tapped Reply — focus composer so they can type (including mobile).
     if (!replyTo?.id) return
     focusTextarea(textareaRef)
   }, [replyTo?.id])
 
   useEffect(() => {
+    if (!allowAutofocus()) return undefined
     const timer = setTimeout(() => focusTextarea(textareaRef), 0)
     return () => clearTimeout(timer)
   }, [focusKey])

@@ -1,10 +1,22 @@
 import { forwardRef } from 'react'
 import { textFieldClass } from '../../utils/designSystem'
+import { allowAutofocus } from '../../utils/iosInput'
 import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
-import IosEmojiField from './IosEmojiField'
 
+/**
+ * Native <input>/<textarea> — required for the iOS system keyboard.
+ * (contentEditable TextField was blocked by WebKit + global user-select:none.)
+ */
 const TextField = forwardRef(function TextField(
-  { className = '', sanitize, onChange, onFocus, ...props },
+  {
+    className = '',
+    sanitize,
+    onChange,
+    onFocus,
+    autoFocus = false,
+    multiline = false,
+    ...props
+  },
   ref
 ) {
   const handleChange = sanitize
@@ -13,18 +25,23 @@ const TextField = forwardRef(function TextField(
       }, sanitize)
     : onChange
 
-  return (
-    <IosEmojiField
-      ref={ref}
-      className={`${textFieldClass} ${className}`}
-      onChange={handleChange}
-      onFocus={(event) => {
-        handleInputFocusCursor(event)
-        onFocus?.(event)
-      }}
-      {...props}
-    />
-  )
+  const shared = {
+    ref,
+    className: `${textFieldClass} ${className}`,
+    onChange: handleChange,
+    autoFocus: Boolean(autoFocus && allowAutofocus()),
+    onFocus: (event) => {
+      handleInputFocusCursor(event)
+      onFocus?.(event)
+    },
+    ...props,
+  }
+
+  if (multiline) {
+    return <textarea {...shared} />
+  }
+
+  return <input {...shared} />
 })
 
 export default TextField

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { IconUsers } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser } from '../../services/userService'
 import { ListSkeleton } from '../ui/Skeleton'
@@ -25,12 +26,17 @@ export default function MatchHistory({ onSelectFriend }) {
   }, [profile])
 
   return (
-    <div className="pb-4">
-      <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-4`}>Friends</h2>
+    <div className="pt-5 pb-5">
+      <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-3`}>Friends</h2>
       {loading ? (
         <ListSkeleton rows={4} className="px-[var(--ios-page-x-lg)]" />
       ) : matches.length === 0 ? (
-        <EmptyState message="No friends yet" />
+        <EmptyState
+          icon={IconUsers}
+          iconTone="blue"
+          title="No friends yet"
+          description="When you match with people, they’ll show up here."
+        />
       ) : (
         <SettingsSection>
           {matches.map((user) => (

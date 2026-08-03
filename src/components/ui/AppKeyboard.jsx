@@ -72,10 +72,8 @@ export function AppKeyboardProvider({ children }) {
   }, [session])
 
   useEffect(() => {
-    if (!session) {
-      document.documentElement.style.removeProperty('--app-keyboard-inset')
-      return undefined
-    }
+    if (!session) return undefined
+    // In-app keyboard path (disabled by default). System inset is owned by setupKeyboardInset.
     document.documentElement.style.setProperty('--app-keyboard-inset', '280px')
     const el = session.element
     const t1 = window.setTimeout(() => scrollFieldAboveKeyboard(el, { extraPad: 300 }), 40)

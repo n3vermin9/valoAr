@@ -12,6 +12,7 @@ import {
   formatFirebaseError,
 } from '../../utils/helpers'
 import { createSanitizedChangeHandler } from '../../utils/inputHelpers'
+import { allowAutofocus } from '../../utils/iosInput'
 import { normalizeSocials, SOCIAL_PLATFORMS } from '../../utils/socialLinks'
 import { setProfileEditorOpen } from '../../utils/profileOverlay'
 import AgeSlider from './AgeSlider'
@@ -251,7 +252,7 @@ export default function EditProfile({ onCancel }) {
             >
               <div className="px-[var(--ios-page-x-lg)] py-3">
                 <PhotoUrlInput
-                  autoFocus
+                  autoFocus={allowAutofocus()}
                   index={activePhotoSlot}
                   url={photos[activePhotoSlot] || ''}
                   updatePhoto={updatePhoto}

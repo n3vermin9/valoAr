@@ -269,7 +269,7 @@ export default function ProfileView() {
         <div className="fixed inset-0 z-[80] bg-black flex flex-col">
           <SubpageHeaderBar title="Settings" onBack={() => setShowSettings(false)} />
 
-          <div className="flex-1 overflow-y-auto pb-8 space-y-6">
+          <div className="flex-1 overflow-y-auto pb-[var(--ios-nav-clearance)] space-y-6">
             <SettingsSection title="Privacy">
               <div className="px-4 py-4 border-b border-white/10">
                 <p className={typoHeadlineClass}>Who can message you</p>
@@ -380,7 +380,7 @@ export default function ProfileView() {
       {showDiscoverFilters && (
         <div className="fixed inset-0 z-[90] bg-black flex flex-col">
           <SubpageHeaderBar title="Discover Filters" onBack={() => setShowDiscoverFilters(false)} />
-          <div className="flex-1 overflow-y-auto px-[var(--ios-page-x-lg)] pb-8">
+          <div className="flex-1 overflow-y-auto px-[var(--ios-page-x-lg)] pb-[var(--ios-nav-clearance)]">
             <p className={`${typoSubheadClass} mb-5`}>
               These filters are optional and only affect your Discover cards.
             </p>
@@ -738,14 +738,28 @@ export function PublicProfileView({
   const showChatTools = showMessage
   const showMuteButton = showChatTools && hasActiveChat
   const showSearchButton = showChatTools
+  const showMoreMenu = !isSelf && (isMatched || onBlock)
+
+  const profileActionCount = [
+    showAcceptRequest,
+    !showAcceptRequest && showMessage,
+    !showAcceptRequest && showSendRequest,
+    showSearchButton,
+    showMuteButton,
+    showMoreMenu,
+  ].filter(Boolean).length
+  const actionBtnClass =
+    profileActionCount === 1
+      ? `${profileActionBtnClass} !rounded-full`
+      : profileActionBtnClass
 
   const profileMenu =
-    !isSelf && (isMatched || onBlock) ? (
+    showMoreMenu ? (
       <div className="relative flex-1 min-w-0" ref={menuRef}>
         <button
           type="button"
           onClick={() => setShowMenu((open) => !open)}
-          className={`${profileActionBtnClass} w-full`}
+          className={`${actionBtnClass} w-full`}
           aria-label="More options"
         >
           <IconDotsVertical size={20} className="text-white/70" stroke={3} />
@@ -875,7 +889,7 @@ export function PublicProfileView({
                   onClick={handleAcceptRequest}
                   disabled={accepting}
                   aria-label="Accept friend request"
-                  className={profileActionBtnClass}
+                  className={actionBtnClass}
                 >
                   <IconCheck size={20} className="text-white/70" stroke={3} />
                 </button>
@@ -885,7 +899,7 @@ export function PublicProfileView({
                   type="button"
                   onClick={handleMessage}
                   aria-label="Message"
-                  className={profileActionBtnClass}
+                  className={actionBtnClass}
                 >
                   <IconMessage size={20} className="text-white/70" stroke={3} />
                 </button>
@@ -904,7 +918,7 @@ export function PublicProfileView({
                         ? 'Sending friend request'
                         : 'Send friend request'
                   }
-                  className={`group ${profileActionBtnClass}`}
+                  className={`group ${actionBtnClass}`}
                 >
                   {friendRequestPending ? (
                     <>
@@ -929,7 +943,7 @@ export function PublicProfileView({
                   type="button"
                   onClick={handleSearchChat}
                   aria-label="Search chat"
-                  className={profileActionBtnClass}
+                  className={actionBtnClass}
                 >
                   <IconSearch size={20} className="text-white/70" stroke={3} />
                 </button>
@@ -939,7 +953,7 @@ export function PublicProfileView({
                   type="button"
                   onClick={handleOpenMute}
                   aria-label="Notification settings"
-                  className={profileActionBtnClass}
+                  className={actionBtnClass}
                 >
                   {isMuted ? (
                     <IconBell size={20} className="text-white/70" stroke={3} />

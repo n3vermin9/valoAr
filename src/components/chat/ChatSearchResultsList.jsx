@@ -52,11 +52,7 @@ export default function ChatSearchResultsList({
       />
 
       <div
-        className="absolute inset-x-0 overflow-y-auto pointer-events-auto bg-[var(--ios-bg)]/95 backdrop-blur-xl"
-        style={{
-          top: 'var(--chat-room-header-height)',
-          bottom: 'var(--chat-room-composer-min-height)',
-        }}
+        className="absolute inset-x-0 overflow-y-auto pointer-events-auto bg-[var(--ios-bg)]/95 backdrop-blur-xl chat-room-messages-pane"
       >
         <div className="py-2">
           {results.map((group) => {

@@ -140,13 +140,18 @@ const IosEmojiField = forwardRef(function IosEmojiField(
     emitChange()
   }
 
+  const editable = !(props.readOnly || props.disabled)
+
   return (
     <div
       {...props}
       ref={setRefs}
-      contentEditable={props.readOnly || props.disabled ? false : true}
+      contentEditable={editable}
       suppressContentEditableWarning
       role="textbox"
+      tabIndex={editable ? 0 : -1}
+      enterKeyHint={multiline ? 'enter' : 'done'}
+      inputMode="text"
       aria-multiline={multiline || undefined}
       aria-placeholder={placeholder}
       data-placeholder={placeholder}

@@ -34,6 +34,7 @@ import {
   seedMapPlaces,
 } from '../../services/placesService'
 import { isDurovAdmin } from '../../utils/appAdmin'
+import { allowAutofocus } from '../../utils/iosInput'
 import { subscribeMeetupManager, subscribeMeetupsForPlace, joinMeetup } from '../../services/meetupService'
 import {
   photoOverlayButtonClass,
@@ -205,10 +206,24 @@ function boundsContainLatLng(bounds, lat, lng, padRatio = 0) {
   return padded.contains([lat, lng])
 }
 
+const MAP_FLY_DURATION_S = 0.7
+const MAP_FLY_EASE = 0.22
+
 function MapRecenter({ center }) {
   const map = useMap()
+  const isFirst = useRef(true)
   useEffect(() => {
-    if (center) map.setView(center, map.getZoom(), { animate: false })
+    if (!center) return
+    // First paint should snap; later recenters (e.g. “my location”) glide.
+    if (isFirst.current) {
+      isFirst.current = false
+      map.setView(center, map.getZoom(), { animate: false })
+      return
+    }
+    map.flyTo(center, map.getZoom(), {
+      duration: MAP_FLY_DURATION_S,
+      easeLinearity: MAP_FLY_EASE,
+    })
   }, [center, map])
   return null
 }
@@ -235,7 +250,10 @@ function MapFlyTo({ target }) {
     const centerPixel = L.point(markerPixel.x, markerPixel.y - desiredY + mapSize.y / 2)
     const centerLatLng = map.unproject(centerPixel, zoom)
 
-    map.flyTo(centerLatLng, zoom, { duration: 0.35, easeLinearity: 0.35 })
+    map.flyTo(centerLatLng, zoom, {
+      duration: MAP_FLY_DURATION_S,
+      easeLinearity: MAP_FLY_EASE,
+    })
   }, [target, map])
   return null
 }
@@ -329,7 +347,7 @@ function MapFlyEndNotifier({ flyKey, onEnd }) {
     }
     map.on('moveend', finish)
     // flyTo to the current view may skip moveend — still open the card.
-    const fallback = window.setTimeout(finish, 400)
+    const fallback = window.setTimeout(finish, MAP_FLY_DURATION_S * 1000 + 80)
     return () => {
       map.off('moveend', finish)
       window.clearTimeout(fallback)
@@ -1009,16 +1027,16 @@ function MeetupManager({
                     transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
                     className="absolute inset-0 flex items-center gap-1.5"
                   >
-                    <div className="flex-1 min-w-0 flex items-center gap-2 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-fill-tertiary)] px-3 h-10">
+                    <div className="flex-1 min-w-0 flex items-center gap-2 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-fill-tertiary)] px-3 h-9 min-h-9 max-h-9">
                       <IconSearch size={16} stroke={2} className="text-[var(--ios-label-tertiary)] shrink-0" />
                       <input
                         type="search"
                         value={placeSearchQuery}
                         onChange={(e) => setPlaceSearchQuery(e.target.value)}
                         onBlur={handleSearchBlur}
-                        autoFocus={searchActive}
+                        autoFocus={searchActive && allowAutofocus()}
                         placeholder="Find a place…"
-                        className="flex-1 min-w-0 bg-transparent text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none"
+                        className="flex-1 min-w-0 h-full bg-transparent text-[15px] leading-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none appearance-none"
                         aria-label="Search places"
                       />
                       {placeSearchQuery ? (

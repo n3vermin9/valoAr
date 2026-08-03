@@ -10,6 +10,7 @@ import {
   focusInputRefAtEnd,
   handleInputFocusCursor,
 } from '../../utils/inputHelpers'
+import { allowAutofocus } from '../../utils/iosInput'
 import { useGroupUsernameCheck } from '../../hooks/useGroupUsernameCheck'
 import SubpageShell from '../layout/SubpageShell'
 import { SettingsSection } from '../ui/SettingsUI'
@@ -120,7 +121,7 @@ export default function CreateGroupPage() {
             onFocus={handleInputFocusCursor}
             placeholder="e.g. Weekend crew"
             maxLength={64}
-            autoFocus
+            autoFocus={allowAutofocus()}
             className={compactInputClass}
           />
 

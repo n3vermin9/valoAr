@@ -253,8 +253,12 @@ function ChatNotificationSession({ userId, pathname, username }) {
   const openNotification = useCallback(
     (notification) => {
       dismiss(notification.id)
-      if (notification.type === 'friend_request' || notification.type === 'inbox') {
-        navigate('/liked')
+      if (notification.type === 'friend_request') {
+        navigate('/liked?tab=requests')
+        return
+      }
+      if (notification.type === 'inbox') {
+        navigate('/liked?tab=inbox')
         return
       }
       navigate(`/chats/${notification.chatId}`)

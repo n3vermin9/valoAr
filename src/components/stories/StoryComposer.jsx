@@ -17,6 +17,7 @@ import {
   storyGlassButtonClass,
 } from '../../utils/designSystem'
 import Button from '../ui/Button'
+import { allowAutofocus } from '../../utils/iosInput'
 
 const privacyOptions = [
   { id: STORY_PRIVACY.FRIENDS, label: 'Friends', icon: IconUsers },
@@ -218,7 +219,7 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
                 placeholder="What's on your mind?"
                 rows={1}
                 className="w-full max-h-full bg-transparent text-xl font-semibold leading-relaxed text-white text-center placeholder:text-white/40 outline-none resize-none border-0 whitespace-pre-wrap break-words overflow-y-auto relative z-[1]"
-                autoFocus
+                autoFocus={allowAutofocus()}
               />
               <p
                 className={`absolute bottom-4 right-4 text-xs tabular-nums z-10 ${

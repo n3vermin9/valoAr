@@ -11,8 +11,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.rootViewController = CAPBridgeViewController()
         window?.makeKeyAndVisible()
 
-        // Re-install after the WKWebView exists (AppDelegate can run too early).
+        // After WKWebView exists — Capacitor Keyboard often swizzles too early.
         KeyboardAccessoryHider.install()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            KeyboardAccessoryHider.install()
+        }
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
     }

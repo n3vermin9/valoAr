@@ -52,8 +52,17 @@
   --ios-nav-float-bottom: 16px;
   --ios-nav-clearance: 96px;
   --ios-safe-top: env(safe-area-inset-top, 0px);
+
+  --chat-header-pin-y: 0px;
   --chat-room-header-height: calc(var(--ios-safe-top) + 70px);
   --chat-room-composer-min-height: calc(92px + var(--ios-safe-bottom));
+  --chat-room-composer-height: var(--chat-room-composer-min-height);
+  --chat-room-message-gap: 8px;
+  /* System keyboard height — set at runtime by setupKeyboardInset(). */
+  --app-keyboard-inset: 0px;
+  --chat-room-bottom-clearance: calc(
+    var(--chat-room-composer-min-height) + var(--app-keyboard-inset)
+  );
   --chat-room-page-x: 10px;
 
   /* Chat UI — mobile-friendly sizing */

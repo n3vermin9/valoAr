@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { SOCIAL_PLATFORMS } from '../../utils/socialLinks'
+import { allowAutofocus } from '../../utils/iosInput'
 import AppTextInput from '../ui/AppTextInput'
 import { TelegramIcon, InstagramIcon, TikTokIcon } from './SocialIcons'
 
@@ -50,7 +51,7 @@ export default function SocialLinksEditor({ socials, onChange }) {
         <div className="mt-4 flex items-center gap-2 w-full max-w-sm">
           <span className="text-[15px] text-[var(--ios-label-secondary)] shrink-0">@</span>
           <AppTextInput
-            autoFocus
+            autoFocus={allowAutofocus()}
             label={activePlatform.label}
             value={socials[activePlatform.id] || ''}
             onChange={(e) => onChange({ ...socials, [activePlatform.id]: e.target.value })}
