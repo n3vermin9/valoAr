@@ -12,18 +12,54 @@ import { clearAllAppCaches } from '../services/appCacheClear'
 
 const AuthContext = createContext(null)
 
+const AUTH_BOOT_TIMEOUT_MS = 10000
+const PROFILE_FETCH_TIMEOUT_MS = 8000
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`))
+    }, ms)
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        window.clearTimeout(timer)
+        reject(err)
+      }
+    )
+  })
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let settled = false
+    const failSafe = window.setTimeout(() => {
+      if (settled) return
+      console.warn('Auth boot timed out — continuing without blocking the UI')
+      setLoading(false)
+    }, AUTH_BOOT_TIMEOUT_MS)
+
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
-          const userProfile = await fetchUser(firebaseUser.uid)
+          const userProfile = await withTimeout(
+            fetchUser(firebaseUser.uid),
+            PROFILE_FETCH_TIMEOUT_MS,
+            'fetchUser'
+          )
           if (!userProfile) {
-            const deleted = await fetchDeletedUser(firebaseUser.uid)
+            const deleted = await withTimeout(
+              fetchDeletedUser(firebaseUser.uid),
+              PROFILE_FETCH_TIMEOUT_MS,
+              'fetchDeletedUser'
+            )
             if (deleted) {
               try {
                 await signOut(auth)
@@ -49,14 +85,26 @@ export function AuthProvider({ children }) {
         }
       } catch (err) {
         console.error('Failed to initialize auth session', err)
-        setUser(null)
-        setProfile(null)
-        clearAllAppCaches()
+        // Keep a restored Firebase session so the shell can still render;
+        // profile can hydrate on the next refresh.
+        if (firebaseUser) {
+          setUser(firebaseUser)
+          setProfile(null)
+        } else {
+          setUser(null)
+          setProfile(null)
+          clearAllAppCaches()
+        }
       } finally {
+        settled = true
+        window.clearTimeout(failSafe)
         setLoading(false)
       }
     })
-    return unsub
+    return () => {
+      window.clearTimeout(failSafe)
+      unsub()
+    }
   }, [])
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password)
 

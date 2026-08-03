@@ -14,6 +14,7 @@ import { useGroupUsernameCheck } from '../../hooks/useGroupUsernameCheck'
 import SubpageShell from '../layout/SubpageShell'
 import { SettingsSection } from '../ui/SettingsUI'
 import Button from '../ui/Button'
+import FieldHint from '../ui/FieldHint'
 import {
   compactInputClass,
   compactInputAffixClass,
@@ -152,15 +153,23 @@ export default function CreateGroupPage() {
               className={compactInputInnerClass}
             />
           </div>
-          {isPublic && usernameError && (
-            <p className="text-red-400 text-[13px] mt-1.5">{usernameError}</p>
-          )}
-          {isPublic && !usernameError && usernameStatus === 'available' && normalizedUsername && (
-            <p className="text-green-400 text-[13px] mt-1.5">Available</p>
-          )}
-          {isPublic && usernameStatus === 'checking' && (
-            <p className={`${typoSubheadClass} mt-1.5`}>Checking…</p>
-          )}
+          <FieldHint
+            tone={
+              isPublic && usernameError
+                ? 'error'
+                : isPublic && usernameStatus === 'available' && normalizedUsername
+                  ? 'success'
+                  : 'neutral'
+            }
+          >
+            {isPublic && usernameError
+              ? usernameError
+              : isPublic && usernameStatus === 'available' && normalizedUsername
+                ? 'Available'
+                : isPublic && usernameStatus === 'checking'
+                  ? 'Checking…'
+                  : null}
+          </FieldHint>
         </EditFieldSection>
 
         <div>

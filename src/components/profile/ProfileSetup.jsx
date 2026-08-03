@@ -6,12 +6,14 @@ import { useAuth } from '../../contexts/AuthContext'
 import { createUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
 import { APP_AGE_MAX, APP_AGE_MIN, normalizeUsername } from '../../utils/helpers'
-import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
+import { createSanitizedChangeHandler } from '../../utils/inputHelpers'
+import AppTextInput from '../ui/AppTextInput'
 import AgeSlider from './AgeSlider'
 import PhotoUrlSection from './PhotoUrlSection'
 import CitySelect from './CitySelect'
 import HobbiesSelect from './HobbiesSelect'
 import Modal from '../ui/Modal'
+import FieldHint from '../ui/FieldHint'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import { pageTitleClass, typoSubheadClass, typoTitle3Class } from '../../utils/designSystem'
 import { DEFAULT_CITY_ID, normalizeCity, normalizeHobbies } from '../../utils/profileOptions'
@@ -111,20 +113,29 @@ export default function ProfileSetup() {
           <label className="text-sm text-white/60 mb-2 block">Username</label>
           <div className={`flex items-center bg-white/10 rounded-full border ${usernameBorder}`}>
             <span className="pl-4 pr-1 text-white/60">@</span>
-            <input
+            <AppTextInput
+              bare
+              label="Username"
               value={username}
               onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
-              onFocus={handleInputFocusCursor}
               placeholder="username"
-              className="flex-1 px-1 py-3 bg-transparent outline-none"
               maxLength={20}
+              className="flex-1 px-1 py-3 bg-transparent"
             />
           </div>
-          {usernameError && <p className="text-red-400 text-sm mt-1">{usernameError}</p>}
-          {!usernameError && status === 'available' && (
-            <p className="text-green-400 text-sm mt-1">This username is available</p>
-          )}
-          {status === 'checking' && <p className="text-white/50 text-sm mt-1">Checking availability...</p>}
+          <FieldHint
+            tone={
+              usernameError ? 'error' : status === 'available' ? 'success' : 'neutral'
+            }
+          >
+            {usernameError
+              ? usernameError
+              : status === 'available'
+                ? 'This username is available'
+                : status === 'checking'
+                  ? 'Checking…'
+                  : null}
+          </FieldHint>
         </div>
 
         <div>
@@ -190,13 +201,14 @@ export default function ProfileSetup() {
 
         <div>
           <label className="text-sm text-white/60 mb-2 block">Bio</label>
-          <textarea
+          <AppTextInput
+            label="Bio"
+            layout="multiline"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            onFocus={handleInputFocusCursor}
             placeholder="Tell people about yourself..."
-            className="w-full px-5 py-3 bg-white/10 rounded-2xl border border-white/10 outline-none focus:border-blue-500 resize-none h-24 whitespace-pre-wrap"
             maxLength={300}
+            className="bg-white/10"
           />
         </div>
 

@@ -8,6 +8,7 @@ import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../../u
 import { useGroupUsernameCheck } from '../../../hooks/useGroupUsernameCheck'
 import { FormSkeleton } from '../../ui/Skeleton'
 import EditSaveBar from '../../ui/EditSaveBar'
+import FieldHint from '../../ui/FieldHint'
 import PhotoUrlSection from '../../profile/PhotoUrlSection'
 import PhotoGallery from '../../ui/PhotoGallery'
 import ChevronBack from '../../ui/ChevronBack'
@@ -19,7 +20,6 @@ import {
   compactInputInnerClass,
   fieldLabelClass,
   chatFloatingButtonClass,
-  typoSubheadClass,
 } from '../../../utils/designSystem'
 
 function EditFieldSection({ children }) {
@@ -182,15 +182,31 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
                   className={compactInputInnerClass}
                 />
               </div>
-              {isPublic && usernameError && usernameChanged && (
-                <p className="text-red-400 text-[13px] mt-1.5">{usernameError}</p>
-              )}
-              {isPublic && !usernameError && usernameChanged && usernameStatus === 'available' && normalizedUsername && (
-                <p className="text-green-400 text-[13px] mt-1.5">Available</p>
-              )}
-              {usernameChanged && usernameStatus === 'checking' && (
-                <p className={`${typoSubheadClass} mt-1.5`}>Checking…</p>
-              )}
+              <FieldHint
+                tone={
+                  isPublic && usernameError && usernameChanged
+                    ? 'error'
+                    : isPublic &&
+                        !usernameError &&
+                        usernameChanged &&
+                        usernameStatus === 'available' &&
+                        normalizedUsername
+                      ? 'success'
+                      : 'neutral'
+                }
+              >
+                {isPublic && usernameError && usernameChanged
+                  ? usernameError
+                  : isPublic &&
+                      !usernameError &&
+                      usernameChanged &&
+                      usernameStatus === 'available' &&
+                      normalizedUsername
+                    ? 'Available'
+                    : usernameChanged && usernameStatus === 'checking'
+                      ? 'Checking…'
+                      : null}
+              </FieldHint>
 
               <label className={`${fieldLabelClass} mt-4`}>Bio</label>
               <input

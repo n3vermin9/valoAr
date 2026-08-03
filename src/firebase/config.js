@@ -1,7 +1,9 @@
+import { Capacitor } from '@capacitor/core'
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import {
   initializeFirestore,
+  memoryLocalCache,
   persistentLocalCache,
   persistentMultipleTabManager,
 } from 'firebase/firestore'
@@ -20,13 +22,24 @@ const firebaseConfig = {
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
 }
 
+/** iOS Safari / Capacitor WKWebView IndexedDB is flaky and surfaces as “connection lost”. */
+function preferMemoryFirestoreCache() {
+  if (typeof navigator === 'undefined') return false
+  if (Capacitor.isNativePlatform()) return true
+  const ua = navigator.userAgent || ''
+  const iOS = /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const safari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg|Firefox/i.test(ua)
+  return iOS || safari
+}
+
 const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
-// Modern persistent cache (replaces deprecated enableIndexedDbPersistence) —
-// faster warm starts and multi-tab support without a blocking post-init call.
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-})
+export const db = initializeFirestore(
+  app,
+  preferMemoryFirestoreCache()
+    ? { localCache: memoryLocalCache() }
+    : { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }
+)
 export const rtdb = getDatabase(app)
 export const storage = storageBucket ? getStorage(app, `gs://${storageBucket}`) : getStorage(app)
 

@@ -13,6 +13,19 @@ export function reportBackgroundError(label, err) {
   console.debug(label, err)
 }
 
+/** Map flaky Firebase / IndexedDB errors (esp. iOS Safari) to a clear toast. */
+export function formatFirebaseError(err, fallback = 'Something went wrong') {
+  const message = err?.message || fallback
+  if (
+    /indexed database|IOS_INDEXEDDB|connection lost|client is offline|unavailable|Failed to get document/i.test(
+      message
+    )
+  ) {
+    return 'Couldn’t save — check your connection and try again'
+  }
+  return message
+}
+
 export {
   navGlassClass,
   navGlassInnerClass,

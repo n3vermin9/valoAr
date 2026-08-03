@@ -7,8 +7,8 @@ import {
   getHobbyLabel,
   normalizeHobbies,
 } from '../../utils/profileOptions'
-import { handleInputFocusCursor } from '../../utils/inputHelpers'
 import { fieldLabelClass, typoSubheadClass } from '../../utils/designSystem'
+import AppTextInput from '../ui/AppTextInput'
 import { createCustomInterest, subscribeCustomInterests } from '../../services/interestsService'
 
 const LIST_HEIGHT = 'h-28' // fixed ~112px — fewer chips visible at once
@@ -109,12 +109,13 @@ export default function HobbiesSelect({
           size={13}
           className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
         />
-        <input
+        <AppTextInput
+          label="Search hobbies"
+          layout="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={handleInputFocusCursor}
           placeholder="Search…"
-          className="w-full h-8 pl-8 pr-3 rounded-full bg-white/[0.06] border border-white/5 text-[13px] outline-none focus:border-blue-500/60"
+          className="!h-8 !min-h-8 pl-8 pr-3 !text-[13px] bg-white/[0.06] border-white/5"
         />
       </div>
 

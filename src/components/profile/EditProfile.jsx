@@ -4,28 +4,39 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 import { updateUserProfile } from '../../services/userService'
 import { useUsernameCheck } from '../../hooks/useUsernameCheck'
-import { APP_AGE_MAX, APP_AGE_MIN, normalizeUsername, formatGenderLabel } from '../../utils/helpers'
-import { createSanitizedChangeHandler, handleInputFocusCursor } from '../../utils/inputHelpers'
+import {
+  APP_AGE_MAX,
+  APP_AGE_MIN,
+  normalizeUsername,
+  formatGenderLabel,
+  formatFirebaseError,
+} from '../../utils/helpers'
+import { createSanitizedChangeHandler } from '../../utils/inputHelpers'
 import { normalizeSocials, SOCIAL_PLATFORMS } from '../../utils/socialLinks'
 import { setProfileEditorOpen } from '../../utils/profileOverlay'
 import AgeSlider from './AgeSlider'
-import PhotoUrlSection, { getVisiblePhotoSlotCount, promotePhotoToPrimary, compactPhotos, isSampleProfilePhoto } from './PhotoUrlSection'
+import PhotoUrlSection, {
+  PhotoUrlInput,
+  getVisiblePhotoSlotCount,
+  promotePhotoToPrimary,
+  compactPhotos,
+  isSampleProfilePhoto,
+} from './PhotoUrlSection'
 import SocialLinksEditor from './SocialLinksEditor'
 import CitySelect from './CitySelect'
 import HobbiesSelect from './HobbiesSelect'
 import EditSaveBar from '../ui/EditSaveBar'
+import FieldHint from '../ui/FieldHint'
+import AppTextInput from '../ui/AppTextInput'
 import PhotoGallery from '../ui/PhotoGallery'
 import ChevronBack from '../ui/ChevronBack'
 import { SettingsSection, RoleOptionButton } from '../ui/SettingsUI'
 import {
   fieldLabelClass,
-  compactInputClass,
   compactInputAffixClass,
-  compactInputInnerClass,
   navGlassClass,
   sectionLabelClass,
   chatFloatingButtonClass,
-  typoSubheadClass,
 } from '../../utils/designSystem'
 import {
   DEFAULT_CITY_ID,
@@ -190,7 +201,7 @@ export default function EditProfile({ onCancel }) {
       toast.success('Profile updated!')
       onCancel()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(formatFirebaseError(err, 'Couldn’t update profile'))
     } finally {
       setLoading(false)
     }
@@ -239,13 +250,12 @@ export default function EditProfile({ onCancel }) {
               className="overflow-hidden bg-black"
             >
               <div className="px-[var(--ios-page-x-lg)] py-3">
-                <input
+                <PhotoUrlInput
                   autoFocus
-                  value={photos[activePhotoSlot] || ''}
-                  onChange={(e) => updatePhoto(activePhotoSlot, e.target.value)}
-                  onFocus={handleInputFocusCursor}
+                  index={activePhotoSlot}
+                  url={photos[activePhotoSlot] || ''}
+                  updatePhoto={updatePhoto}
                   placeholder={`Photo ${activePhotoSlot + 1} URL`}
-                  className={compactInputClass}
                 />
               </div>
             </motion.div>
@@ -266,32 +276,39 @@ export default function EditProfile({ onCancel }) {
             <label className={fieldLabelClass}>Username</label>
             <div className={`${compactInputAffixClass} border ${usernameBorder}`}>
               <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px] leading-none">@</span>
-              <input
+              <AppTextInput
+                bare
+                label="Username"
                 value={username}
                 onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
-                onFocus={handleInputFocusCursor}
-                className={compactInputInnerClass}
                 maxLength={20}
+                className="pl-0"
               />
             </div>
-            {usernameError && usernameChanged && (
-              <p className="text-red-400 text-[13px] mt-1.5">{usernameError}</p>
-            )}
-            {!usernameError && usernameChanged && status === 'available' && (
-              <p className="text-green-400 text-[13px] mt-1.5">Available</p>
-            )}
-            {usernameChanged && status === 'checking' && (
-              <p className={`${typoSubheadClass} mt-1.5`}>Checking…</p>
-            )}
+            <FieldHint
+              tone={
+                usernameChanged && usernameError
+                  ? 'error'
+                  : usernameChanged && status === 'available'
+                    ? 'success'
+                    : 'neutral'
+              }
+            >
+              {usernameChanged && usernameError
+                ? usernameError
+                : usernameChanged && status === 'available'
+                  ? 'Available'
+                  : usernameChanged && status === 'checking'
+                    ? 'Checking…'
+                    : null}
+            </FieldHint>
 
             <label className={`${fieldLabelClass} mt-4`}>Bio</label>
-            <input
-              type="text"
+            <AppTextInput
+              label="Bio"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              onFocus={handleInputFocusCursor}
               placeholder="Tell people about yourself…"
-              className={compactInputClass}
               maxLength={120}
             />
           </EditFieldSection>

@@ -15,6 +15,9 @@ html {
   touch-action: pan-y;
   -webkit-text-size-adjust: 100%;
   -ms-touch-action: pan-y;
+  /* In-app keyboard clearance on iOS Safari/PWA (see AppKeyboard). */
+  padding-bottom: var(--app-keyboard-inset, 0px);
+  transition: padding-bottom 0.2s ease;
 }
 
 img,

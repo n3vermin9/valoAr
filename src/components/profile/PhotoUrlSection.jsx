@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { IconPlus, IconX } from '@tabler/icons-react'
+import { IconPlus, IconX, IconCheck } from '@tabler/icons-react'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import FieldHint from '../ui/FieldHint'
 import {
   chatFloatingButtonClass,
+  compactInputAffixClass,
   photoHeroFrameClass,
   photoHeroImageClass,
 } from '../../utils/designSystem'
 import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
+import AppTextInput from '../ui/AppTextInput'
 
 const photoControlSpring = { type: 'spring', stiffness: 520, damping: 30 }
 const photoOverlayControlClass = `${chatFloatingButtonClass} text-white/80`
@@ -47,6 +50,166 @@ export function compactPhotos(photos) {
   return [...filled, '', '', ''].slice(0, photos.length)
 }
 
+function isHttpUrl(value) {
+  try {
+    const parsed = new URL(value.trim())
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function preloadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.referrerPolicy = 'no-referrer'
+    img.onload = () => resolve()
+    img.onerror = () => reject(new Error('load failed'))
+    img.src = url
+  })
+}
+
+/** Draft URL field with confirm + clear. Does not commit until the check succeeds. */
+export function PhotoUrlInput({
+  index,
+  url = '',
+  updatePhoto,
+  placeholder,
+  autoFocus = false,
+  layout = 'field',
+  initialError = '',
+}) {
+  const [draft, setDraft] = useState(url)
+  const [error, setError] = useState(initialError)
+  const [checking, setChecking] = useState(false)
+
+  useEffect(() => {
+    setDraft(url)
+    setError(initialError)
+    setChecking(false)
+  }, [url, index, initialError])
+
+  const trimmedDraft = draft.trim()
+  const canConfirm = Boolean(trimmedDraft) && !checking
+
+  const handleClear = () => {
+    setDraft('')
+    setError('')
+    setChecking(false)
+    updatePhoto(index, '')
+  }
+
+  const handleConfirm = async () => {
+    if (!trimmedDraft || checking) return
+
+    if (!isHttpUrl(trimmedDraft)) {
+      setError('Enter a valid http(s) image URL')
+      return
+    }
+
+    setChecking(true)
+    setError('')
+    try {
+      await preloadImage(trimmedDraft)
+      updatePhoto(index, trimmedDraft)
+    } catch {
+      setError('Couldn’t load this image — clear or try another URL')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleConfirm()
+    }
+  }
+
+  const controls = (
+    <>
+      {trimmedDraft ? (
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={!canConfirm}
+          className="shrink-0 pr-1.5 text-[var(--ios-blue)] disabled:opacity-40"
+          aria-label="Confirm photo URL"
+        >
+          <IconCheck size={22} stroke={2.25} />
+        </button>
+      ) : null}
+      {trimmedDraft || error || url.trim() ? (
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={checking}
+          className="shrink-0 pr-3 text-[var(--ios-label-secondary)] disabled:opacity-40"
+          aria-label="Clear photo URL"
+        >
+          <IconX size={20} stroke={2} />
+        </button>
+      ) : (
+        <span className="w-3 shrink-0" aria-hidden />
+      )}
+    </>
+  )
+
+  if (layout === 'hero') {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-5 bg-white/10">
+        <div className={`${compactInputAffixClass} border border-white/10 w-full max-w-sm`}>
+          <AppTextInput
+            bare
+            label="Photo URL"
+            layout="url"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value)
+              if (error) setError('')
+            }}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+            autoFocus={autoFocus}
+            inputMode="url"
+            className="pl-4"
+          />
+          {controls}
+        </div>
+        <FieldHint tone={error ? 'error' : 'neutral'} className="text-center px-2">
+          {checking ? 'Checking link…' : error || null}
+        </FieldHint>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-2">
+      <div className={`${compactInputAffixClass} border border-white/10`}>
+        <AppTextInput
+          bare
+          label="Photo URL"
+          layout="url"
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            if (error) setError('')
+          }}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          inputMode="url"
+          className="pl-4"
+        />
+        {controls}
+      </div>
+      <FieldHint tone={error ? 'error' : 'neutral'}>
+        {checking ? 'Checking link…' : error || null}
+      </FieldHint>
+    </div>
+  )
+}
+
 function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
   const primaryPhoto = photos[0]?.trim()
   const selectedSample = isSampleProfilePhoto(primaryPhoto) ? primaryPhoto : null
@@ -68,6 +231,7 @@ function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
           <img
             src={selectedSample}
             alt=""
+            referrerPolicy="no-referrer"
             className={isHero ? photoHeroImageClass : 'w-full h-full object-cover'}
           />
           <div aria-hidden className={photoHeroScrimClass} />
@@ -99,30 +263,16 @@ function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
             onClick={() => updatePhoto(0, url)}
             className="rounded-xl overflow-hidden border-2 border-white/10 transition-colors hover:border-white/25"
           >
-            <img src={url} alt="" className="w-full aspect-square object-cover" />
+            <img
+              src={url}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="w-full aspect-square object-cover"
+            />
           </button>
         ))}
       </div>
     </div>
-  )
-}
-
-function PhotoSlot({ index, url, updatePhoto, placeholder }) {
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    setFailed(false)
-  }, [url])
-
-  if (url.trim() && !failed) return null
-
-  return (
-    <input
-      value={url}
-      onChange={(e) => updatePhoto(index, e.target.value)}
-      placeholder={placeholder}
-      className="w-full aspect-square px-5 text-center bg-white/10 border border-white/10 outline-none focus:border-blue-500 rounded-none border-x-0 border-t-0"
-    />
   )
 }
 
@@ -140,6 +290,7 @@ function HeroPhotoSection({
   const [showPhotoControls, setShowPhotoControls] = useState(false)
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
   const [currentViewIndex, setCurrentViewIndex] = useState(0)
+  const [brokenIndex, setBrokenIndex] = useState(null)
   const prevEntryCount = useRef(0)
   const photoTapTimeoutRef = useRef(null)
 
@@ -164,6 +315,7 @@ function HeroPhotoSection({
     if (entryCount === 0) {
       setCurrentViewIndex(0)
       prevEntryCount.current = 0
+      setBrokenIndex(null)
       return
     }
     if (entryCount > prevEntryCount.current) {
@@ -173,6 +325,10 @@ function HeroPhotoSection({
     }
     prevEntryCount.current = entryCount
   }, [entryCount, currentViewIndex])
+
+  useEffect(() => {
+    setBrokenIndex(null)
+  }, [currentEntry?.url])
 
   useEffect(() => {
     return () => {
@@ -275,12 +431,21 @@ function HeroPhotoSection({
 
       {showHeroFrame ? (
       <div className={photoHeroFrameClass}>
-        {!hasPhotos ? (
-          <PhotoSlot
-            index={0}
-            url={photos[0]}
-            updatePhoto={updatePhoto}
+        {!hasPhotos || brokenIndex === currentEntry?.index ? (
+          <PhotoUrlInput
+            index={brokenIndex ?? 0}
+            url={brokenIndex != null ? photos[brokenIndex] : ''}
+            updatePhoto={(i, value) => {
+              setBrokenIndex(null)
+              updatePhoto(i, value)
+            }}
             placeholder="Photo URL (required)"
+            layout="hero"
+            initialError={
+              brokenIndex != null
+                ? 'Couldn’t load this image — clear or try another URL'
+                : ''
+            }
           />
         ) : (
           <>
@@ -288,7 +453,9 @@ function HeroPhotoSection({
               key={currentEntry.url}
               src={currentEntry.url}
               alt=""
+              referrerPolicy="no-referrer"
               className={photoHeroImageClass}
+              onError={() => setBrokenIndex(currentEntry.index)}
             />
 
             {hasMultiplePhotos ? (
@@ -406,6 +573,62 @@ function HeroPhotoSection({
   )
 }
 
+function PhotoUrlSlotPreview({ index, url, updatePhoto, filledInVisible, placeholder }) {
+  const [broken, setBroken] = useState(false)
+  const trimmed = url?.trim() || ''
+
+  useEffect(() => {
+    setBroken(false)
+  }, [trimmed])
+
+  if (!trimmed || broken) {
+    return (
+      <PhotoUrlInput
+        index={index}
+        url={broken ? trimmed : ''}
+        updatePhoto={(i, value) => {
+          setBroken(false)
+          updatePhoto(i, value)
+        }}
+        placeholder={placeholder}
+        initialError={
+          broken ? 'Couldn’t load this image — clear or try another URL' : ''
+        }
+      />
+    )
+  }
+
+  return (
+    <div className={`mb-4 w-full relative ${filledInVisible === 1 ? '' : 'flex justify-start'}`}>
+      <div
+        className={`overflow-hidden border border-white/10 ${
+          filledInVisible === 1
+            ? 'w-full aspect-square rounded-2xl'
+            : 'w-24 h-24 rounded-2xl shrink-0'
+        }`}
+      >
+        <img
+          src={trimmed}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="block h-full w-full object-cover object-center"
+          onError={() => setBroken(true)}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => updatePhoto(index, '')}
+        className={`absolute z-10 ${photoOverlayControlClass} ${
+          filledInVisible === 1 ? 'top-3 right-3' : 'top-1 right-1 scale-90'
+        }`}
+        aria-label="Remove photo"
+      >
+        <IconX size={filledInVisible === 1 ? 24 : 18} stroke={2} />
+      </button>
+    </div>
+  )
+}
+
 export default function PhotoUrlSection({
   photos,
   updatePhoto,
@@ -450,36 +673,15 @@ export default function PhotoUrlSection({
       {Array.from({ length: visiblePhotoSlots }).map((_, i) => {
         if (i === 0 && primarySampleSelected) return null
 
-        const hasPreview = photos[i]?.trim()
-
         return (
-          <div
+          <PhotoUrlSlotPreview
             key={i}
-            className={hasPreview ? `mb-4 w-full ${filledInVisible === 1 ? '' : 'flex justify-start'}` : undefined}
-          >
-            {hasPreview ? (
-              <div
-                className={`overflow-hidden border border-white/10 ${
-                  filledInVisible === 1
-                    ? 'w-full aspect-square rounded-2xl'
-                    : 'w-24 h-24 rounded-2xl shrink-0'
-                }`}
-              >
-                <img
-                  src={photos[i]}
-                  alt=""
-                  className="block h-full w-full object-cover object-center"
-                />
-              </div>
-            ) : (
-              <input
-                value={photos[i]}
-                onChange={(e) => updatePhoto(i, e.target.value)}
-                placeholder={i === 0 ? 'Photo URL (required)' : `Photo ${i + 1} URL (optional)`}
-                className="w-full px-5 py-3 bg-white/10 rounded-full border border-white/10 outline-none focus:border-blue-500 mb-2"
-              />
-            )}
-          </div>
+            index={i}
+            url={photos[i]}
+            updatePhoto={updatePhoto}
+            filledInVisible={filledInVisible}
+            placeholder={i === 0 ? 'Photo URL (required)' : `Photo ${i + 1} URL (optional)`}
+          />
         )
       })}
 
