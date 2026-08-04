@@ -17,7 +17,7 @@ import {
   storyGlassButtonClass,
 } from '../../utils/designSystem'
 import Button from '../ui/Button'
-import { allowAutofocus } from '../../utils/iosInput'
+import { useOverlayKeyboardInset } from '../../hooks/useOverlayKeyboardInset'
 
 const privacyOptions = [
   { id: STORY_PRIVACY.FRIENDS, label: 'Friends', icon: IconUsers },
@@ -31,6 +31,7 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
   const [posting, setPosting] = useState(false)
   const [showColorMenu, setShowColorMenu] = useState(false)
   const textareaRef = useRef(null)
+  const previewRef = useRef(null)
   const colorMenuRef = useRef(null)
 
   const previewClass = getStoryColorClass(color)
@@ -39,6 +40,12 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
   const activePrivacy =
     privacyOptions.find((option) => option.id === privacy) || privacyOptions[0]
   const ActivePrivacyIcon = activePrivacy.icon
+  const {
+    inset: keyboardInset,
+    keyboardOpen,
+    ease: keyboardEase,
+    ms: keyboardMs,
+  } = useOverlayKeyboardInset(isOpen)
 
   const closeMenus = useCallback(() => {
     setShowColorMenu(false)
@@ -52,9 +59,12 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
 
   const syncTextareaHeight = useCallback(() => {
     const el = textareaRef.current
-    if (!el?.parentElement) return
-    el.style.height = '0px'
-    const maxHeight = el.parentElement.clientHeight
+    const preview = previewRef.current
+    if (!el || !preview) return
+    const maxHeight = preview.clientHeight
+    if (maxHeight <= 0) return
+    // Grow with content without collapsing to 0 (avoids jump during keyboard animation).
+    el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`
   }, [])
 
@@ -62,6 +72,33 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
     if (!isOpen) return
     syncTextareaHeight()
   }, [isOpen, text, syncTextareaHeight])
+
+  // Open the system keyboard as soon as the composer mounts (mobile + desktop).
+  useLayoutEffect(() => {
+    if (!isOpen) return undefined
+    const el = textareaRef.current
+    if (!el) return undefined
+    el.focus({ preventScroll: true })
+    // Retry once after paint — portal mount can race the first focus on iOS.
+    const id = window.requestAnimationFrame(() => {
+      if (document.activeElement !== el) el.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [isOpen])
+
+  // After the preview finishes resizing for the keyboard, reflow the textarea once.
+  useEffect(() => {
+    if (!isOpen) return undefined
+    const id = window.setTimeout(syncTextareaHeight, keyboardMs + 16)
+    return () => window.clearTimeout(id)
+  }, [isOpen, keyboardInset, keyboardMs, syncTextareaHeight])
+
+  useEffect(() => {
+    if (!isOpen || !previewRef.current) return undefined
+    const ro = new ResizeObserver(() => syncTextareaHeight())
+    ro.observe(previewRef.current)
+    return () => ro.disconnect()
+  }, [isOpen, syncTextareaHeight])
 
   useEffect(() => {
     setStoryComposerOpen(isOpen)
@@ -109,6 +146,14 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
     }
   }
 
+  const keepKeyboard = useCallback(
+    (e) => {
+      if (!keyboardOpen) return
+      e.preventDefault()
+    },
+    [keyboardOpen]
+  )
+
   const composerTriggerClass = `${storyGlassButtonClass} !p-2 flex items-center justify-center gap-1`
 
   if (typeof document === 'undefined') return null
@@ -117,12 +162,13 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          data-story-composer
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex flex-col"
         >
-          <div className="flex items-center justify-between px-4 pt-[calc(var(--ios-safe-top)+12px)] pb-3">
+          <div className="flex items-center justify-between px-4 pt-[calc(var(--ios-safe-top)+12px)] pb-3 shrink-0">
             <button
               type="button"
               onClick={handleClose}
@@ -135,18 +181,27 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
             <div className="w-10" />
           </div>
 
-          <div className="flex-1 flex flex-col px-4 pb-6 min-h-0">
+          <div
+            className="flex-1 flex flex-col px-4 min-h-0"
+            style={{
+              paddingBottom: `calc(${keyboardOpen ? '0.5rem' : '1.5rem'} + ${keyboardInset}px)`,
+              transition: `padding-bottom ${keyboardMs}ms ${keyboardEase}`,
+            }}
+          >
             <div
+              ref={previewRef}
               role="presentation"
               onClick={() => {
                 closeMenus()
-                textareaRef.current?.focus()
+                textareaRef.current?.focus({ preventScroll: true })
               }}
-              className={`relative flex-1 rounded-[var(--ios-radius-xl)] p-6 flex items-center justify-center min-h-0 overflow-hidden cursor-text ${previewClass}`}
+              className={`relative flex-1 rounded-[var(--ios-radius-xl)] p-5 flex items-center justify-center min-h-0 overflow-hidden cursor-text ${previewClass}`}
             >
               <div className="absolute top-4 left-4 z-20">
                 <button
                   type="button"
+                  onMouseDown={keepKeyboard}
+                  onPointerDown={keepKeyboard}
                   onClick={(e) => {
                     e.stopPropagation()
                     togglePrivacy()
@@ -162,6 +217,8 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
               <div className="absolute top-4 right-4 z-20" ref={colorMenuRef}>
                 <button
                   type="button"
+                  onMouseDown={keepKeyboard}
+                  onPointerDown={keepKeyboard}
                   onClick={(e) => {
                     e.stopPropagation()
                     setShowColorMenu((open) => !open)
@@ -184,14 +241,23 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
                     <motion.div
                       {...contextMenuMotion}
                       className={`absolute right-0 top-full mt-2 z-30 rounded-[var(--ios-radius-lg)] overflow-hidden ${navGlassMenuClass} p-2`}
+                      onMouseDown={keepKeyboard}
+                      onPointerDown={keepKeyboard}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex flex-col gap-2 items-center">
+                      <div
+                        className={`flex gap-2 items-center ${
+                          keyboardOpen ? 'flex-row' : 'flex-col'
+                        }`}
+                      >
                         {STORY_COLORS.map((entry) => (
                           <button
                             key={entry.id}
                             type="button"
-                            onClick={() => {
+                            onMouseDown={keepKeyboard}
+                            onPointerDown={keepKeyboard}
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setColor(entry.id)
                               setShowColorMenu(false)
                             }}
@@ -218,11 +284,13 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
                 onClick={(e) => e.stopPropagation()}
                 placeholder="What's on your mind?"
                 rows={1}
-                className="w-full max-h-full bg-transparent text-xl font-semibold leading-relaxed text-white text-center placeholder:text-white/40 outline-none resize-none border-0 whitespace-pre-wrap break-words overflow-y-auto relative z-[1]"
-                autoFocus={allowAutofocus()}
+                enterKeyHint="done"
+                autoCapitalize="sentences"
+                className="w-full max-h-full bg-transparent text-[22px] font-semibold leading-snug text-white text-center placeholder:text-white/45 outline-none resize-none border-0 whitespace-pre-wrap break-words overflow-y-auto relative z-[1]"
+                autoFocus
               />
               <p
-                className={`absolute bottom-4 right-4 text-xs tabular-nums z-10 ${
+                className={`absolute bottom-3 right-3 text-xs tabular-nums z-10 ${
                   remaining < 40 ? 'text-white/90' : 'text-white/50'
                 }`}
               >
@@ -230,10 +298,19 @@ export default function StoryComposer({ isOpen, onClose, userId }) {
               </p>
             </div>
 
-            <Button fullWidth onClick={handlePost} disabled={posting || !text.trim()} className="mt-4">
+            <Button
+              fullWidth
+              onClick={handlePost}
+              disabled={posting || !text.trim()}
+              className={`${keyboardOpen ? 'mt-3' : 'mt-4'} shrink-0`}
+            >
               {posting ? 'Posting...' : 'Share story'}
             </Button>
-            <p className="text-center text-xs text-[var(--ios-label-tertiary)] mt-2">
+            <p
+              className={`text-center text-xs text-[var(--ios-label-tertiary)] shrink-0 ${
+                keyboardOpen ? 'mt-1.5' : 'mt-2'
+              }`}
+            >
               Disappears after 24 hours
             </p>
           </div>

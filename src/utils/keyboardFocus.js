@@ -5,6 +5,7 @@ const FOCUSABLE =
   'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"]'
 
 const KEYBOARD_INSET_EVENT = 'app-keyboard-inset'
+const NATIVE_KEYBOARD_EVENT = 'app-native-keyboard'
 /** Match iOS keyboard animation (~250ms). */
 const KEYBOARD_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const KEYBOARD_MS = 280
@@ -19,9 +20,21 @@ let pinActive = false
 let lastPinY = -1
 let pinSettleUntil = 0
 
+function setNativeHeight(px) {
+  const next = Math.max(0, Math.round(px || 0))
+  if (next === nativeHeight) return
+  nativeHeight = next
+  // Chat may keep --app-keyboard-inset at 0 when the webview resizes; overlays
+  // still need the raw height (story composer) before visualViewport updates.
+  window.dispatchEvent(
+    new CustomEvent(NATIVE_KEYBOARD_EVENT, { detail: { height: nativeHeight } })
+  )
+}
+
 function readChatHeaderPinY() {
-  if (!pinActive || currentInset <= 0) return 0
+  if (!pinActive) return 0
   const vv = window.visualViewport
+  // Keep the header on the visible top even when WKWebView / Safari pans the layout.
   return vv ? Math.max(0, Math.round(vv.offsetTop)) : 0
 }
 
@@ -37,31 +50,44 @@ function scheduleChatHeaderPin() {
   pinRafId = requestAnimationFrame(() => {
     pinRafId = 0
     applyChatHeaderPin()
-    const keepPolling =
-      pinActive && (currentInset > 0 || performance.now() < pinSettleUntil)
-    if (keepPolling) scheduleChatHeaderPin()
   })
 }
 
-/** Web-only — counter-pans header when the browser shifts visualViewport. */
+/** Keep chat header locked to the visible viewport top (web + native). */
 export function activateChatHeaderPin() {
-  if (Capacitor.isNativePlatform()) return () => {}
-
   pinActive = true
   lastPinY = -1
-  scheduleChatHeaderPin()
+  applyChatHeaderPin()
 
   const vv = window.visualViewport
-  const onViewportChange = () => scheduleChatHeaderPin()
+  const onViewportChange = () => {
+    lastPinY = -1
+    scheduleChatHeaderPin()
+    // Follow the keyboard animation for a short window.
+    pinSettleUntil = performance.now() + 320
+    const poll = () => {
+      if (!pinActive) return
+      applyChatHeaderPin()
+      if (performance.now() < pinSettleUntil) {
+        pinRafId = requestAnimationFrame(poll)
+      } else {
+        pinRafId = 0
+      }
+    }
+    if (!pinRafId) pinRafId = requestAnimationFrame(poll)
+  }
   vv?.addEventListener('scroll', onViewportChange)
   vv?.addEventListener('resize', onViewportChange)
+  window.addEventListener('resize', onViewportChange)
 
   return () => {
     pinActive = false
     pinSettleUntil = 0
     vv?.removeEventListener('scroll', onViewportChange)
     vv?.removeEventListener('resize', onViewportChange)
+    window.removeEventListener('resize', onViewportChange)
     if (pinRafId) cancelAnimationFrame(pinRafId)
+    pinRafId = 0
     lastPinY = 0
     document.documentElement.style.setProperty('--chat-header-pin-y', '0px')
   }
@@ -138,7 +164,7 @@ function parseKeyboardEventHeight(event) {
 }
 
 function onKeyboardShow(height) {
-  if (height > 0) nativeHeight = height
+  if (height > 0) setNativeHeight(height)
   if (Capacitor.isNativePlatform()) {
     setAppKeyboardInset(resolveNativeComposerInset())
     resetDocumentScroll()
@@ -148,7 +174,7 @@ function onKeyboardShow(height) {
 }
 
 function onKeyboardHide() {
-  nativeHeight = 0
+  setNativeHeight(0)
   viewportHeight = 0
   if (Capacitor.isNativePlatform()) {
     setAppKeyboardInset(0)
@@ -203,7 +229,7 @@ export function setupKeyboardInset() {
     }
     if (rafId) cancelAnimationFrame(rafId)
     if (pinRafId) cancelAnimationFrame(pinRafId)
-    nativeHeight = 0
+    setNativeHeight(0)
     viewportHeight = 0
     currentInset = 0
     document.documentElement.style.setProperty('--app-keyboard-inset', '0px')
@@ -238,6 +264,18 @@ export function onAppKeyboardInset(handler) {
 
 export function getAppKeyboardInset() {
   return currentInset
+}
+
+/** Raw Capacitor keyboard height (may be >0 while --app-keyboard-inset is 0). */
+export function getNativeKeyboardHeight() {
+  return nativeHeight
+}
+
+export function onNativeKeyboardHeight(handler) {
+  const listener = (event) => handler(event.detail?.height || 0)
+  window.addEventListener(NATIVE_KEYBOARD_EVENT, listener)
+  handler(nativeHeight)
+  return () => window.removeEventListener(NATIVE_KEYBOARD_EVENT, listener)
 }
 
 export { KEYBOARD_EASE, KEYBOARD_MS }
