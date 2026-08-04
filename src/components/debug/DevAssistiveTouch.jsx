@@ -14,9 +14,15 @@ import {
   typoCaptionClass,
 } from '../../utils/designSystem'
 
+const FAB_LEFT = 16
+const FAB_BOTTOM = 110
+const FAB_SIZE = 56
+const TAP_TARGET = 5
+const TAP_WINDOW_MS = 2000
+
 /**
  * TEMP floating assistive-touch menu for seed accounts / wipes.
- * Remove when demo shortcuts are no longer needed.
+ * Reveal: tap 5 times on the fab’s corner position (invisible until revealed).
  */
 export default function DevAssistiveTouch() {
   const navigate = useNavigate()
@@ -26,120 +32,29 @@ export default function DevAssistiveTouch() {
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(null) // 'wipe' | 'delete-me' | null
   const rootRef = useRef(null)
-  const holdTimerRef = useRef(null)
+  const tapCountRef = useRef(0)
+  const tapTimerRef = useRef(null)
 
-  useEffect(() => {
-    const startPositions = new Map()
-    let secondaryStart = null
-    let suppressContextMenuUntil = 0
+  const resetTapCount = () => {
+    tapCountRef.current = 0
+    window.clearTimeout(tapTimerRef.current)
+    tapTimerRef.current = null
+  }
 
-    const toggleVisibility = () => {
-      holdTimerRef.current = null
+  const registerHotspotTap = () => {
+    tapCountRef.current += 1
+    window.clearTimeout(tapTimerRef.current)
+    tapTimerRef.current = window.setTimeout(resetTapCount, TAP_WINDOW_MS)
+
+    if (tapCountRef.current >= TAP_TARGET) {
+      resetTapCount()
       setOpen(false)
       setConfirm(null)
       setRevealed((visible) => !visible)
     }
+  }
 
-    const cancelHold = () => {
-      window.clearTimeout(holdTimerRef.current)
-      holdTimerRef.current = null
-      startPositions.clear()
-      secondaryStart = null
-    }
-
-    const armHold = (touches) => {
-      cancelHold()
-      if (touches.length !== 2) return
-
-      for (const touch of touches) {
-        startPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY })
-      }
-
-      holdTimerRef.current = window.setTimeout(toggleVisibility, 3000)
-    }
-
-    const onTouchStart = (event) => {
-      if (event.touches.length === 2) {
-        armHold(event.touches)
-      } else {
-        cancelHold()
-      }
-    }
-
-    const onTouchMove = (event) => {
-      if (!holdTimerRef.current || event.touches.length !== 2) {
-        cancelHold()
-        return
-      }
-
-      for (const touch of event.touches) {
-        const start = startPositions.get(touch.identifier)
-        if (
-          !start ||
-          Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 16
-        ) {
-          cancelHold()
-          return
-        }
-      }
-    }
-
-    const onTouchEnd = (event) => {
-      if (event.touches.length !== 2) cancelHold()
-    }
-
-    // A two-finger press on a Mac trackpad is exposed as a secondary pointer,
-    // not as two independent touches.
-    const onPointerDown = (event) => {
-      if (event.pointerType !== 'mouse' || event.button !== 2) return
-      cancelHold()
-      secondaryStart = { x: event.clientX, y: event.clientY }
-      holdTimerRef.current = window.setTimeout(() => {
-        suppressContextMenuUntil = Date.now() + 1000
-        toggleVisibility()
-      }, 3000)
-    }
-
-    const onPointerMove = (event) => {
-      if (!holdTimerRef.current || !secondaryStart) return
-      if (Math.hypot(event.clientX - secondaryStart.x, event.clientY - secondaryStart.y) > 16) {
-        cancelHold()
-      }
-    }
-
-    const onPointerEnd = (event) => {
-      if (event.pointerType === 'mouse' && event.button === 2) cancelHold()
-    }
-
-    const onContextMenu = (event) => {
-      if (holdTimerRef.current || Date.now() < suppressContextMenuUntil) {
-        event.preventDefault()
-      }
-    }
-
-    document.addEventListener('touchstart', onTouchStart, { capture: true, passive: true })
-    document.addEventListener('touchmove', onTouchMove, { capture: true, passive: true })
-    document.addEventListener('touchend', onTouchEnd, { capture: true, passive: true })
-    document.addEventListener('touchcancel', cancelHold, { capture: true, passive: true })
-    document.addEventListener('pointerdown', onPointerDown, true)
-    document.addEventListener('pointermove', onPointerMove, true)
-    document.addEventListener('pointerup', onPointerEnd, true)
-    document.addEventListener('pointercancel', onPointerEnd, true)
-    document.addEventListener('contextmenu', onContextMenu, true)
-
-    return () => {
-      cancelHold()
-      document.removeEventListener('touchstart', onTouchStart, true)
-      document.removeEventListener('touchmove', onTouchMove, true)
-      document.removeEventListener('touchend', onTouchEnd, true)
-      document.removeEventListener('touchcancel', cancelHold, true)
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('pointermove', onPointerMove, true)
-      document.removeEventListener('pointerup', onPointerEnd, true)
-      document.removeEventListener('pointercancel', onPointerEnd, true)
-      document.removeEventListener('contextmenu', onContextMenu, true)
-    }
-  }, [])
+  useEffect(() => () => resetTapCount(), [])
 
   useEffect(() => {
     if (!open) return undefined
@@ -193,8 +108,33 @@ export default function DevAssistiveTouch() {
 
   const otherSeeds = SEED_ACCOUNTS.filter((s) => s.username !== profile?.username)
 
-  const menu = (
-    <div ref={rootRef} className="fixed z-[320] pointer-events-auto" style={{ left: 16, bottom: 110 }}>
+  if (typeof document === 'undefined') return null
+
+  // Invisible hotspot — always present so 5 taps on this corner reveal the menu.
+  if (!revealed) {
+    return createPortal(
+      <button
+        type="button"
+        aria-label="Reveal dev menu"
+        onClick={registerHotspotTap}
+        className="fixed z-[320] opacity-0"
+        style={{
+          left: FAB_LEFT,
+          bottom: FAB_BOTTOM,
+          width: FAB_SIZE,
+          height: FAB_SIZE,
+        }}
+      />,
+      document.body
+    )
+  }
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      className="fixed z-[320] pointer-events-auto"
+      style={{ left: FAB_LEFT, bottom: FAB_BOTTOM }}
+    >
       {open ? (
         <div
           className={`${navGlassMenuClass} mb-3 w-56 overflow-hidden shadow-2xl`}
@@ -256,6 +196,21 @@ export default function DevAssistiveTouch() {
         aria-label={open ? 'Close dev menu' : 'Open dev menu'}
         disabled={busy}
         onClick={() => setOpen((v) => !v)}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return
+          const timer = window.setTimeout(() => {
+            setOpen(false)
+            setConfirm(null)
+            setRevealed(false)
+          }, 900)
+          const clear = () => {
+            window.clearTimeout(timer)
+            window.removeEventListener('pointerup', clear, true)
+            window.removeEventListener('pointercancel', clear, true)
+          }
+          window.addEventListener('pointerup', clear, true)
+          window.addEventListener('pointercancel', clear, true)
+        }}
         className="w-14 h-14 rounded-full bg-white/15 border border-white/25 backdrop-blur-xl shadow-lg flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-60"
       >
         {busy ? (
@@ -290,10 +245,7 @@ export default function DevAssistiveTouch() {
         loading={busy}
         overlayClassName="z-[400]"
       />
-    </div>
+    </div>,
+    document.body
   )
-
-  if (typeof document === 'undefined') return null
-  if (!revealed) return null
-  return createPortal(menu, document.body)
 }

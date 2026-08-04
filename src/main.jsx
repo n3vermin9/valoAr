@@ -7,13 +7,19 @@ import App from './App'
 import './index.css'
 import { setupInteractionGuards } from './utils/interactionGuards'
 import { setupNativeShell } from './native/setupNativeShell'
+import { setupSafeAreaInsets } from './native/setupSafeAreaInsets'
 import { setupKeyboardFocusScroll, setupKeyboardInset } from './utils/keyboardFocus'
 import { AppKeyboardProvider } from './components/ui/AppKeyboard'
+import { getCachedAppleEmojiDataUrl, preloadMainEmojis } from './services/emojiImageCache'
+import { setAppleEmojiLocalResolver } from './utils/iosEmoji'
 
+setAppleEmojiLocalResolver(getCachedAppleEmojiDataUrl)
 setupInteractionGuards()
+setupSafeAreaInsets()
 setupKeyboardFocusScroll()
 setupKeyboardInset()
 void setupNativeShell()
+void preloadMainEmojis()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

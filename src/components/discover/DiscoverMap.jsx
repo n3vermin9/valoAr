@@ -208,16 +208,18 @@ function boundsContainLatLng(bounds, lat, lng, padRatio = 0) {
 
 const MAP_FLY_DURATION_S = 0.7
 const MAP_FLY_EASE = 0.22
+/** Pull back one zoom step, then ease in (matches zoomSnap=0.5 → visible 1.0). */
+const MAP_OPEN_ZOOM_DELTA = 1
+const MAP_OPEN_ZOOM_DURATION_S = 0.42
 
 function MapRecenter({ center }) {
   const map = useMap()
   const isFirst = useRef(true)
   useEffect(() => {
     if (!center) return
-    // First paint should snap; later recenters (e.g. “my location”) glide.
+    // First paint snaps; open zoom-in is handled by MapOpenIntro.
     if (isFirst.current) {
       isFirst.current = false
-      map.setView(center, map.getZoom(), { animate: false })
       return
     }
     map.flyTo(center, map.getZoom(), {
@@ -225,6 +227,62 @@ function MapRecenter({ center }) {
       easeLinearity: MAP_FLY_EASE,
     })
   }, [center, map])
+  return null
+}
+
+/** Skip persisting the temporary zoomed-out level during open intro. */
+let mapOpenIntroActive = false
+
+/** Slight zoom-in when the map mode mounts. */
+function MapOpenIntro({ center }) {
+  const map = useMap()
+  const finishedRef = useRef(false)
+
+  useEffect(() => {
+    if (!center || finishedRef.current) return undefined
+
+    const targetZoom = mapSession.zoom || map.getZoom()
+    const startZoom = Math.max(map.getMinZoom(), targetZoom - MAP_OPEN_ZOOM_DELTA)
+
+    let cancelled = false
+    let flyDelayId = 0
+    mapOpenIntroActive = true
+
+    const finishIntro = () => {
+      mapOpenIntroActive = false
+      mapSession.zoom = targetZoom
+      mapSession.viewCenter = [center[0], center[1]]
+    }
+
+    const run = () => {
+      if (cancelled || finishedRef.current) return
+      map.invalidateSize({ animate: false })
+      map.setView(center, startZoom, { animate: false })
+      flyDelayId = window.setTimeout(() => {
+        if (cancelled || finishedRef.current) return
+        finishedRef.current = true
+        map.flyTo(center, targetZoom, {
+          duration: MAP_OPEN_ZOOM_DURATION_S,
+          easeLinearity: 0.3,
+        })
+        map.once('zoomend', finishIntro)
+        // Safety if zoomend never fires (already at target).
+        window.setTimeout(finishIntro, MAP_OPEN_ZOOM_DURATION_S * 1000 + 60)
+      }, 32)
+    }
+
+    // Defer so Strict Mode's effect re-run can still schedule a real flight,
+    // and so Leaflet has a non-zero size after the container mounts.
+    const bootId = window.setTimeout(run, 16)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(bootId)
+      window.clearTimeout(flyDelayId)
+      if (!finishedRef.current) mapOpenIntroActive = false
+    }
+  }, [center, map])
+
   return null
 }
 
@@ -286,6 +344,7 @@ function MapViewport({ onChange }) {
 function MapStatePersistor({ themeId }) {
   useMapEvents({
     moveend: (e) => {
+      if (mapOpenIntroActive) return
       const c = e.target.getCenter()
       const zoom = e.target.getZoom()
       mapSession.viewCenter = [c.lat, c.lng]
@@ -297,6 +356,7 @@ function MapStatePersistor({ themeId }) {
       })
     },
     zoomend: (e) => {
+      if (mapOpenIntroActive) return
       const c = e.target.getCenter()
       const zoom = e.target.getZoom()
       mapSession.viewCenter = [c.lat, c.lng]
@@ -1614,14 +1674,17 @@ export default function DiscoverMap({
   }
 
   return (
-    <div
+    <motion.div
       className={`flex-1 min-h-0 relative discover-map-container discover-map-theme-${theme.id}${
         addingPlace ? ' discover-map-placing' : ''
       }`}
+      initial={{ opacity: 0.86 }}
+      animate={{ opacity: 1 }}
+      transition={pageSwitchMotion.transition}
     >
       <MapContainer
         center={center}
-        zoom={mapSession.zoom}
+        zoom={Math.max(11, (mapSession.zoom || 14) - MAP_OPEN_ZOOM_DELTA)}
         minZoom={11}
         maxZoom={MAP_MAX_ZOOM}
         zoomControl={false}
@@ -1638,6 +1701,7 @@ export default function DiscoverMap({
         inertiaDeceleration={3200}
         className="h-full w-full discover-map-leaflet"
       >
+        <MapOpenIntro center={center} />
         <MapRecenter center={center} />
         <MapFlyTo target={flyTarget} />
         <MapFlyEndNotifier flyKey={flyTarget?.ts} onEnd={handleFlyEnd} />
@@ -1679,7 +1743,7 @@ export default function DiscoverMap({
       </MapContainer>
 
       {!chromeHidden && (
-        <div className="absolute top-3 left-3 right-3 z-[1100] flex items-start gap-2 pointer-events-none">
+        <div className="absolute top-[calc(var(--ios-safe-top)+12px)] left-3 right-3 z-[1100] flex items-start gap-2 pointer-events-none">
           {!meetupDraft && !editorPlace && !showSettings && !addingPlace ? (
             <div className="flex-1 min-w-0 pointer-events-auto">
               <MeetupManager
@@ -1721,7 +1785,7 @@ export default function DiscoverMap({
       )}
 
       {addingPlace && (
-        <div className="absolute top-3 left-3 right-16 z-[1100] pointer-events-none">
+        <div className="absolute top-[calc(var(--ios-safe-top)+12px)] left-3 right-16 z-[1100] pointer-events-none">
           <div className="rounded-[var(--ios-radius-lg)] border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)] px-4 py-3 text-center shadow-lg pointer-events-auto">
             <p className="text-sm font-medium text-[var(--ios-label)]">Tap the map to place a new spot</p>
             <button
@@ -1766,7 +1830,7 @@ export default function DiscoverMap({
       )}
 
       {!overlayOpen && !chromeHidden && (
-        <div className="absolute bottom-4 right-4 z-[1000] flex flex-col gap-3">
+        <div className="absolute bottom-[calc(var(--ios-safe-bottom)+1rem)] right-4 z-[1000] flex flex-col gap-3">
           {isAdmin && (
             <button
               type="button"
@@ -1864,6 +1928,6 @@ export default function DiscoverMap({
           onOpenChat?.(meetup.chatId)
         }}
       />
-    </div>
+    </motion.div>
   )
 }

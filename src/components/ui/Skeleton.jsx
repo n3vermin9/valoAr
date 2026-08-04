@@ -25,7 +25,10 @@ export function Skeleton({ className = '', rounded = 'md' }) {
 export function PageSkeleton({ className = '' }) {
   return (
     <div
-      className={cx('h-full w-full flex flex-col px-[var(--ios-page-x-lg)] pt-4 pb-8 gap-5', className)}
+      className={cx(
+        'h-full w-full flex flex-col px-[var(--ios-page-x-lg)] pt-[calc(var(--ios-safe-top)+1rem)] pb-8 gap-5',
+        className
+      )}
       role="status"
       aria-label="Loading"
     >

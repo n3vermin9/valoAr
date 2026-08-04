@@ -6,145 +6,101 @@ const FOCUSABLE =
 
 const KEYBOARD_INSET_EVENT = 'app-keyboard-inset'
 const NATIVE_KEYBOARD_EVENT = 'app-native-keyboard'
-/** Match iOS keyboard animation (~250ms). */
+/** iOS keyboard animation: 250ms with a decelerating curve. */
 const KEYBOARD_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
-const KEYBOARD_MS = 280
+const KEYBOARD_MS = 260
+/** Below this the "gap" is an accessory bar / rounding noise, not a keyboard. */
+const KEYBOARD_MIN_PX = 44
 
 let currentInset = 0
 let nativeHeight = 0
-let viewportHeight = 0
-let nativeListenersReady = false
 let rafId = 0
-let pinRafId = 0
-let pinActive = false
-let lastPinY = -1
-let pinSettleUntil = 0
+let nativeListenersReady = false
+/**
+ * While a screen owns the inset (chat room), it is the only writer. Prevents the
+ * global viewport listener and the screen from fighting over the same variable.
+ */
+let insetOwners = 0
 
 function setNativeHeight(px) {
   const next = Math.max(0, Math.round(px || 0))
   if (next === nativeHeight) return
   nativeHeight = next
-  // Chat may keep --app-keyboard-inset at 0 when the webview resizes; overlays
-  // still need the raw height (story composer) before visualViewport updates.
   window.dispatchEvent(
     new CustomEvent(NATIVE_KEYBOARD_EVENT, { detail: { height: nativeHeight } })
   )
-}
-
-function readChatHeaderPinY() {
-  if (!pinActive) return 0
-  const vv = window.visualViewport
-  // Keep the header on the visible top even when WKWebView / Safari pans the layout.
-  return vv ? Math.max(0, Math.round(vv.offsetTop)) : 0
-}
-
-function applyChatHeaderPin() {
-  const y = readChatHeaderPinY()
-  if (y === lastPinY) return
-  lastPinY = y
-  document.documentElement.style.setProperty('--chat-header-pin-y', `${y}px`)
-}
-
-function scheduleChatHeaderPin() {
-  if (pinRafId) return
-  pinRafId = requestAnimationFrame(() => {
-    pinRafId = 0
-    applyChatHeaderPin()
-  })
-}
-
-/** Keep chat header locked to the visible viewport top (web + native). */
-export function activateChatHeaderPin() {
-  pinActive = true
-  lastPinY = -1
-  applyChatHeaderPin()
-
-  const vv = window.visualViewport
-  const onViewportChange = () => {
-    lastPinY = -1
-    scheduleChatHeaderPin()
-    // Follow the keyboard animation for a short window.
-    pinSettleUntil = performance.now() + 320
-    const poll = () => {
-      if (!pinActive) return
-      applyChatHeaderPin()
-      if (performance.now() < pinSettleUntil) {
-        pinRafId = requestAnimationFrame(poll)
-      } else {
-        pinRafId = 0
-      }
-    }
-    if (!pinRafId) pinRafId = requestAnimationFrame(poll)
-  }
-  vv?.addEventListener('scroll', onViewportChange)
-  vv?.addEventListener('resize', onViewportChange)
-  window.addEventListener('resize', onViewportChange)
-
-  return () => {
-    pinActive = false
-    pinSettleUntil = 0
-    vv?.removeEventListener('scroll', onViewportChange)
-    vv?.removeEventListener('resize', onViewportChange)
-    window.removeEventListener('resize', onViewportChange)
-    if (pinRafId) cancelAnimationFrame(pinRafId)
-    pinRafId = 0
-    lastPinY = 0
-    document.documentElement.style.setProperty('--chat-header-pin-y', '0px')
-  }
 }
 
 function setAppKeyboardInset(px) {
   const next = Math.max(0, Math.round(px || 0))
   if (next === currentInset) return
   currentInset = next
+  document.documentElement.style.setProperty('--app-keyboard-inset', `${next}px`)
+  window.dispatchEvent(new CustomEvent(KEYBOARD_INSET_EVENT, { detail: { height: next } }))
+}
+
+/**
+ * How much of the layout viewport bottom the keyboard covers.
+ *
+ * Capacitor runs with `Keyboard.resize: 'none'` and scroll assist disabled, so the
+ * layout viewport keeps full screen height and `position: fixed` stays anchored to
+ * it. visualViewport reports the obscured area on most iOS versions; the plugin
+ * height covers the ones where it does not. Taking the larger of the two keeps the
+ * composer clear of the keys either way.
+ */
+export function measureKeyboardInset() {
   const root = document.documentElement
-  root.style.setProperty('--app-keyboard-inset', `${next}px`)
-  window.dispatchEvent(
-    new CustomEvent(KEYBOARD_INSET_EVENT, { detail: { height: next } })
-  )
-}
-
-function readViewportKeyboardHeight() {
+  const layoutHeight = root.clientHeight || window.innerHeight || 0
   const vv = window.visualViewport
-  if (!vv) return 0
-  const gap = window.innerHeight - vv.height - Math.max(0, vv.offsetTop)
-  return gap >= 48 ? Math.round(gap) : 0
+  const covered = vv
+    ? Math.round(layoutHeight - vv.height - Math.max(0, vv.offsetTop))
+    : 0
+
+  const raw = Math.max(nativeHeight, covered > KEYBOARD_MIN_PX ? covered : 0)
+  if (raw <= KEYBOARD_MIN_PX) return 0
+  // Never eat more than 3/4 of the screen, whatever a stale reading claims.
+  return Math.min(raw, Math.round(layoutHeight * 0.75))
 }
 
-/** Native resize shrinks the WKWebView — only lift the dock when layout viewport stays full height. */
-function resolveNativeComposerInset() {
-  const gap = readViewportKeyboardHeight()
-  if (gap >= 48) return gap
-  if (nativeHeight > 0) return 0
-  return 0
+/** visualViewport pan offset — 0 unless the webview scrolled the layout viewport. */
+export function measureViewportOffsetTop() {
+  const vv = window.visualViewport
+  return vv ? Math.max(0, Math.round(vv.offsetTop)) : 0
 }
 
-function computeInset() {
-  // On Capacitor, native plugin height is stable; viewport pan causes false spikes.
-  if (Capacitor.isNativePlatform()) {
-    if (nativeHeight > 0) return nativeHeight
-    // Closing: viewport catches the tail of the animation.
-    return viewportHeight
+/** Take over writing --app-keyboard-inset (chat room). Returns a release fn. */
+export function claimKeyboardInset() {
+  insetOwners += 1
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    insetOwners = Math.max(0, insetOwners - 1)
   }
-  return Math.max(nativeHeight, viewportHeight)
 }
 
-function applyInset() {
-  setAppKeyboardInset(computeInset())
-  resetDocumentScroll()
+/** Publish the inset from the current owner. */
+export function publishKeyboardInset(px) {
+  setAppKeyboardInset(px)
 }
 
-function resetDocumentScroll() {
-  window.scrollTo(0, 0)
+export function resetDocumentScroll() {
+  if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0)
   document.documentElement.scrollTop = 0
   document.body.scrollTop = 0
 }
-function scheduleApply() {
+
+function applyGlobalInset() {
+  if (insetOwners > 0) return
+  setAppKeyboardInset(measureKeyboardInset())
+  resetDocumentScroll()
+}
+
+function scheduleGlobalInset() {
   if (rafId) return
   rafId = requestAnimationFrame(() => {
     rafId = 0
-    viewportHeight = readViewportKeyboardHeight()
-    applyInset()
+    applyGlobalInset()
   })
 }
 
@@ -163,46 +119,22 @@ function parseKeyboardEventHeight(event) {
   return 0
 }
 
-function onKeyboardShow(height) {
-  if (height > 0) setNativeHeight(height)
-  if (Capacitor.isNativePlatform()) {
-    setAppKeyboardInset(resolveNativeComposerInset())
-    resetDocumentScroll()
-  } else {
-    scheduleApply()
-  }
-}
-
-function onKeyboardHide() {
-  setNativeHeight(0)
-  viewportHeight = 0
-  if (Capacitor.isNativePlatform()) {
-    setAppKeyboardInset(0)
-  } else {
-    scheduleApply()
-  }
-}
-
 /**
- * Drive --app-keyboard-inset from the system keyboard.
- * ChatRoom lifts the composer via CSS (see .chat-room-keyboard-lift).
+ * Drive --app-keyboard-inset from the system keyboard for screens that do not own
+ * their own layout. The chat room claims ownership and computes it itself.
  */
 export function setupKeyboardInset() {
   const vv = window.visualViewport
 
-  const onViewportChange = () => {
-    if (Capacitor.isNativePlatform()) {
-      if (nativeHeight > 0) setAppKeyboardInset(resolveNativeComposerInset())
-      return
-    }
-    scheduleApply()
-  }
-
+  const onViewportChange = () => scheduleGlobalInset()
   const onWinShow = (event) => {
-    const h = parseKeyboardEventHeight(event)
-    onKeyboardShow(h)
+    setNativeHeight(parseKeyboardEventHeight(event))
+    applyGlobalInset()
   }
-  const onWinHide = () => onKeyboardHide()
+  const onWinHide = () => {
+    setNativeHeight(0)
+    applyGlobalInset()
+  }
 
   vv?.addEventListener('resize', onViewportChange)
   vv?.addEventListener('scroll', onViewportChange)
@@ -214,7 +146,7 @@ export function setupKeyboardInset() {
     window.addEventListener('keyboardDidHide', onWinHide)
   }
 
-  scheduleApply()
+  scheduleGlobalInset()
   void attachNativeKeyboardListeners()
 
   return () => {
@@ -228,27 +160,32 @@ export function setupKeyboardInset() {
       window.removeEventListener('keyboardDidHide', onWinHide)
     }
     if (rafId) cancelAnimationFrame(rafId)
-    if (pinRafId) cancelAnimationFrame(pinRafId)
+    rafId = 0
     setNativeHeight(0)
-    viewportHeight = 0
     currentInset = 0
     document.documentElement.style.setProperty('--app-keyboard-inset', '0px')
-    document.documentElement.style.setProperty('--chat-header-pin-y', '0px')
   }
 }
 
-/** Call after Cap bridge is ready (from setupNativeShell). */
+/** Call after the Capacitor bridge is ready (from setupNativeShell). */
 export async function attachNativeKeyboardListeners() {
   if (!Capacitor.isNativePlatform() || nativeListenersReady) return
   nativeListenersReady = true
 
   try {
-    // willShow alone — didShow often fires again with a different height and causes a snap.
+    // willShow fires as the keyboard animation starts — layout in the same beat.
     await Keyboard.addListener('keyboardWillShow', (info) => {
-      onKeyboardShow(info?.keyboardHeight || 0)
+      setNativeHeight(info?.keyboardHeight || 0)
+      applyGlobalInset()
+    })
+    // didShow corrects height changes (predictive bar, hardware keyboard, language switch).
+    await Keyboard.addListener('keyboardDidShow', (info) => {
+      setNativeHeight(info?.keyboardHeight || 0)
+      applyGlobalInset()
     })
     await Keyboard.addListener('keyboardWillHide', () => {
-      onKeyboardHide()
+      setNativeHeight(0)
+      applyGlobalInset()
     })
   } catch {
     nativeListenersReady = false
@@ -266,7 +203,7 @@ export function getAppKeyboardInset() {
   return currentInset
 }
 
-/** Raw Capacitor keyboard height (may be >0 while --app-keyboard-inset is 0). */
+/** Raw Capacitor keyboard height. */
 export function getNativeKeyboardHeight() {
   return nativeHeight
 }
@@ -278,7 +215,23 @@ export function onNativeKeyboardHeight(handler) {
   return () => window.removeEventListener(NATIVE_KEYBOARD_EVENT, listener)
 }
 
-export { KEYBOARD_EASE, KEYBOARD_MS }
+/** Blur the focused field and hide the system keyboard. */
+export async function dismissAppKeyboard() {
+  const active = document.activeElement
+  if (active instanceof HTMLElement) {
+    if (active.closest?.('[data-chat-composer="true"]') || isFocusableField(active)) {
+      active.blur()
+    }
+  }
+  if (!Capacitor.isNativePlatform()) return
+  try {
+    await Keyboard.hide()
+  } catch {
+    /* plugin missing */
+  }
+}
+
+export { KEYBOARD_EASE, KEYBOARD_MS, KEYBOARD_MIN_PX }
 
 function isFocusableField(el) {
   if (!(el instanceof Element)) return false
@@ -309,22 +262,16 @@ export function scrollFieldAboveKeyboard(el, { behavior = 'smooth', extraPad = 2
   const rect = target.getBoundingClientRect()
   const desiredBottom = visibleBottom - extraPad
 
-  if (rect.bottom <= desiredBottom && rect.top >= (vv?.offsetTop || 0) + 12) {
-    return
-  }
+  if (rect.bottom <= desiredBottom && rect.top >= (vv?.offsetTop || 0) + 12) return
 
-  const delta = rect.bottom - desiredBottom
   const scroller = getScrollParent(target)
+  if (scroller === document.scrollingElement || scroller === document.documentElement) return
 
-  if (scroller === document.scrollingElement || scroller === document.documentElement) {
-    return
-  }
-
-  scroller.scrollBy({ top: delta, left: 0, behavior })
+  scroller.scrollBy({ top: rect.bottom - desiredBottom, left: 0, behavior })
 }
 
 export function setupKeyboardFocusScroll() {
-  // Native: Keyboard.setScroll({ isDisabled: true }) + fixed chat layers handle layout.
+  // Native: fixed chat layers + Keyboard.setScroll({ isDisabled: true }) handle layout.
   if (Capacitor.isNativePlatform()) return () => {}
 
   let focused = null

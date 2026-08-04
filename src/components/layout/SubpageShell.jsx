@@ -27,13 +27,13 @@ export default function SubpageShell({
   }
 
   return (
-    <div className={`h-full flex flex-col ${className}`}>
+    <div className={`h-full min-h-0 flex flex-col ${className}`}>
       <div className={subpageHeaderClass}>
         <ChevronBack onClick={handleBack} />
         <h1 className={subpageTitleClass}>{title}</h1>
         {trailing}
       </div>
-      <div className="flex-1 overflow-y-auto pb-8">{children}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto pb-8">{children}</div>
       {footer ? (
         <div className="shrink-0 px-[var(--ios-page-x-lg)] pb-[max(1.5rem,var(--ios-safe-bottom))]">
           {footer}

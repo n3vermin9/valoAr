@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -18,6 +18,7 @@ import { cancelMeetup } from '../../services/meetupService'
 import { getProfileSnapshots } from '../../services/profileSnapshotCache'
 import { preloadAvatarImages } from '../../services/avatarImageCache'
 import StoryAvatarButton from '../stories/StoryAvatarButton'
+import StoriesHost from '../stories/StoriesHost'
 import CachedAvatar from '../ui/CachedAvatar'
 import { formatChatTime, isSavedMessagesChat, isRemovedChatOpponent, getRemovedChatUsername, usesMilitaryTime } from '../../utils/helpers'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
@@ -37,6 +38,8 @@ import { logo } from '../../assets'
 
 /** Ignore empty live lists briefly so cached chats don't flash away. */
 const EMPTY_CHATS_TRUST_MS = 2000
+const STORIES_PULL_REVEAL_PX = 14
+const STORIES_BAR_MAX_H = 116
 
 export default function ChatList() {
   const { user, profile, refreshProfile } = useAuth()
@@ -52,14 +55,117 @@ export default function ChatList() {
   const [actionLoading, setActionLoading] = useState(false)
   const [chatActivity, setChatActivity] = useState({})
   const [muteModalChatId, setMuteModalChatId] = useState(null)
+  const [storiesCollapsed, setStoriesCollapsed] = useState(true)
+  const [storiesOverlayOpen, setStoriesOverlayOpen] = useState(false)
+  const [hasUnseenStories, setHasUnseenStories] = useState(false)
   const listRef = useRef(null)
   const rowRefs = useRef({})
   const chatsRef = useRef(chats)
   const usersRef = useRef(users)
   const mountAtRef = useRef(Date.now())
   const hadCachedChatsRef = useRef((snapshot?.chats || []).length > 0)
+  const storiesRevealedByPullRef = useRef(false)
+  const lastListScrollTop = useRef(0)
+  const pullStartY = useRef(0)
+  const pulling = useRef(false)
 
   const militaryTime = usesMilitaryTime(profile)
+
+  const hasConversationChats = useMemo(
+    () => chats.some((chat) => !isSavedMessagesChat(chat, user?.uid)),
+    [chats, user?.uid]
+  )
+
+  // Only Saved Messages / empty list → always show the full stories strip.
+  const forceStoriesExpanded = !hasConversationChats
+  const storiesHidden = !forceStoriesExpanded && storiesCollapsed
+
+  useEffect(() => {
+    chatsRef.current = chats
+  }, [chats])
+
+  useEffect(() => {
+    usersRef.current = users
+  }, [users])
+
+  useEffect(() => {
+    // Entering a list with real chats starts collapsed until pull.
+    if (forceStoriesExpanded) return
+    storiesRevealedByPullRef.current = false
+    setStoriesCollapsed(true)
+  }, [forceStoriesExpanded, user?.uid])
+
+  const collapseStoriesBar = useCallback(() => {
+    if (forceStoriesExpanded) return
+    storiesRevealedByPullRef.current = false
+    setStoriesCollapsed(true)
+  }, [forceStoriesExpanded])
+
+  const revealStoriesBar = useCallback(() => {
+    storiesRevealedByPullRef.current = true
+    setStoriesCollapsed(false)
+  }, [])
+
+  useEffect(() => {
+    if (forceStoriesExpanded || storiesHidden || storiesOverlayOpen) return undefined
+    const timer = window.setTimeout(collapseStoriesBar, 5000)
+    return () => window.clearTimeout(timer)
+  }, [forceStoriesExpanded, storiesHidden, storiesOverlayOpen, collapseStoriesBar])
+
+  const handleStoriesOverlayChange = useCallback((open) => {
+    setStoriesOverlayOpen(open)
+  }, [])
+
+  const handleUnseenStoriesChange = useCallback((hasUnseen) => {
+    setHasUnseenStories(hasUnseen)
+  }, [])
+
+  const handleListScroll = useCallback(
+    (e) => {
+      const top = e.currentTarget.scrollTop
+      const previousTop = lastListScrollTop.current
+      if (!forceStoriesExpanded && !storiesOverlayOpen) {
+        if (top > previousTop + 10 || top > 40) collapseStoriesBar()
+      }
+      lastListScrollTop.current = top
+    },
+    [forceStoriesExpanded, storiesOverlayOpen, collapseStoriesBar]
+  )
+
+  const handleListTouchStart = useCallback((e) => {
+    if ((listRef.current?.scrollTop ?? 0) > 0) return
+    if (forceStoriesExpanded || !storiesHidden) return
+    pullStartY.current = e.touches[0].clientY
+    pulling.current = true
+  }, [forceStoriesExpanded, storiesHidden])
+
+  const handleListTouchMove = useCallback(
+    (e) => {
+      if (!pulling.current) return
+      const dy = e.touches[0].clientY - pullStartY.current
+      if (dy > STORIES_PULL_REVEAL_PX && (listRef.current?.scrollTop ?? 0) <= 0) {
+        revealStoriesBar()
+      }
+    },
+    [revealStoriesBar]
+  )
+
+  const handleListTouchEnd = useCallback(() => {
+    pulling.current = false
+  }, [])
+
+  const handleListWheel = useCallback(
+    (e) => {
+      if (forceStoriesExpanded) return
+      if (e.deltaY > 0) {
+        if (!storiesOverlayOpen) collapseStoriesBar()
+        return
+      }
+      if ((listRef.current?.scrollTop ?? 0) > 0 || e.deltaY >= 0) return
+      revealStoriesBar()
+    },
+    [forceStoriesExpanded, storiesOverlayOpen, collapseStoriesBar, revealStoriesBar]
+  )
 
   useEffect(() => {
     chatsRef.current = chats
@@ -381,6 +487,7 @@ export default function ChatList() {
     <PageShell
       title="Chats"
       blurTitle={!!selectedChatId}
+      contentClassName="flex flex-col min-h-0"
       trailing={
         <button
           type="button"
@@ -392,12 +499,63 @@ export default function ChatList() {
         </button>
       }
     >
+      <StoriesHost
+        profile={profile}
+        friendIds={profile?.matches}
+        showBar
+        onOverlayChange={handleStoriesOverlayChange}
+        onUnseenStoriesChange={handleUnseenStoriesChange}
+        renderBar={(bar) => (
+          <motion.div
+            className="shrink-0 overflow-hidden"
+            initial={false}
+            animate={{
+              maxHeight: storiesHidden ? 0 : STORIES_BAR_MAX_H,
+              opacity: storiesHidden ? 0 : 1,
+              y: storiesHidden ? -24 : 0,
+            }}
+            transition={{
+              maxHeight: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
+              opacity: { duration: 0.26 },
+              y: { duration: 0.44, ease: [0.22, 1, 0.36, 1] },
+            }}
+            style={{
+              pointerEvents: storiesHidden ? 'none' : 'auto',
+            }}
+          >
+            {bar}
+          </motion.div>
+        )}
+      />
+      {storiesHidden ? (
+        <button
+          type="button"
+          onClick={revealStoriesBar}
+          className="h-3 shrink-0 flex items-center justify-center px-[var(--ios-page-x-lg)]"
+          aria-label={hasUnseenStories ? 'Show stories — new stories available' : 'Show stories'}
+        >
+          <span className="relative w-full max-w-[7rem] h-px rounded-full bg-white/25">
+            {hasUnseenStories ? (
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[var(--ios-green)]" />
+            ) : null}
+          </span>
+        </button>
+      ) : null}
+
       {loading && chats.length === 0 ? (
         <ListSkeleton />
       ) : chats.length === 0 ? (
         <EmptyState message="No friends yet. Start discovering people!" className="flex-1" />
       ) : (
-        <div ref={listRef} className="mt-2 overflow-y-auto relative z-10">
+        <div
+          ref={listRef}
+          className="mt-1 flex-1 min-h-0 overflow-y-auto relative z-10"
+          onScroll={handleListScroll}
+          onTouchStart={handleListTouchStart}
+          onTouchMove={handleListTouchMove}
+          onTouchEnd={handleListTouchEnd}
+          onWheel={handleListWheel}
+        >
           {chats.map((chat) => {
             const isSaved = isSavedMessagesChat(chat, user?.uid)
             const isGroup = isGroupChat(chat)

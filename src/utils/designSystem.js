@@ -44,7 +44,8 @@ export const chatFloatingButtonClass = `${chatFloatingGlassClass} liquid-glass-c
 export const photoOverlayButtonClass =
   'liquid-glass liquid-glass-circle h-12 w-12 shrink-0 flex items-center justify-center rounded-full transition-colors border border-white/20 bg-black/55 backdrop-blur-xl text-white shadow-[0_2px_14px_rgba(0,0,0,0.42)] hover:bg-black/65 active:scale-95'
 
-export const chatMessageTextClass = 'text-[16px] leading-[1.35] break-words min-w-0'
+export const chatMessageTextClass =
+  'text-[16px] leading-[1.35] break-words [overflow-wrap:anywhere] min-w-0'
 export const chatBubblePadClass = 'px-3.5 py-2'
 export const chatComposerInputClass =
   'ios-emoji-field flex-1 min-w-0 py-2.5 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-[1.25] max-h-36'
@@ -193,10 +194,10 @@ export const pageSwitchMotion = {
 
 /** Chat room — opacity only so fixed/portaled layers are not trapped in a transform. */
 export const chatPageSwitchMotion = {
-  initial: { opacity: 0.92 },
+  initial: { opacity: 0.96 },
   animate: { opacity: 1 },
-  exit: { opacity: 0, transition: pageSwitchExitTransition },
-  transition: pageSwitchTransition,
+  exit: { opacity: 0, transition: { duration: 0.16, ease: [0.4, 0, 0.2, 1] } },
+  transition: { duration: 0.2, ease: pageSwitchEase },
 }
 
 export const pageSwitchVariants = {
@@ -205,8 +206,8 @@ export const pageSwitchVariants = {
   exit: { scale: 1, opacity: 0 },
 }
 
-export const chatRoomTopScrimClass =
-  'chat-room-top-scrim fixed inset-x-0 z-[15] pointer-events-none bg-gradient-to-b from-black via-black/60 to-transparent'
+/** Header gradient — geometry and gradient live in index.css. */
+export const chatRoomTopScrimClass = 'chat-room-top-scrim fixed inset-x-0 pointer-events-none'
 
 /** Square profile/group hero — crops non-square photos to center fill */
 export const photoHeroFrameClass = 'relative w-full aspect-square overflow-hidden bg-black'
@@ -215,16 +216,13 @@ export const photoHeroFullscreenFrameClass =
 export const photoHeroImageClass =
   'absolute inset-0 block h-full w-full object-cover object-center'
 
-export const chatRoomBottomScrimClass =
-  'chat-room-bottom-scrim fixed inset-x-0 z-[15] pointer-events-none bg-gradient-to-t from-black via-black/60 to-transparent'
-
 /** Message list — fixed to viewport so WKWebView pan does not shift the header. */
 export const chatRoomMessagesClass =
-  'chat-room-messages-pane fixed inset-x-0 overflow-y-auto px-[var(--chat-room-page-x)]'
+  'chat-room-messages-pane fixed inset-x-0 overflow-x-hidden overflow-y-auto overscroll-y-contain touch-pan-y px-[var(--chat-room-page-x)]'
 
 /** Bottom-anchored message column (newest at bottom, scroll up for history). */
 export const chatRoomMessagesInnerClass = 'chat-room-messages-inner min-h-full flex flex-col'
-export const chatRoomMessagesStackClass = 'chat-room-messages-stack flex flex-1 flex-col justify-end pb-2'
+export const chatRoomMessagesStackClass = 'chat-room-messages-stack flex flex-1 flex-col justify-end pb-0'
 
 /** Composer / typing / join bar dock. */
 export const chatRoomComposerDockClass =
@@ -234,7 +232,7 @@ export const chatRoomScrollFabClass =
   'chat-room-keyboard-lift chat-room-scroll-fab fixed right-4 z-10'
 
 export const chatRoomHeaderClass =
-  'chat-room-header-pinned fixed inset-x-0 z-[25] !bg-transparent pointer-events-none'
+  'chat-room-header-pinned fixed inset-x-0 z-40 !bg-transparent pointer-events-none'
 
 /** Optional class for non-button tap targets */
 export const tapScaleClass = 'tap-scale'

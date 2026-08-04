@@ -28,6 +28,11 @@ function focusTextarea(ref) {
   focusInputRefAtEnd(ref)
 }
 
+/** Keep the composer focused so the keyboard doesn't dismiss (and jump the page). */
+function keepComposerFocus(e) {
+  e.preventDefault()
+}
+
 function stopRecorder(recorder, chunks) {
   return new Promise((resolve) => {
     if (!recorder || recorder.state === 'inactive') {
@@ -226,8 +231,12 @@ export default function ChatInput({
   }, [recording, sendingVoice, resetVoiceUi, finishRecording])
 
   useLayoutEffect(() => {
-    // User tapped Reply — focus composer so they can type (including mobile).
+    // User tapped Reply — focus immediately (same frame) so iOS keeps the keyboard
+    // tied to the gesture and the dock can lift with --app-keyboard-inset.
     if (!replyTo?.id) return
+    const el = textareaRef.current
+    if (!el) return
+    el.focus({ preventScroll: true })
     focusTextarea(textareaRef)
   }, [replyTo?.id])
 
@@ -284,7 +293,12 @@ export default function ChatInput({
     onClearImage?.()
     onClearReply?.()
     setShowEmoji(false)
-    focusTextarea(textareaRef)
+    // Already focused via keepComposerFocus on the send control — avoid a
+    // focus() cycle that briefly dismisses the iOS keyboard and jumps the page.
+    const el = textareaRef.current
+    if (el && document.activeElement !== el) {
+      focusTextarea(textareaRef)
+    }
   }
 
   const handleKeyDown = (e) => {
@@ -346,7 +360,7 @@ export default function ChatInput({
         onEmojiClick={(emoji) => setText((t) => t + emoji)}
       />
 
-      <div className="overflow-hidden px-4 py-3 shrink-0 min-h-[76px]">
+      <div className="overflow-hidden px-4 pt-3 pb-3 shrink-0 min-h-[76px]">
         {searchActive ? (
           <ChatSearchControls
             matchIndex={searchMatchIndex}
@@ -445,6 +459,8 @@ export default function ChatInput({
             {showSend ? (
               <button
                 type="button"
+                onMouseDown={keepComposerFocus}
+                onPointerDown={keepComposerFocus}
                 onClick={handleSend}
                 className={`${actionButtonClass} text-blue-400 hover:text-blue-300`}
               >

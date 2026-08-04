@@ -1,68 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  getNativeKeyboardHeight,
   onNativeKeyboardHeight,
-  getAppKeyboardInset,
   onAppKeyboardInset,
+  measureKeyboardInset,
   KEYBOARD_EASE,
   KEYBOARD_MS,
 } from '../utils/keyboardFocus'
 
-function readVisualGap() {
-  const vv = window.visualViewport
-  if (!vv) return 0
-  const gap = window.innerHeight - vv.height - Math.max(0, vv.offsetTop)
-  return gap >= 48 ? Math.round(gap) : 0
-}
-
 /**
- * Keyboard inset for fixed overlays (story composer).
- *
- * Chat keeps --app-keyboard-inset at 0 when resize:native shrinks the webview.
- * Overlays still need padding when that resize is delayed (common until a swipe
- * updates visualViewport). If the webview already shrank, skip padding.
+ * Keyboard inset for fixed overlays (story composer). Same measurement the chat room
+ * uses, so overlays and chat never disagree about where the keyboard is.
  */
 export function useOverlayKeyboardInset(active) {
   const [inset, setInset] = useState(0)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
-  const baselineHeightRef = useRef(0)
 
   useEffect(() => {
-    if (!active) {
-      setInset(0)
-      setKeyboardOpen(false)
-      return undefined
-    }
-
-    baselineHeightRef.current = window.innerHeight
+    // Going inactive is handled by the previous run's cleanup.
+    if (!active) return undefined
 
     const resolve = () => {
-      const native = getNativeKeyboardHeight()
-      const visual = readVisualGap()
-      const fromVar = getAppKeyboardInset()
-
-      if (native <= 0 && visual <= 0 && fromVar <= 0) {
-        baselineHeightRef.current = Math.max(baselineHeightRef.current, window.innerHeight)
-        setInset(0)
-        setKeyboardOpen(false)
-        return
-      }
-
-      // Webview already consumed the keyboard (resize:native) → don't pad again.
-      const shrunkBy = Math.max(0, baselineHeightRef.current - window.innerHeight)
-      const webviewHandled = native > 0 && shrunkBy >= native * 0.45
-
-      let nextInset = 0
-      if (webviewHandled) {
-        nextInset = 0
-      } else if (native > 0) {
-        // Prefer Cap height so we don't wait for a swipe to refresh VV.
-        nextInset = native
-      } else {
-        nextInset = Math.max(visual, fromVar)
-      }
-
-      const nextOpen = nextInset >= 48 || native > 0 || webviewHandled
+      const nextInset = measureKeyboardInset()
+      const nextOpen = nextInset > 0
       setInset((prev) => (prev === nextInset ? prev : nextInset))
       setKeyboardOpen((prev) => (prev === nextOpen ? prev : nextOpen))
     }

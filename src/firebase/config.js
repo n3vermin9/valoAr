@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { getAuth, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth'
 import {
   initializeFirestore,
   memoryLocalCache,
@@ -32,8 +32,18 @@ function preferMemoryFirestoreCache() {
   return iOS || safari
 }
 
+function createAuth(app) {
+  if (!Capacitor.isNativePlatform()) return getAuth(app)
+  try {
+    return initializeAuth(app, { persistence: indexedDBLocalPersistence })
+  } catch (err) {
+    if (err?.code === 'auth/already-initialized') return getAuth(app)
+    throw err
+  }
+}
+
 const app = initializeApp(firebaseConfig)
-export const auth = getAuth(app)
+export const auth = createAuth(app)
 export const db = initializeFirestore(
   app,
   preferMemoryFirestoreCache()

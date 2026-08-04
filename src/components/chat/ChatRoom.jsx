@@ -51,7 +51,6 @@ import {
   dropdownMenuItemWithIconDangerClass,
   chatFloatingButtonClass,
   chatRoomTopScrimClass,
-  chatRoomBottomScrimClass,
   chatRoomMessagesClass,
   chatRoomComposerDockClass,
   chatRoomScrollFabClass,
@@ -102,7 +101,13 @@ import { getStoryReplyDisplay, storyOpenOriginFromRect } from '../../utils/story
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
 import UsernameLabel from '../ui/UsernameLabel'
-import { activateChatHeaderPin } from '../../utils/keyboardFocus'
+import {
+  dismissAppKeyboard,
+  getNativeKeyboardHeight,
+  getAppKeyboardInset,
+} from '../../utils/keyboardFocus'
+import useChatBackSwipe from '../../hooks/useChatBackSwipe'
+import useChatKeyboardLayout, { CHAT_LAYOUT_SETTLE_MS } from '../../hooks/useChatKeyboardLayout'
 
 function getMessageTimeMs(message) {
   if (message.pending) {
@@ -125,7 +130,8 @@ function appendOptimisticMessage(prev, optimistic) {
   }
   return mergeServerMessages(
     serverMsgs,
-    pendingMsgs.map((message) => (message.id === optimistic.id ? normalized : message))
+    pendingMsgs.map((message) => (message.id === optimistic.id ? normalized : message)),
+    prev
   )
 }
 
@@ -138,20 +144,74 @@ function messageMatchesPending(serverMsg, pending) {
   return true
 }
 
-function mergeServerMessages(serverMsgs, pendingMsgs) {
+function sameReactionMap(a, b) {
+  if (a === b) return true
+  if (!a || !b) return !a && !b
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  for (const key of aKeys) {
+    if (a[key] !== b[key]) return false
+  }
+  return true
+}
+
+/** True when UI-visible fields match — keeps list rows from re-rendering on no-op snapshots. */
+function sameMessageContent(prev, next) {
+  if (prev === next) return true
+  if (!prev || !next) return false
+  return (
+    prev.id === next.id &&
+    prev.senderId === next.senderId &&
+    prev.text === next.text &&
+    prev.imageUrl === next.imageUrl &&
+    prev.audioUrl === next.audioUrl &&
+    prev.read === next.read &&
+    prev.pending === next.pending &&
+    prev.type === next.type &&
+    prev.systemEvent === next.systemEvent &&
+    prev.clientCreatedAt === next.clientCreatedAt &&
+    prev.replyTo?.id === next.replyTo?.id &&
+    prev.storyReply?.storyId === next.storyReply?.storyId &&
+    sameReactionMap(prev.reactions, next.reactions)
+  )
+}
+
+function mergeServerMessages(serverMsgs, pendingMsgs, prevMsgs = []) {
+  const prevById = new Map(prevMsgs.map((message) => [message.id, message]))
+  const pending = pendingMsgs.length ? pendingMsgs : null
+
   const enrichedServer = serverMsgs.map((serverMsg) => {
-    const pending = pendingMsgs.find((p) => messageMatchesPending(serverMsg, p))
-    if (pending?.clientCreatedAt) {
-      return { ...serverMsg, clientCreatedAt: pending.clientCreatedAt }
+    let next = serverMsg
+    if (pending) {
+      const match = pending.find((p) => messageMatchesPending(serverMsg, p))
+      if (match?.clientCreatedAt) {
+        next = { ...serverMsg, clientCreatedAt: match.clientCreatedAt }
+      }
     }
-    return serverMsg
+    const existing = prevById.get(serverMsg.id)
+    if (existing && sameMessageContent(existing, next)) return existing
+    return next
   })
 
-  const unmatched = pendingMsgs.filter(
-    (pending) => !enrichedServer.some((serverMsg) => messageMatchesPending(serverMsg, pending))
-  )
+  const unmatched = pending
+    ? pending.filter(
+        (item) => !enrichedServer.some((serverMsg) => messageMatchesPending(serverMsg, item))
+      )
+    : []
 
-  return [...enrichedServer, ...unmatched].sort((a, b) => getMessageTimeMs(a) - getMessageTimeMs(b))
+  const merged =
+    unmatched.length === 0
+      ? enrichedServer
+      : [...enrichedServer, ...unmatched].sort((a, b) => getMessageTimeMs(a) - getMessageTimeMs(b))
+
+  if (
+    merged.length === prevMsgs.length &&
+    merged.every((message, index) => message === prevMsgs[index])
+  ) {
+    return prevMsgs
+  }
+  return merged
 }
 
 function readCachedOtherUser(userId) {
@@ -205,6 +265,7 @@ export default function ChatRoom() {
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
   const composerDockRef = useRef(null)
+  const replyRevealTimerRef = useRef(null)
   const stickToBottomRef = useRef(true)
   const typingTimeoutRef = useRef(null)
   const menuButtonRef = useRef(null)
@@ -271,7 +332,6 @@ export default function ChatRoom() {
     () => (pinnedMeta?.messageId ? messages.find((m) => m.id === pinnedMeta.messageId) : null),
     [messages, pinnedMeta?.messageId]
   )
-  const [pinnedTargetInView, setPinnedTargetInView] = useState(false)
 
   if (otherId !== trackedOtherId) {
     setTrackedOtherId(otherId)
@@ -306,14 +366,25 @@ export default function ChatRoom() {
   const militaryTime = usesMilitaryTime(profile)
 
   useEffect(() => {
-    const root = document.documentElement
-    root.classList.add('chat-room-active')
-    const stopPin = activateChatHeaderPin()
-    return () => {
-      root.classList.remove('chat-room-active')
-      stopPin()
-    }
+    document.documentElement.classList.add('chat-room-route', 'chat-room-active')
   }, [matchId])
+
+  useChatKeyboardLayout({
+    matchId,
+    paneRef: messagesContainerRef,
+    dockRef: composerDockRef,
+    ready: !(loading && messages.length === 0),
+  })
+
+  const closeChat = useCallback(() => {
+    void dismissAppKeyboard()
+    navigate(isGroupPreview ? previewReturnTo : '/chats')
+  }, [navigate, isGroupPreview, previewReturnTo])
+
+  useChatBackSwipe(
+    Boolean(matchId) && !deleteTarget && !imageViewer && !storyViewerTarget && !profileViewUserId,
+    closeChat
+  )
 
   useEffect(() => {
     messagesRef.current = messages
@@ -333,12 +404,15 @@ export default function ChatRoom() {
 
   useEffect(() => {
     if (!user?.uid || !matchId) return
-    setChatRoomSnapshot(user.uid, matchId, {
-      messages: messagesRef.current,
-      chatMeta: chatMetaRef.current,
-      otherUser: otherUserRef.current,
-      memberProfiles: memberProfilesRef.current,
-    })
+    const timer = window.setTimeout(() => {
+      setChatRoomSnapshot(user.uid, matchId, {
+        messages: messagesRef.current,
+        chatMeta: chatMetaRef.current,
+        otherUser: otherUserRef.current,
+        memberProfiles: memberProfilesRef.current,
+      })
+    }, 250)
+    return () => window.clearTimeout(timer)
   }, [user?.uid, matchId, messages, chatMeta, otherUser, memberProfiles])
 
   useEffect(() => {
@@ -361,13 +435,22 @@ export default function ChatRoom() {
     )
   }, [matchId, user?.uid, isSavedMessages, isDraft, isGroupPreview])
 
+  const groupSenderIdsKey = useMemo(() => {
+    if (!isGroup) return ''
+    const ids = new Set()
+    for (const msg of messages) {
+      if (msg.senderId) ids.add(msg.senderId)
+    }
+    return [...ids].sort().join(',')
+  }, [isGroup, messages])
+
   useEffect(() => {
     if (!isGroup || !chatMeta) return
-    const senderIds = messages.map((msg) => msg.senderId).filter(Boolean)
+    const senderIds = groupSenderIdsKey ? groupSenderIdsKey.split(',') : []
     const ids = getGroupMemberProfileIds(chatMeta, senderIds)
     if (!ids.length) return
     fetchUsersMap(ids).then(setMemberProfiles)
-  }, [isGroup, chatMeta, messages])
+  }, [isGroup, chatMeta, groupSenderIdsKey])
 
   useEffect(() => {
     if (!otherId || isSavedMessages || isGroup) return
@@ -459,7 +542,7 @@ export default function ChatRoom() {
 
       setMessages((prev) => {
         const pending = prev.filter((message) => message.pending)
-        return mergeServerMessages(msgs, pending)
+        return mergeServerMessages(msgs, pending, prev)
       })
       setLoading(false)
       if (!isGroupPreview && msgs.some((m) => m.senderId !== user.uid && !m.read)) {
@@ -553,12 +636,67 @@ export default function ChatRoom() {
     }
   }, [])
 
+  const findMessageEl = useCallback((messageId) => {
+    const pane = messagesContainerRef.current
+    if (!pane || !messageId) return null
+    return pane.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
+  }, [])
+
+  /**
+   * Bring a message into the readable band: below the header, above the composer and
+   * keyboard. Scrolls the pane directly — scrollIntoView on iOS can pan the layout
+   * viewport and drag the fixed chrome with it.
+   */
+  const revealMessage = useCallback(
+    (messageId, { block = 'end', padding = 12, behavior = 'smooth' } = {}) => {
+      const pane = messagesContainerRef.current
+      const el = findMessageEl(messageId)
+      if (!pane || !el) return false
+
+      const paneRect = pane.getBoundingClientRect()
+      const rect = el.getBoundingClientRect()
+      // List runs under header + composer; readable band is between those chrome edges.
+      const headerBottom =
+        document.querySelector('.chat-room-header-pinned')?.getBoundingClientRect().bottom
+      const pinBar = document.querySelector('[data-chat-pinned-bar="true"]')
+      const pinBottom = pinBar?.getBoundingClientRect().bottom
+      const dockTop = composerDockRef.current?.getBoundingClientRect().top
+      const chromeTop = Math.max(headerBottom ?? paneRect.top, pinBottom ?? 0)
+      const visibleTop = Math.max(paneRect.top, chromeTop) + padding
+      const visibleBottom =
+        Math.min(paneRect.bottom, dockTop ?? paneRect.bottom) - padding
+      const visibleHeight = visibleBottom - visibleTop
+
+      let delta = 0
+      if (block === 'center' && rect.height < visibleHeight) {
+        delta = rect.top + rect.height / 2 - (visibleTop + visibleHeight / 2)
+      } else if (rect.bottom > visibleBottom) {
+        delta = rect.bottom - visibleBottom
+      } else if (rect.top < visibleTop) {
+        delta = rect.top - visibleTop
+      }
+      if (Math.abs(delta) < 1) return false
+
+      const max = Math.max(0, pane.scrollHeight - pane.clientHeight)
+      const next = Math.max(0, Math.min(max, Math.round(pane.scrollTop + delta)))
+      if (Math.abs(next - pane.scrollTop) < 1) return false
+
+      if (behavior === 'smooth') pane.scrollTo({ top: next, behavior: 'smooth' })
+      else pane.scrollTop = next
+      return true
+    },
+    [findMessageEl]
+  )
+
   const updateScrollToBottom = useCallback(() => {
     const el = messagesContainerRef.current
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     stickToBottomRef.current = distanceFromBottom <= 120
-    setShowScrollToBottom(distanceFromBottom > 100)
+    setShowScrollToBottom((prev) => {
+      const next = distanceFromBottom > 100
+      return prev === next ? prev : next
+    })
   }, [])
 
   const scrollToBottom = useCallback(() => {
@@ -570,29 +708,48 @@ export default function ChatRoom() {
     const el = messagesContainerRef.current
     if (!el) return
 
+    // Dismiss keyboard on vertical scroll only — blurring on pointerdown cancels
+    // the touch sequence on iOS and breaks swipe-right to close.
+    let touching = false
+    let scrollRaf = 0
+    const keyboardOpen = () => getNativeKeyboardHeight() > 0 || getAppKeyboardInset() > 0
+    const dismissIfOpen = () => {
+      if (keyboardOpen()) void dismissAppKeyboard()
+    }
+
+    const onPointerDown = () => {
+      touching = true
+    }
+    const onPointerUp = () => {
+      touching = false
+    }
+    const onScroll = () => {
+      if (scrollRaf) return
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0
+        updateScrollToBottom()
+      })
+      if (touching) dismissIfOpen()
+    }
+    const onWheel = () => {
+      dismissIfOpen()
+    }
+
     updateScrollToBottom()
-    el.addEventListener('scroll', updateScrollToBottom, { passive: true })
-    return () => el.removeEventListener('scroll', updateScrollToBottom)
-  }, [updateScrollToBottom, matchId, messages.length])
-
-  useLayoutEffect(() => {
-    const dock = composerDockRef.current
-    if (!dock) return undefined
-
-    const root = document.documentElement
-    const updateComposerHeight = () => {
-      const height = Math.ceil(dock.getBoundingClientRect().height)
-      if (height > 0) root.style.setProperty('--chat-room-composer-height', `${height}px`)
-    }
-
-    updateComposerHeight()
-    const observer = new ResizeObserver(updateComposerHeight)
-    observer.observe(dock)
-
+    el.addEventListener('pointerdown', onPointerDown, { passive: true })
+    el.addEventListener('pointerup', onPointerUp, { passive: true })
+    el.addEventListener('pointercancel', onPointerUp, { passive: true })
+    el.addEventListener('scroll', onScroll, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: true })
     return () => {
-      observer.disconnect()
+      if (scrollRaf) cancelAnimationFrame(scrollRaf)
+      el.removeEventListener('pointerdown', onPointerDown)
+      el.removeEventListener('pointerup', onPointerUp)
+      el.removeEventListener('pointercancel', onPointerUp)
+      el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('wheel', onWheel)
     }
-  }, [matchId, loading])
+  }, [updateScrollToBottom, matchId])
 
   useEffect(() => {
     const el = messagesContainerRef.current
@@ -607,17 +764,27 @@ export default function ChatRoom() {
     return () => observer.disconnect()
   }, [matchId, loading])
 
+  const lastThreadKey = `${messages.length}:${messages[messages.length - 1]?.id ?? ''}`
+
+  // Only jump to bottom when the thread grows / last id changes — not on read receipts.
   useLayoutEffect(() => {
     if (deleteTarget) return
     if (!stickToBottomRef.current) return
     scrollMessagesToBottom('auto')
-  }, [messages, deleteTarget, scrollMessagesToBottom])
+  }, [lastThreadKey, deleteTarget, scrollMessagesToBottom])
 
   useLayoutEffect(() => {
     if (loading) return
     stickToBottomRef.current = true
     scrollMessagesToBottom('auto')
   }, [matchId, loading, scrollMessagesToBottom])
+
+  const handleOpenImage = useCallback((url, rect) => {
+    setImageViewer({
+      src: url,
+      origin: storyOpenOriginFromRect(rect),
+    })
+  }, [])
 
   const handleTyping = useCallback(
     (typing) => {
@@ -772,10 +939,10 @@ export default function ChatRoom() {
       toast.error('Nothing to copy')
       return
     }
+    setDeleteTarget(null)
     try {
       await navigator.clipboard.writeText(content)
       toast.success('Copied!')
-      setDeleteTarget(null)
     } catch {
       toast.error('Failed to copy')
     }
@@ -863,25 +1030,32 @@ export default function ChatRoom() {
   useEffect(() => {
     if (!showSearch || !activeSearchMatch) return
 
-    const el = messagesContainerRef.current?.querySelector(
-      `[data-message-id="${activeSearchMatch.messageId}"]`
-    )
-    if (!el) return
+    stickToBottomRef.current = false
+    revealMessage(activeSearchMatch.messageId, { block: 'center' })
+  }, [showSearch, activeSearchMatch, safeSearchMatchIndex, revealMessage])
 
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [showSearch, activeSearchMatch, safeSearchMatchIndex])
-
-  const handleSelectMessageAction = (message, rect) => {
+  const handleSelectMessageAction = useCallback((message, rect) => {
     if (!rect) return
     setDeleteTarget({ message, rect })
-  }
+  }, [])
 
-  const handleReplyToMessage = (message) => {
+  const handleReplyToMessage = useCallback((message) => {
     setReplyTo(message)
     setDeleteTarget(null)
-  }
+    if (!message?.id) return
 
-  const handleStoryReplyClick = (storyReply, originEvent) => {
+    // The list rides up with the keyboard on its own, so wait for the reply bar and
+    // the keyboard to settle, then place the quoted message clear of the composer.
+    // Scrolling earlier would fight the keyboard-follow loop mid-animation.
+    const last = messagesRef.current[messagesRef.current.length - 1]
+    if (last && last.id !== message.id) stickToBottomRef.current = false
+    clearTimeout(replyRevealTimerRef.current)
+    replyRevealTimerRef.current = setTimeout(() => {
+      revealMessage(message.id, { padding: 16 })
+    }, CHAT_LAYOUT_SETTLE_MS + 40)
+  }, [revealMessage])
+
+  const handleStoryReplyClick = useCallback((storyReply, originEvent) => {
     if (!storyReply?.ownerId) return
     const rect = originEvent?.currentTarget?.getBoundingClientRect?.()
     setStoryViewerTarget({
@@ -889,9 +1063,9 @@ export default function ChatRoom() {
       storyId: storyReply.storyId || null,
       origin: rect ? storyOpenOriginFromRect(rect) : null,
     })
-  }
+  }, [])
 
-  const handleReactToMessage = async (message, emoji) => {
+  const handleReactToMessage = useCallback(async (message, emoji) => {
     if (!matchId || !user?.uid) return
     const previousReactions = message.reactions
     const reactions = { ...(message.reactions || {}) }
@@ -927,7 +1101,7 @@ export default function ChatRoom() {
       })
       toast.error('Failed to add reaction')
     }
-  }
+  }, [matchId, user?.uid])
 
   const getReplyAuthorName = useCallback(
     (senderId) => {
@@ -940,14 +1114,17 @@ export default function ChatRoom() {
   )
 
   useEffect(() => {
-    return () => clearTimeout(highlightTimerRef.current)
+    return () => {
+      clearTimeout(highlightTimerRef.current)
+      clearTimeout(replyRevealTimerRef.current)
+    }
   }, [])
 
   const scrollToMessage = useCallback((messageId) => {
-    const el = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`)
-    if (!el) return
+    if (!findMessageEl(messageId)) return
 
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    stickToBottomRef.current = false
+    revealMessage(messageId, { block: 'center' })
 
     clearTimeout(highlightTimerRef.current)
     setHighlightedMessageId(null)
@@ -958,64 +1135,7 @@ export default function ChatRoom() {
         setHighlightedMessageId(null)
       }, 1000)
     })
-  }, [])
-
-  useEffect(() => {
-    if (!pinnedMessage?.id) {
-      setPinnedTargetInView(false)
-      return undefined
-    }
-
-    const root = messagesContainerRef.current
-    if (!root) return undefined
-
-    let observer = null
-    let cancelled = false
-    let settleTimer = null
-
-    const setInViewSmooth = (next) => {
-      clearTimeout(settleTimer)
-      settleTimer = setTimeout(() => {
-        if (!cancelled) setPinnedTargetInView(next)
-      }, next ? 120 : 180)
-    }
-
-    const attach = () => {
-      if (cancelled) return
-      const target = root.querySelector(`[data-message-id="${pinnedMessage.id}"]`)
-      if (!target) {
-        setInViewSmooth(false)
-        return
-      }
-
-      observer?.disconnect()
-      observer = new IntersectionObserver(
-        ([entry]) => {
-          setInViewSmooth(Boolean(entry?.isIntersecting))
-        },
-        {
-          root,
-          // Treat as "in view" once any slice is in the readable message area.
-          rootMargin: '-12% 0px -28% 0px',
-          threshold: [0, 0.05, 0.2, 0.5],
-        }
-      )
-      observer.observe(target)
-    }
-
-    attach()
-    // Re-attach after layout settles (meetup cards / images).
-    const raf = requestAnimationFrame(attach)
-    const timer = setTimeout(attach, 250)
-
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(raf)
-      clearTimeout(timer)
-      clearTimeout(settleTimer)
-      observer?.disconnect()
-    }
-  }, [pinnedMessage?.id, messages.length, matchId])
+  }, [findMessageEl, revealMessage])
 
   const chatStatus = opponentRemoved
     ? { text: 'Account deleted', variant: 'offline' }
@@ -1227,9 +1347,9 @@ export default function ChatRoom() {
 
   const handlePinMessage = async (message) => {
     if (!matchId || !canPinMessages) return
+    setDeleteTarget(null)
     try {
       await pinChatMessage(matchId, user.uid, message.id, chatMeta)
-      setDeleteTarget(null)
       toast.success('Message pinned')
     } catch (err) {
       toast.error(err.message || 'Failed to pin message')
@@ -1238,6 +1358,7 @@ export default function ChatRoom() {
 
   const handleUnpinMessage = async () => {
     if (!matchId || !canPinMessages) return
+    setDeleteTarget(null)
     try {
       await unpinChatMessage(matchId, user.uid, chatMeta)
       toast.success('Message unpinned')
@@ -1251,9 +1372,11 @@ export default function ChatRoom() {
 
   const headerMenu = createPortal(
     <AnimatePresence onExitComplete={() => setMenuPos(null)}>
-      {showMenu && menuPos && (
+      {showMenu && menuPos && !profileViewUserId && (
         <motion.div
           key="chat-header-menu"
+          data-chat-room-portal
+          data-chat-id={matchId}
           data-chat-header-menu
           {...contextMenuMotion}
           className={`fixed z-[80] ${dropdownMenuClass} ${navGlassMenuClass}`}
@@ -1302,187 +1425,169 @@ export default function ChatRoom() {
     document.body
   )
 
+  // Solid portal (no opacity motion) — avoids blink from showChatPortals fighting Framer.
+  const headerPortal =
+    !profileViewUserId &&
+    createPortal(
+      <div data-chat-room-portal data-chat-id={matchId}>
+        <div aria-hidden className={chatRoomTopScrimClass} />
+        <GlassNavBar liquid className={chatRoomHeaderClass}>
+          <div className="pointer-events-auto flex items-center w-full gap-2.5 h-12">
+            <div
+              className={`shrink-0 overflow-hidden transition-[width] duration-300 ${
+                showSearch ? 'w-0 pointer-events-none' : 'w-12'
+              }`}
+            >
+              <ChevronBack
+                onClick={() => (isGroupPreview ? navigate(previewReturnTo) : navigate('/chats'))}
+                buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+                className="w-6 h-6"
+              />
+            </div>
+
+            <div className="flex min-w-0 flex-1 justify-center">
+              <ChatHeaderCenter
+                showSearch={showSearch}
+                isSavedMessages={isSavedMessages}
+                isGroupChat={isGroup}
+                groupName={groupName}
+                groupPhotoUrl={chatMeta?.photoUrl}
+                otherDisplayName={otherDisplayName}
+                otherUser={otherUser}
+                opponentRemoved={opponentRemoved}
+                presence={presence}
+                isTyping={isTyping}
+                isMuted={isGroupPreview ? false : isMuted}
+                isTemporary={chatMeta?.isMeetup || Boolean(chatMeta?.expiresAt)}
+                statusText={statusText}
+                typingText={typingHeaderText}
+                statusColor={statusColorHeader}
+                onOpenProfile={openProfile}
+                searchQuery={searchQuery}
+                onSearchQueryChange={(value) => {
+                  setSearchQuery(value)
+                  setSearchMatchIndex(0)
+                  setShowSearchResultsList(false)
+                }}
+                onSearchPrev={goToOlderSearchMessage}
+                onSearchNext={goToNewerSearchMessage}
+                onSearchClose={closeSearch}
+              />
+            </div>
+
+            <div className="shrink-0 w-12 flex justify-end">
+              {showSearch ? (
+                <button
+                  type="button"
+                  onClick={closeSearch}
+                  className={`${chatFloatingButtonClass} text-white/80 shrink-0`}
+                  aria-label="Close search"
+                >
+                  <IconX size={22} stroke={2} />
+                </button>
+              ) : isGroupPreview ? (
+                <span className="w-12 h-12 shrink-0" aria-hidden />
+              ) : (
+                <button
+                  ref={menuButtonRef}
+                  type="button"
+                  onClick={() => setShowMenu((open) => !open)}
+                  className={`${chatFloatingButtonClass} text-white/80`}
+                  aria-label="Chat options"
+                >
+                  <IconDotsVertical size={22} />
+                </button>
+              )}
+            </div>
+          </div>
+        </GlassNavBar>
+      </div>,
+      document.body
+    )
+
   if (loading && messages.length === 0) {
     return (
-      <div className="h-full">
-        <ChatRoomSkeleton />
-      </div>
+      <>
+        {headerPortal}
+        <div className="h-full">
+          <ChatRoomSkeleton />
+        </div>
+      </>
     )
   }
 
   return (
     <>
-      {createPortal(
-        <>
-          <div
-            aria-hidden
-            className={chatRoomTopScrimClass}
-            style={{ height: 'calc(var(--chat-room-header-height) + 1rem)' }}
-          />
-          <GlassNavBar liquid className={chatRoomHeaderClass}>
-            <div className="pointer-events-auto flex items-center w-full gap-2.5 h-12">
-              <div
-                className={`shrink-0 overflow-hidden transition-[width] duration-300 ${
-                  showSearch ? 'w-0 pointer-events-none' : 'w-12'
-                }`}
-              >
-                <ChevronBack
-                  onClick={() => (isGroupPreview ? navigate(previewReturnTo) : navigate('/chats'))}
-                  buttonClassName={`${chatFloatingButtonClass} text-white/80`}
-                  className="w-6 h-6"
-                />
-              </div>
-
-              <div className="flex min-w-0 flex-1 justify-center">
-                <ChatHeaderCenter
-                  showSearch={showSearch}
-                  isSavedMessages={isSavedMessages}
-                  isGroupChat={isGroup}
-                  groupName={groupName}
-                  groupPhotoUrl={chatMeta?.photoUrl}
-                  otherDisplayName={otherDisplayName}
-                  otherUser={otherUser}
-                  opponentRemoved={opponentRemoved}
-                  presence={presence}
-                  isTyping={isTyping}
-                  isMuted={isGroupPreview ? false : isMuted}
-                  isTemporary={chatMeta?.isMeetup || Boolean(chatMeta?.expiresAt)}
-                  statusText={statusText}
-                  typingText={typingHeaderText}
-                  statusColor={statusColorHeader}
-                  onOpenProfile={openProfile}
-                  searchQuery={searchQuery}
-                  onSearchQueryChange={(value) => {
-                    setSearchQuery(value)
-                    setSearchMatchIndex(0)
-                    setShowSearchResultsList(false)
-                  }}
-                  onSearchPrev={goToOlderSearchMessage}
-                  onSearchNext={goToNewerSearchMessage}
-                  onSearchClose={closeSearch}
-                />
-              </div>
-
-              <div className="shrink-0 w-12 flex justify-end">
-                {showSearch ? (
-                  <button
-                    type="button"
-                    onClick={closeSearch}
-                    className={`${chatFloatingButtonClass} text-white/80 shrink-0`}
-                    aria-label="Close search"
-                  >
-                    <IconX size={22} stroke={2} />
-                  </button>
-                ) : isGroupPreview ? (
-                  <span className="w-12 h-12 shrink-0" aria-hidden />
-                ) : (
-                  <button
-                    ref={menuButtonRef}
-                    type="button"
-                    onClick={() => setShowMenu((open) => !open)}
-                    className={`${chatFloatingButtonClass} text-white/80`}
-                    aria-label="Chat options"
-                  >
-                    <IconDotsVertical size={22} />
-                  </button>
-                )}
-              </div>
-            </div>
-          </GlassNavBar>
-        </>,
-        document.body
-      )}
+      {headerPortal}
     <div className="h-full flex flex-col">
       {headerMenu}
       <div className="relative flex-1 min-h-0">
         <ChatBackground profile={profile} className="absolute inset-0" />
-        <div aria-hidden className={chatRoomBottomScrimClass} />
+        {pinnedMessage ? (
+          <div
+            data-chat-room-chrome
+            className="pointer-events-none fixed inset-x-0 z-[35] flex justify-center px-[var(--chat-room-page-x)]"
+            style={{ top: 'calc(var(--vv-top, 0px) + var(--chat-room-header-height) + 6px)' }}
+            data-chat-pinned-bar="true"
+          >
+            <button
+              type="button"
+              onClick={() => scrollToMessage(pinnedMessage.id)}
+              className="pointer-events-auto w-[90%] max-w-full text-left rounded-[var(--ios-radius-lg)] border border-white/10 bg-[var(--ios-bg-secondary)]/92 px-3 py-2.5 flex items-center gap-2 shadow-[0_8px_20px_rgba(0,0,0,0.35)]"
+            >
+              <IconPin size={16} className="text-[var(--ios-blue)] shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-[var(--ios-blue)]">
+                  {isMeetupInfoMessage(pinnedMessage) ? 'Pinned meetup' : 'Pinned message'}
+                </p>
+                <p className="text-sm text-white/85 truncate mt-0.5">
+                  {getStoryReplyDisplay(pinnedMessage).text ||
+                    (pinnedMessage.imageUrl
+                      ? 'Photo'
+                      : pinnedMessage.audioUrl
+                        ? 'Voice message'
+                        : 'Message')}
+                </p>
+              </div>
+              {canPinMessages && !isMeetupInfoMessage(pinnedMessage) && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleUnpinMessage()
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleUnpinMessage()
+                    }
+                  }}
+                  className="shrink-0 self-center flex items-center justify-center p-1 text-white/45 hover:text-white/70"
+                  aria-label="Unpin message"
+                >
+                  <IconX size={16} />
+                </span>
+              )}
+            </button>
+          </div>
+        ) : null}
         <div
           ref={messagesContainerRef}
+          data-chat-room-chrome
           className={`${chatRoomMessagesClass} ${
-            deleteTarget ? '!pb-52 pointer-events-none' : ''
+            deleteTarget ? 'pointer-events-none' : ''
           }`}
         >
-          <div className={chatRoomMessagesInnerClass}>
-            {pinnedMessage ? (
-              <div className="sticky top-0 z-10 mb-3 flex justify-center pointer-events-none min-h-0 shrink-0">
-                <motion.button
-                  key={pinnedMessage.id}
-                  type="button"
-                  initial={false}
-                  animate={
-                    pinnedTargetInView
-                      ? {
-                          opacity: 0,
-                          y: -8,
-                          scale: 0.98,
-                          height: 0,
-                          paddingTop: 0,
-                          paddingBottom: 0,
-                          borderWidth: 0,
-                          marginBottom: 0,
-                        }
-                      : {
-                          opacity: 1,
-                          y: 0,
-                          scale: 1,
-                          height: 'auto',
-                          paddingTop: 10,
-                          paddingBottom: 10,
-                          borderWidth: 1,
-                          marginBottom: 0,
-                        }
-                  }
-                  transition={{
-                    duration: 0.22,
-                    ease: [0.22, 1, 0.36, 1],
-                    height: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
-                  }}
-                  onClick={() => scrollToMessage(pinnedMessage.id)}
-                  className={`w-[90%] text-left rounded-[var(--ios-radius-lg)] border border-white/10 bg-[var(--ios-bg-secondary)]/75 backdrop-blur-md px-3 py-2.5 flex items-center gap-2 shadow-[0_8px_20px_rgba(0,0,0,0.25)] overflow-hidden ${
-                    pinnedTargetInView ? 'pointer-events-none' : 'pointer-events-auto'
-                  }`}
-                  aria-hidden={pinnedTargetInView}
-                  tabIndex={pinnedTargetInView ? -1 : 0}
-                >
-                  <IconPin size={16} className="text-[var(--ios-blue)] shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-[var(--ios-blue)]">
-                      {isMeetupInfoMessage(pinnedMessage) ? 'Pinned meetup' : 'Pinned message'}
-                    </p>
-                    <p className="text-sm text-white/85 truncate mt-0.5">
-                      {getStoryReplyDisplay(pinnedMessage).text ||
-                        (pinnedMessage.imageUrl
-                          ? 'Photo'
-                          : pinnedMessage.audioUrl
-                            ? 'Voice message'
-                            : 'Message')}
-                    </p>
-                  </div>
-                  {canPinMessages && !isMeetupInfoMessage(pinnedMessage) && (
-                    <span
-                      role="button"
-                      tabIndex={pinnedTargetInView ? -1 : 0}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleUnpinMessage()
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          handleUnpinMessage()
-                        }
-                      }}
-                      className="shrink-0 self-center flex items-center justify-center p-1 text-white/45 hover:text-white/70"
-                      aria-label="Unpin message"
-                    >
-                      <IconX size={16} />
-                    </span>
-                  )}
-                </motion.button>
-              </div>
-            ) : null}
+          <div
+            className={chatRoomMessagesInnerClass}
+            style={
+              pinnedMessage
+                ? { paddingTop: 'calc(var(--chat-room-header-height) + 64px)' }
+                : undefined
+            }
+          >
             <div className={chatRoomMessagesStackClass}>
           {isMeetupChat && !hasMeetupInfoMessage ? (
             <MeetupPinnedInfo
@@ -1516,14 +1621,8 @@ export default function ChatRoom() {
             return (
             <MessageBubble
               key={msg.id}
-              message={{
-                ...msg,
-                onImageClick: (url, rect) =>
-                  setImageViewer({
-                    src: url,
-                    origin: storyOpenOriginFromRect(rect),
-                  }),
-              }}
+              message={msg}
+              onImageClick={isGroupPreview ? undefined : handleOpenImage}
               isOwn={msg.senderId === user.uid}
               currentUserId={user.uid}
               militaryTime={militaryTime}
@@ -1538,17 +1637,17 @@ export default function ChatRoom() {
                   ? senderProfile?.username || 'User'
                   : undefined
               }
-              groupChat={isGroup ? chatMeta : undefined}
+              groupChat={isGroup && cluster.showSenderNameInBubble ? chatMeta : undefined}
               senderId={isGroup ? msg.senderId : undefined}
               onSenderClick={isGroup ? openMemberProfile : undefined}
               readOnly={isGroupPreview}
               actionHidden={deleteTarget?.message.id === msg.id}
-            highlighted={highlightedMessageId === msg.id}
-            searchActive={showSearch && activeSearchMatch?.messageId === msg.id}
-            searchQuery={showSearch ? searchQuery : ''}
-            activeSearchMatch={
-              showSearch && activeSearchMatch?.messageId === msg.id ? activeSearchMatch : null
-            }
+              highlighted={highlightedMessageId === msg.id}
+              searchActive={showSearch && activeSearchMatch?.messageId === msg.id}
+              searchQuery={showSearch ? searchQuery : ''}
+              activeSearchMatch={
+                showSearch && activeSearchMatch?.messageId === msg.id ? activeSearchMatch : null
+              }
               onReply={isGroupPreview ? undefined : handleReplyToMessage}
               onReplyQuoteClick={isGroupPreview ? undefined : scrollToMessage}
               onStoryReplyClick={isGroupPreview ? undefined : handleStoryReplyClick}
@@ -1585,6 +1684,7 @@ export default function ChatRoom() {
             <motion.button
               key="scroll-to-bottom"
               type="button"
+              data-chat-room-chrome
               initial={{ opacity: 0, scale: 0.85, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.85, y: 8 }}
@@ -1601,10 +1701,11 @@ export default function ChatRoom() {
         <div
           ref={composerDockRef}
           data-chat-composer="true"
+          data-chat-room-chrome
           className={chatRoomComposerDockClass}
         >
-          <div className="pointer-events-auto">
-            {!deleteTarget && iBlockedThem && (
+          <div className={`pointer-events-auto ${deleteTarget ? 'pointer-events-none' : ''}`}>
+            {iBlockedThem && (
               <div className="px-4 py-4">
                 <button
                   onClick={handleUnblock}
@@ -1615,13 +1716,13 @@ export default function ChatRoom() {
               </div>
             )}
 
-            {!deleteTarget && !iBlockedThem && theyBlockedMe && (
+            {!iBlockedThem && theyBlockedMe && (
               <div className="px-4 py-4 text-center">
                 <p className="text-white/60 text-sm">You can't message this user</p>
               </div>
             )}
 
-            {!deleteTarget && !iBlockedThem && !theyBlockedMe && directMessageBlockReason && !opponentRemoved && (
+            {!iBlockedThem && !theyBlockedMe && directMessageBlockReason && !opponentRemoved && (
               <div className="px-4 py-4 text-center space-y-3">
                 <p className="text-white/60 text-sm">{directMessageBlockReason.message}</p>
                 {directMessageBlockReason.showSettingsLink && (
@@ -1636,19 +1737,19 @@ export default function ChatRoom() {
               </div>
             )}
 
-            {!deleteTarget && opponentRemoved && (
+            {opponentRemoved && (
               <div className="px-4 py-4 text-center">
                 <p className="text-white/60 text-sm">This account has been deleted — messaging is disabled</p>
               </div>
             )}
 
-            {!deleteTarget && isGroup && isGroupMemberMuted(chatMeta, user?.uid) && (
+            {isGroup && isGroupMemberMuted(chatMeta, user?.uid) && (
               <div className="px-4 py-4 text-center">
                 <p className="text-white/60 text-sm">You are muted in this group — messaging is disabled</p>
               </div>
             )}
 
-            {!deleteTarget && !chatFrozen && !isGroupPreview && (
+            {!chatFrozen && !isGroupPreview && (
               <>
                 {isTyping && !isSavedMessages && !isGroup && otherUser && !opponentRemoved && (
                   <div className="px-5 py-2 text-xs text-blue-300/90 italic flex items-center gap-1">
@@ -1679,8 +1780,8 @@ export default function ChatRoom() {
               </>
             )}
 
-            {isGroupPreview && !deleteTarget && (
-              <div className="px-4 pb-[max(0.75rem,var(--ios-safe-bottom))] pt-3 bg-gradient-to-t from-black via-black/95 to-transparent">
+            {isGroupPreview && (
+              <div className="px-4 pt-3 pb-3">
                 <button
                   type="button"
                   onClick={handlePreviewJoin}

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { IconArrowBackUp, IconCheck, IconChecks } from '@tabler/icons-react'
 import { formatMessageTime } from '../../utils/helpers'
 import VoiceMessagePlayer from './VoiceMessagePlayer'
@@ -14,6 +14,10 @@ import { chatBubblePadClass, chatMessageTextClass } from '../../utils/designSyst
 import { sad } from '../../assets'
 
 const SWIPE_REPLY_THRESHOLD = 56
+/** Finger movement past this cancels long-press (scroll / swipe, not a hold). */
+const PRESS_MOVE_CANCEL_PX = 8
+const LONG_PRESS_MS = 450
+const PRESS_SCALE_MS = 140
 
 function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
   if (!sentTime && !isOwn) return null
@@ -41,11 +45,17 @@ function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
 function TextWithCornerMeta({ children, meta, isOwn = false, fill = false }) {
   if (!meta) return children
 
+  // Inline end-spacer: last line leaves room for the timestamp. Unlike always-on
+  // padding, short words can stay on one line while long strings still wrap
+  // inside max-w-full (overflow-wrap on MessageText).
+  const metaSlot = isOwn ? 'w-[3.25rem]' : 'w-[2.6rem]'
+
   return (
-    <div className={`relative min-w-0 max-w-full ${fill ? 'w-full' : 'w-fit'}`}>
-      <div className={`min-w-0 pb-1 ${isOwn ? 'pr-[3.3rem]' : 'pr-[2.7rem]'}`}>
-        {children}
-      </div>
+    <div className={`relative max-w-full min-w-0 ${fill ? 'w-full' : 'w-fit'}`}>
+      {children}
+      <span className={`inline-block ${metaSlot} align-bottom`} aria-hidden>
+        {'\u00a0'}
+      </span>
       <span className="absolute bottom-0 right-0 flex items-center leading-none select-none pointer-events-none">
         {meta}
       </span>
@@ -53,7 +63,7 @@ function TextWithCornerMeta({ children, meta, isOwn = false, fill = false }) {
   )
 }
 
-export default function MessageBubble({
+export default memo(function MessageBubble({
   message,
   isOwn,
   currentUserId,
@@ -64,6 +74,7 @@ export default function MessageBubble({
   onStoryReplyClick,
   onReactionClick,
   onMentionClick,
+  onImageClick,
   replyAuthorName,
   senderName,
   senderId,
@@ -88,8 +99,20 @@ export default function MessageBubble({
   const bubbleRef = useRef(null)
   const touchStartRef = useRef({ x: 0, y: 0 })
   const swipingRef = useRef(false)
+  const pressArmedRef = useRef(false)
   const pressTimerRef = useRef(null)
+  const pressScaleTimerRef = useRef(null)
+  const messageRef = useRef(message)
+  const onReplyRef = useRef(onReply)
+  const onLongPressRef = useRef(onLongPress)
   const [swipeOffset, setSwipeOffset] = useState(0)
+  const [pressing, setPressing] = useState(false)
+
+  useEffect(() => {
+    messageRef.current = message
+    onReplyRef.current = onReply
+    onLongPressRef.current = onLongPress
+  })
 
   const getRect = () => bubbleRef.current?.getBoundingClientRect()
 
@@ -105,48 +128,100 @@ export default function MessageBubble({
       clearTimeout(pressTimerRef.current)
       pressTimerRef.current = null
     }
+    if (pressScaleTimerRef.current) {
+      clearTimeout(pressScaleTimerRef.current)
+      pressScaleTimerRef.current = null
+    }
   }
 
-  const handleTouchStart = (e) => {
-    if (readOnly) return
-    const touch = e.touches[0]
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY }
-    swipingRef.current = false
-    setSwipeOffset(0)
-    clearPressTimer()
-    pressTimerRef.current = setTimeout(() => onLongPress?.(message, getRect()), 500)
-  }
+  // Non-passive touchmove so we can preventDefault and stop the messages
+  // scroller / WKWebView from panning the whole thread horizontally.
+  useEffect(() => {
+    if (readOnly) return undefined
+    const el = bubbleRef.current
+    if (!el) return undefined
 
-  const handleTouchMove = (e) => {
-    const touch = e.touches[0]
-    const dx = touch.clientX - touchStartRef.current.x
-    const dy = touch.clientY - touchStartRef.current.y
-    const horizontal = isOwn ? dx < -8 : dx > 8
-
-    if (horizontal && Math.abs(dx) > Math.abs(dy) * 1.2) {
-      swipingRef.current = true
+    const cancelPress = () => {
+      pressArmedRef.current = false
       clearPressTimer()
-      const clamped = isOwn ? Math.max(dx, -72) : Math.min(dx, 72)
-      setSwipeOffset(clamped)
+      setPressing(false)
     }
-  }
 
-  const handleTouchEnd = (e) => {
-    clearPressTimer()
-    const dx = e.changedTouches[0].clientX - touchStartRef.current.x
-    const triggered = isOwn ? dx <= -SWIPE_REPLY_THRESHOLD : dx >= SWIPE_REPLY_THRESHOLD
-    if (swipingRef.current && triggered) {
-      onReply?.(message)
+    const onTouchStart = (e) => {
+      const touch = e.touches[0]
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+      swipingRef.current = false
+      pressArmedRef.current = true
+      setSwipeOffset(0)
+      clearPressTimer()
+      pressScaleTimerRef.current = setTimeout(() => {
+        if (pressArmedRef.current) setPressing(true)
+      }, PRESS_SCALE_MS)
+      pressTimerRef.current = setTimeout(() => {
+        if (!pressArmedRef.current) return
+        pressArmedRef.current = false
+        setPressing(false)
+        onLongPressRef.current?.(messageRef.current, el.getBoundingClientRect())
+      }, LONG_PRESS_MS)
     }
-    swipingRef.current = false
-    setSwipeOffset(0)
-  }
 
-  const handleTouchCancel = () => {
-    clearPressTimer()
-    swipingRef.current = false
-    setSwipeOffset(0)
-  }
+    const onTouchMove = (e) => {
+      const touch = e.touches[0]
+      const dx = touch.clientX - touchStartRef.current.x
+      const dy = touch.clientY - touchStartRef.current.y
+      const absDx = Math.abs(dx)
+      const absDy = Math.abs(dy)
+      const horizontal = isOwn ? dx < -8 : dx > 8
+
+      // Any real movement = scroll or swipe, not a hold — cancel the context menu.
+      if (pressArmedRef.current && (absDx > PRESS_MOVE_CANCEL_PX || absDy > PRESS_MOVE_CANCEL_PX)) {
+        cancelPress()
+      }
+
+      if (horizontal && absDx > absDy * 1.2) {
+        swipingRef.current = true
+        cancelPress()
+        const clamped = isOwn ? Math.max(dx, -72) : Math.min(dx, 72)
+        setSwipeOffset(clamped)
+        // Keep the gesture on this bubble — don't scroll/pan the chat list.
+        e.preventDefault()
+        e.stopPropagation()
+      } else if (swipingRef.current) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+
+    const onTouchEnd = (e) => {
+      cancelPress()
+      const dx = e.changedTouches[0].clientX - touchStartRef.current.x
+      const triggered = isOwn ? dx <= -SWIPE_REPLY_THRESHOLD : dx >= SWIPE_REPLY_THRESHOLD
+      if (swipingRef.current && triggered) {
+        onReplyRef.current?.(messageRef.current)
+      }
+      swipingRef.current = false
+      setSwipeOffset(0)
+    }
+
+    const onTouchCancel = () => {
+      cancelPress()
+      swipingRef.current = false
+      setSwipeOffset(0)
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('touchcancel', onTouchCancel, { passive: true })
+
+    return () => {
+      clearPressTimer()
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchCancel)
+    }
+  }, [readOnly, isOwn])
 
   const handleDoubleClick = (e) => {
     if (readOnly) return
@@ -236,7 +311,7 @@ export default function MessageBubble({
             alt=""
             className="rounded-xl max-w-full cursor-pointer"
             onClick={(e) =>
-              message.onImageClick?.(
+              onImageClick?.(
                 message.imageUrl,
                 e.currentTarget.getBoundingClientRect()
               )
@@ -255,8 +330,17 @@ export default function MessageBubble({
 
   const bubbleBlock = (
     <div
-      style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
-      className="transition-transform duration-75 min-w-0"
+      style={{
+        transform: [
+          swipeOffset ? `translateX(${swipeOffset}px)` : null,
+          pressing ? 'scale(0.97)' : null,
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined,
+      }}
+      className={`transition-transform duration-100 ease-out min-w-0 origin-center ${
+        swipeOffset || pressing ? 'will-change-transform' : ''
+      }`}
     >
       <div className={`flex flex-col gap-1.5 ${isOwn ? 'items-end' : 'items-start'}`}>
         {storyReply && (
@@ -268,31 +352,32 @@ export default function MessageBubble({
           />
         )}
         {hasMessageBubble && (
-          <div
-            ref={bubbleRef}
-            onContextMenu={readOnly ? undefined : handleContextMenu}
-            onDoubleClick={readOnly ? undefined : handleDoubleClick}
-            onTouchStart={readOnly ? undefined : handleTouchStart}
-            onTouchMove={readOnly ? undefined : handleTouchMove}
-            onTouchEnd={readOnly ? undefined : handleTouchEnd}
-            onTouchCancel={readOnly ? undefined : handleTouchCancel}
-            className={`${chatBubblePadClass} transition-colors duration-200 message-bubble w-fit max-w-full ${actionOverlay ? 'message-bubble-action' : ''} ${bubbleRadius} ${bubbleSurfaceClass}`}
-            data-allow-contextmenu={readOnly ? undefined : true}
-          >
-            {renderBubbleContent()}
+          <div className="relative w-fit max-w-full min-w-0">
+            <div
+              ref={bubbleRef}
+              onContextMenu={readOnly ? undefined : handleContextMenu}
+              onDoubleClick={readOnly ? undefined : handleDoubleClick}
+              className={`${chatBubblePadClass} transition-colors duration-200 message-bubble w-fit max-w-full min-w-0 touch-pan-y ${actionOverlay ? 'message-bubble-action' : ''} ${bubbleRadius} ${bubbleSurfaceClass}`}
+              data-allow-contextmenu={readOnly ? undefined : true}
+            >
+              {renderBubbleContent()}
+            </div>
+            {hasReactions && (
+              <MessageReactions
+                reactions={message.reactions}
+                isOwn={isOwn}
+                currentUserId={currentUserId}
+                onEmojiClick={
+                  !readOnly && onReactionClick
+                    ? (emoji) => onReactionClick(message, emoji)
+                    : undefined
+                }
+                className={`absolute z-[1] -bottom-2.5 ${isOwn ? 'right-1' : 'left-1'}`}
+              />
+            )}
           </div>
         )}
       </div>
-
-      {hasReactions && (
-        <MessageReactions
-          reactions={message.reactions}
-          isOwn={isOwn}
-          currentUserId={currentUserId}
-          onEmojiClick={!readOnly && onReactionClick ? (emoji) => onReactionClick(message, emoji) : undefined}
-          className={`mt-1 flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-        />
-      )}
     </div>
   )
 
@@ -348,7 +433,7 @@ export default function MessageBubble({
 
   return (
     <div className={`${rowClass} ${actionHidden ? 'invisible' : ''}`} data-message-id={message.id}>
-      <div className="relative max-w-[78%]">
+      <div className="relative max-w-[78%] min-w-0">
         {Math.abs(swipeOffset) > 12 && (
           <div
             className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-white/10 text-white/70 pointer-events-none ${
@@ -363,4 +448,4 @@ export default function MessageBubble({
       </div>
     </div>
   )
-}
+})

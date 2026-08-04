@@ -10,7 +10,7 @@ import VerifiedBadge from '../ui/VerifiedBadge'
 
 const shellTransition = { type: 'spring', stiffness: 260, damping: 30, mass: 1.05 }
 
-const headerPillClass = `${storyGlassBlur} liquid-glass-pill flex items-center h-12 min-h-12 min-w-0 rounded-full pl-2.5 pr-4 w-fit max-w-[min(76vw,300px)] hover:brightness-110 active:scale-[0.98]`
+const headerPillClass = `${storyGlassBlur} liquid-glass-pill flex items-center h-12 min-h-12 min-w-0 rounded-full pl-1.5 pr-4 w-fit max-w-[min(76vw,300px)] hover:brightness-110 active:scale-[0.98]`
 
 function HeaderSubtitle({ isTyping, typingText, statusText, statusColor }) {
   return (
@@ -96,10 +96,10 @@ export default function ChatHeaderCenter({
         ) : isSavedMessages ? (
           <motion.div
             key="saved"
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             className="flex items-center gap-4 min-w-0 h-full w-full cursor-default"
           >
             <div className="w-9 h-9 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
@@ -114,10 +114,10 @@ export default function ChatHeaderCenter({
           <motion.button
             key="group"
             type="button"
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             onClick={onOpenProfile}
             className="flex items-center gap-4 min-w-0 h-full w-full text-left cursor-pointer"
             aria-label={`Open ${groupName} settings`}
@@ -145,10 +145,10 @@ export default function ChatHeaderCenter({
           <motion.button
             key="profile"
             type="button"
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             onClick={onOpenProfile}
             className="flex items-center gap-4 min-w-0 h-full w-full text-left cursor-pointer"
             aria-label={`View ${otherDisplayName}'s profile`}

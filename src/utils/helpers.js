@@ -1,4 +1,5 @@
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { Capacitor } from '@capacitor/core'
 import { storage, auth } from '../firebase/config'
 
 export const APP_NAME = 'valoAr'
@@ -15,7 +16,21 @@ export function reportBackgroundError(label, err) {
 
 /** Map flaky Firebase / IndexedDB errors (esp. iOS Safari) to a clear toast. */
 export function formatFirebaseError(err, fallback = 'Something went wrong') {
+  const code = err?.code || ''
   const message = err?.message || fallback
+
+  if (code === 'auth/unauthorized-domain' || /unauthorized-domain/i.test(message)) {
+    return 'Firebase blocked this app URL. For iOS Simulator run: npm run cap:ios:sim'
+  }
+  if (code === 'auth/api-key-not-valid' || /api-key-not-valid/i.test(message)) {
+    return 'Invalid Firebase API key — check your .env and restart npm run dev'
+  }
+  if (code === 'auth/network-request-failed' || /network-request-failed/i.test(message)) {
+    if (Capacitor.isNativePlatform()) {
+      return 'Network error on device — rebuild with npm run cap:ios:sim. If it persists, use an iOS 18.3 simulator or a physical phone (iOS 18.4+ simulators have a known Apple bug).'
+    }
+    return 'Network error — check your connection and that npm run dev is running'
+  }
   if (
     /indexed database|IOS_INDEXEDDB|connection lost|client is offline|unavailable|Failed to get document/i.test(
       message

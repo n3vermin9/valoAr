@@ -508,7 +508,7 @@ export default function ChatNotifications() {
   if (!user?.uid) return null
 
   return (
-    <div className="fixed top-12 left-0 right-0 z-[100] pointer-events-none isolate">
+    <div className="fixed top-[calc(var(--ios-safe-top)+12px)] left-0 right-0 z-[100] pointer-events-none isolate">
       <ChatNotificationSession
         key={user.uid}
         userId={user.uid}

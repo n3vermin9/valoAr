@@ -43,7 +43,8 @@ export function createSanitizedChangeHandler(setValue, sanitize = (value) => val
 
 export function focusInputAtEnd(element) {
   if (!element || element.disabled) return
-  element.focus()
+  // preventScroll avoids WKWebView/iOS jumping the page when refocusing.
+  element.focus({ preventScroll: true })
 
   if (element.isContentEditable) {
     const selection = window.getSelection()

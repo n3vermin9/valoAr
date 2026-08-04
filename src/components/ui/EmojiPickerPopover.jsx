@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import EmojiPicker, { EmojiStyle } from 'emoji-picker-react'
+import { rememberUsedEmoji } from '../../services/emojiImageCache'
 
 export default function EmojiPickerPopover({
   open,
@@ -28,7 +29,11 @@ export default function EmojiPickerPopover({
   return (
     <div ref={ref} className={className}>
       <EmojiPicker
-        onEmojiClick={(emojiData) => onEmojiClick(emojiData.emoji)}
+        onEmojiClick={(emojiData) => {
+          const emoji = emojiData.emoji
+          rememberUsedEmoji(emoji)
+          onEmojiClick(emoji)
+        }}
         emojiStyle={EmojiStyle.APPLE}
         theme="dark"
         previewConfig={{ showPreview: false }}

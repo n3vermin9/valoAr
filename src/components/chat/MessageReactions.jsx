@@ -1,4 +1,5 @@
 import { MESSAGE_REACTIONS } from '../../utils/helpers'
+import { rememberUsedEmoji } from '../../services/emojiImageCache'
 import IosEmoji from '../ui/IosEmoji'
 
 function groupReactions(reactions = {}) {
@@ -23,15 +24,15 @@ export default function MessageReactions({
   if (entries.length === 0) return null
 
   return (
-    <div className={`flex flex-wrap gap-1.5 ${className}`}>
+    <div className={`flex flex-wrap gap-1 ${className}`}>
       {entries.map(([emoji, userIds]) => {
         const mine = userIds.includes(currentUserId)
-        const pillClass = `inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm border transition-colors ${
+        const pillClass = `inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-sm border shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-colors ${
           mine
-            ? 'bg-blue-500/25 border-blue-400/40'
+            ? 'bg-blue-500/35 border-blue-400/45'
             : isOwn
-              ? 'bg-white/15 border-white/20 hover:bg-white/20'
-              : 'bg-black/30 border-white/10 hover:bg-white/10'
+              ? 'bg-[var(--ios-bg-secondary)] border-white/20 hover:bg-white/15'
+              : 'bg-[var(--ios-bg-secondary)] border-white/15 hover:bg-white/10'
         } ${onEmojiClick ? 'cursor-pointer' : ''}`
 
         if (!onEmojiClick) {
@@ -78,6 +79,7 @@ export function ReactionPicker({ reactions, currentUserId, onReact, className = 
           type="button"
           onClick={(e) => {
             e.stopPropagation()
+            rememberUsedEmoji(emoji)
             onReact(emoji)
           }}
           className={`h-10 w-10 flex items-center justify-center rounded-full transition-colors ${
@@ -85,7 +87,7 @@ export function ReactionPicker({ reactions, currentUserId, onReact, className = 
           }`}
           aria-label={`React with ${emoji}`}
         >
-          <IosEmoji emoji={emoji} size={28} />
+          <IosEmoji emoji={emoji} size={28} eager />
         </button>
       ))}
     </div>

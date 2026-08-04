@@ -24,52 +24,108 @@ html {
   --app-keyboard-inset: 0px;
 }
 
-/* Chat keyboard — animate composer dock only; message pane snaps (no bounce). */
+/*
+ * Chat room layout.
+ *
+ * Every layer is fixed to the layout viewport and useChatKeyboardLayout keeps three
+ * numbers current: --app-keyboard-inset, --chat-room-composer-height and
+ * --chat-room-header-height. Composer position, the gradient behind it and the list
+ * clearance all derive from those, so they move as one on the iOS keyboard curve.
+ */
 .chat-room-keyboard-lift {
-  transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: bottom var(--chat-kb-ms) var(--chat-kb-ease);
 }
 
-.chat-room-composer-dock {
-  bottom: var(--app-keyboard-inset);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.chat-room-bottom-scrim {
-  bottom: 0;
-  height: calc(var(--chat-room-composer-min-height) + 1.5rem);
+.chat-room-header-pinned,
+.chat-room-top-scrim {
+  position: fixed !important;
+  top: var(--vv-top, 0px) !important;
+  right: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  transition: none !important;
 }
 
 .chat-room-header-pinned {
-  position: fixed !important;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 25;
+  z-index: 40;
   width: 100%;
-  transform: translate3d(0, var(--chat-header-pin-y, 0px), 0);
-  transition: none;
-  will-change: transform;
 }
 
+/* Same darkening as the composer — mirrored: solid at the top, fades downward. */
 .chat-room-top-scrim {
-  top: 0;
-  transform: translate3d(0, var(--chat-header-pin-y, 0px), 0);
-  transition: none;
-  will-change: transform;
+  z-index: 30;
+  height: calc(var(--chat-room-header-height) + 28px);
+  background: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0.9) 0%,
+    rgb(0 0 0 / 0.78) 45%,
+    rgb(0 0 0 / 0.36) 78%,
+    rgb(0 0 0 / 0) 100%
+  );
 }
 
-.chat-room-messages-pane {
-  top: var(--chat-room-header-height);
-  bottom: calc(
-    var(--chat-room-composer-height) +
-    var(--app-keyboard-inset) +
-    var(--chat-room-message-gap)
+/*
+ * The dock keeps its safe-area padding at all times and slides up by
+ * keyboard - safe-area, so that padding tucks behind the keys and the input lands a
+ * constant distance above them. Constant height also means no reflow mid-animation.
+ */
+.chat-room-composer-dock {
+  top: auto;
+  bottom: var(--chat-room-lift);
+  padding-bottom: var(--ios-safe-bottom);
+}
+
+/* Gradient darkening downward, feathered above the input. */
+.chat-room-composer-dock::before {
+  content: '';
+  position: absolute;
+  top: -28px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgb(0 0 0 / 0.9) 0%,
+    rgb(0 0 0 / 0.78) 45%,
+    rgb(0 0 0 / 0.36) 78%,
+    rgb(0 0 0 / 0) 100%
   );
-  transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/*
+ * The scroller box never changes with the keyboard — only its bottom padding does.
+ * Messages therefore slide under the composer gradient instead of the container
+ * resizing under the user's finger.
+ */
+.chat-room-messages-pane {
+  /* Extends under header + composer so both gradients darken scrolling content. */
+  top: var(--vv-top, 0px);
+  bottom: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Swipe-to-reply moves one bubble only — clip so translateX can't widen the scroller.
+ * content-visibility skips paint for off-screen rows (big win on long threads). */
+.chat-room-messages-pane [data-message-id] {
+  overflow-x: clip;
+  touch-action: pan-y;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
 }
 
 .chat-room-messages-inner {
   min-height: 100%;
+  padding-top: var(--chat-room-header-height);
+  padding-bottom: calc(var(--chat-room-bottom-clearance) + var(--chat-room-message-gap));
+  /* No padding transition while scrolling — animating scrollHeight under a finger feels jumpy.
+   * Keyboard lift still animates via --app-keyboard-inset on the composer dock. */
 }
 
 .chat-room-messages-stack {
@@ -78,8 +134,8 @@ html {
 }
 
 .chat-room-scroll-fab {
-  bottom: calc(var(--chat-room-composer-min-height) + var(--app-keyboard-inset) + 0.5rem);
-  transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  top: auto;
+  bottom: calc(var(--chat-room-bottom-clearance) + 0.5rem);
 }
 
 .page-transition-no-transform {
@@ -96,9 +152,19 @@ html.chat-room-active body {
   overscroll-behavior: none;
 }
 
+/*
+ * Hide body-portaled chat header as soon as we leave a chat route so it cannot
+ * linger over the next page during AnimatePresence exit. In-tree chrome
+ * ([data-chat-room-chrome]) stays visible and fades with PageTransition.
+ * Do not use opacity:0 here — it can stick and blank the header on re-entry.
+ */
+html:not(.chat-room-route) [data-chat-room-portal] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .chat-room-keyboard-lift,
-  .chat-room-messages-pane {
+  .chat-room-keyboard-lift {
     transition: none;
   }
 }
@@ -174,6 +240,9 @@ input[type='search']::-webkit-search-results-decoration {
   -webkit-user-select: none;
   overflow: hidden;
   isolation: isolate;
+  /* Long unbroken tokens must wrap inside max-width, not expand the bubble. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .message-bubble-action {
@@ -181,6 +250,7 @@ input[type='search']::-webkit-search-results-decoration {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Clip backdrop-filter to rounded bounds — prevents gray square corners on glass controls */

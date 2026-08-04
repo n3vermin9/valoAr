@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import AuthLogo from './AuthLogo'
-import { APP_NAME } from '../../utils/helpers'
+import { APP_NAME, formatFirebaseError } from '../../utils/helpers'
 import { SEED_ACCOUNTS } from '../../utils/seedAccounts'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import TextField from '../ui/TextField'
@@ -24,7 +24,7 @@ export default function Login() {
       await login(email, password)
       toast.success('Welcome back!')
     } catch (err) {
-      toast.error(err.message)
+      toast.error(formatFirebaseError(err, 'Login failed'))
     } finally {
       setLoading(false)
     }

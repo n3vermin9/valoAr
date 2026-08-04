@@ -8,6 +8,9 @@
     "cleartext": true
   },
   "plugins": {
+    "CapacitorHttp": {
+      "enabled": false
+    },
     "Keyboard": {
       "resize": "none",
       "style": "dark"

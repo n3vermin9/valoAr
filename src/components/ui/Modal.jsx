@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { modalGlassClass, modalScrimClass, pageSwitchMotion } from '../../utils/designSystem'
 import { setModalOverlayOpen } from '../../utils/modalOverlay'
@@ -12,7 +13,7 @@ export default function Modal({
   className = '',
   glass = false,
   fullscreen = false,
-  overlayClassName = 'z-50',
+  overlayClassName = 'z-[100]',
 }) {
   const ref = useRef(null)
 
@@ -58,7 +59,9 @@ export default function Modal({
     ? { initial: { opacity: 1 }, animate: { opacity: 1 }, exit: { opacity: 1 } }
     : { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: overlayTransition }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -76,6 +79,7 @@ export default function Modal({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }

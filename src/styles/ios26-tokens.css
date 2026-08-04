@@ -51,17 +51,39 @@
   --ios-page-x-lg: 20px;
   --ios-nav-float-bottom: 16px;
   --ios-nav-clearance: 96px;
-  --ios-safe-top: env(safe-area-inset-top, 0px);
+  /*
+   * Prefer env(); fall back to --native-safe-* injected by AppBridgeViewController
+   * (WKWebView often reports env(safe-area-inset-*) as 0 under Capacitor).
+   */
+  --native-safe-top: 0px;
+  --native-safe-right: 0px;
+  --native-safe-bottom: 0px;
+  --native-safe-left: 0px;
+  --ios-safe-top: max(env(safe-area-inset-top, 0px), var(--native-safe-top));
+  --ios-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--native-safe-bottom));
+  --ios-safe-left: max(env(safe-area-inset-left, 0px), var(--native-safe-left));
+  --ios-safe-right: max(env(safe-area-inset-right, 0px), var(--native-safe-right));
 
-  --chat-header-pin-y: 0px;
-  --chat-room-header-height: calc(var(--ios-safe-top) + 70px);
-  --chat-room-composer-min-height: calc(92px + var(--ios-safe-bottom));
+  /* iOS keyboard animation. */
+  --chat-kb-ms: 260ms;
+  --chat-kb-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* visualViewport pan offset — non-zero only if the webview scrolls the page. */
+  --vv-top: 0px;
+  /*
+   * Measured at runtime by useChatKeyboardLayout; these defaults match the real
+   * heights (nav bar 66px, composer 76px) so opening a chat needs no correction.
+   */
+  --chat-room-header-height: calc(var(--ios-safe-top) + 66px);
+  --chat-room-composer-min-height: calc(76px + var(--ios-safe-bottom));
   --chat-room-composer-height: var(--chat-room-composer-min-height);
-  --chat-room-message-gap: 8px;
-  /* System keyboard height — set at runtime by setupKeyboardInset(). */
+  --chat-room-message-gap: 2px;
+  /* System keyboard height — set at runtime by the keyboard layer. */
   --app-keyboard-inset: 0px;
+  /* How far the composer slides up: its safe-area padding tucks behind the keys. */
+  --chat-room-lift: max(0px, calc(var(--app-keyboard-inset) - var(--ios-safe-bottom)));
+  /* Layout space the composer occupies above the keyboard. */
   --chat-room-bottom-clearance: calc(
-    var(--chat-room-composer-min-height) + var(--app-keyboard-inset)
+    var(--chat-room-lift) + var(--chat-room-composer-height)
   );
   --chat-room-page-x: 10px;
 
@@ -75,9 +97,6 @@
   --chat-composer-btn: 48px;
   --chat-composer-text: 16px;
   --chat-meta-text: 11px;
-  --ios-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --ios-safe-left: env(safe-area-inset-left, 0px);
-  --ios-safe-right: env(safe-area-inset-right, 0px);
 
   /* Corner radii — concentric scale */
   --ios-radius-sm: 8px;

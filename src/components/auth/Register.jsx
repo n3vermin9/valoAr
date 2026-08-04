@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import AuthLogo from './AuthLogo'
-import { APP_NAME } from '../../utils/helpers'
+import { APP_NAME, formatFirebaseError } from '../../utils/helpers'
 import LoadingSpinner from '../ui/LoadingSpinner'
 import TextField from '../ui/TextField'
 import Button from '../ui/Button'
@@ -27,7 +27,7 @@ export default function Register() {
       toast.success('Account created!')
       navigate('/setup')
     } catch (err) {
-      toast.error(err.message)
+      toast.error(formatFirebaseError(err, 'Sign up failed'))
     } finally {
       setLoading(false)
     }

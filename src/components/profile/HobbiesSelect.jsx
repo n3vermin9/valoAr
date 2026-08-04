@@ -182,12 +182,12 @@ export function HobbiesDisplay({
 
   return (
     <div
-      className={`flex flex-wrap ${
+      className={`${
         organic
-          ? 'justify-center items-center gap-x-2 gap-y-2 max-w-[17rem] mx-auto min-h-8'
+          ? 'flex flex-wrap justify-center items-center gap-x-2 gap-y-2 max-w-[17rem] mx-auto min-h-8'
           : card
-            ? 'grid grid-cols-2 gap-1 max-w-full'
-          : 'gap-1.5'
+            ? 'flex flex-wrap gap-1 max-w-full'
+            : 'flex flex-wrap gap-1.5'
       } ${className}`}
     >
       {shown.map((id) => (
@@ -195,11 +195,11 @@ export function HobbiesDisplay({
           key={id}
           className={
             highlightSet.has(id)
-              ? `${card ? 'min-w-0 px-1.5 py-0.5 text-[10.5px] text-center truncate' : 'px-3 py-1.5 text-[12px]'} rounded-full bg-blue-500/10 text-blue-100 font-medium leading-none border border-blue-400/55 shadow-[0_0_0_1px_rgba(96,165,250,0.12)]`
+              ? `${card ? 'px-1.5 py-0.5 text-[10.5px] whitespace-nowrap' : 'px-3 py-1.5 text-[12px]'} rounded-full bg-blue-500/10 text-blue-100 font-medium leading-none border border-blue-400/55 shadow-[0_0_0_1px_rgba(96,165,250,0.12)]`
               : organic
                 ? 'px-3 py-1.5 rounded-full bg-white/[0.08] text-white/85 text-[12px] font-medium leading-none border border-transparent'
                 : card
-                  ? 'min-w-0 px-1.5 py-0.5 rounded-full bg-white/10 text-white/75 text-[10.5px] text-center truncate font-medium leading-none border border-transparent'
+                  ? 'px-1.5 py-0.5 rounded-full bg-white/10 text-white/75 text-[10.5px] whitespace-nowrap font-medium leading-none border border-transparent'
                   : 'px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[12px] font-medium leading-none border border-transparent'
           }
           title={getHobbyLabel(id)}

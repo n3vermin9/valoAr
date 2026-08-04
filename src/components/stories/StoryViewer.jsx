@@ -67,6 +67,8 @@ import EmojiPickerPopover from '../ui/EmojiPickerPopover'
 import { PublicProfileView } from '../profile/ProfileView'
 import MessageReactions, { ReactionPicker } from '../chat/MessageReactions'
 import UsernameLabel from '../ui/UsernameLabel'
+import { useOverlayKeyboardInset } from '../../hooks/useOverlayKeyboardInset'
+import { isMobileInputDevice } from '../../utils/iosInput'
 import { sad } from '../../assets'
 
 function getTapZone(clientX) {
@@ -150,7 +152,7 @@ function StoryReactionButton({
   const centerX = centered ? '-50%' : 0
 
   return (
-    <div data-reaction-ui className={`relative shrink-0 ${STORY_FOOTER_ROW_H} ${className}`}>
+    <div data-reaction-ui className={`relative shrink-0 flex items-center h-full ${className}`}>
       <AnimatePresence>
         {showReactionPicker && (
           <motion.div
@@ -446,11 +448,36 @@ export default function StoryViewer({
     }
   }, [storyIndex, stories, entry?.userId, users, story])
 
+  const {
+    inset: keyboardInset,
+    keyboardOpen,
+    ease: keyboardEase,
+    ms: keyboardMs,
+  } = useOverlayKeyboardInset(canReply)
+
+  // Typing with keyboard open: send takes the reaction slot. Keyboard dismiss resets.
+  const replyComposing = keyboardOpen && Boolean(replyText.trim())
+  const showDesktopSend = !isMobileInputDevice() && !replyComposing
+
+  useEffect(() => {
+    if (!replyComposing) return
+    setShowReactionPicker(false)
+    setShowReplyEmoji(false)
+  }, [replyComposing])
+
   const footerReserve = canReply
-    ? 'calc(var(--ios-safe-bottom) + 128px)'
+    ? keyboardOpen
+      ? `calc(${keyboardInset}px + 80px)`
+      : 'calc(var(--ios-safe-bottom) + 128px)'
     : isOwn
       ? 'calc(var(--ios-safe-bottom) + 72px)'
       : 'calc(var(--ios-safe-bottom) + 56px)'
+
+  const replyFooterStyle = {
+    paddingBottom: keyboardOpen ? '12px' : 'calc(var(--ios-safe-bottom) + 12px)',
+    marginBottom: keyboardOpen ? `${keyboardInset}px` : '0px',
+    transition: `margin-bottom ${keyboardMs}ms ${keyboardEase}, padding-bottom ${keyboardMs}ms ${keyboardEase}`,
+  }
 
   const goNextStory = useCallback(() => {
     setReplyText('')
@@ -1142,7 +1169,8 @@ export default function StoryViewer({
 
         {canReply && (
           <div
-            className="relative z-30 px-4 pb-[calc(var(--ios-safe-bottom)+12px)] pt-2"
+            className="relative z-30 px-4 pt-2"
+            style={replyFooterStyle}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1154,20 +1182,8 @@ export default function StoryViewer({
               }
               className="absolute bottom-full left-4 mb-2 z-40"
             />
-            <div className={`flex items-stretch gap-2 ${STORY_FOOTER_ROW_H}`}>
-              <motion.div
-                layout
-                initial={false}
-                animate={{
-                  scale: replySentPulse ? [1, 0.97, 1.03, 1] : replyFocused ? 1.02 : 1,
-                  y: replyFocused ? -3 : 0,
-                }}
-                transition={{
-                  scale: replySentPulse
-                    ? { duration: 0.45, ease: [0.34, 1.4, 0.64, 1] }
-                    : { type: 'spring', stiffness: 420, damping: 32 },
-                  y: { type: 'spring', stiffness: 420, damping: 32 },
-                }}
+            <div className={`flex items-center gap-2 ${STORY_FOOTER_ROW_H}`}>
+              <div
                 className={`flex-1 flex items-center gap-2 rounded-full px-3 min-w-0 h-full ${storyGlassInputClass}`}
               >
                 <button
@@ -1179,11 +1195,7 @@ export default function StoryViewer({
                 >
                   <IconMoodSmile size={20} />
                 </button>
-                <motion.div
-                  className="flex-1 min-w-0"
-                  animate={{ opacity: replyFocused ? 1 : 0.92 }}
-                  transition={{ duration: 0.2 }}
-                >
+                <div className="flex-1 min-w-0">
                   <IosEmojiField
                     data-story-reply-input
                     value={replyText}
@@ -1209,36 +1221,74 @@ export default function StoryViewer({
                     placeholder={`Reply to ${owner?.username || 'user'}…`}
                     className="ios-emoji-field w-full bg-transparent text-[15px] text-white outline-none min-w-0 empty:before:text-white/50"
                   />
-                </motion.div>
-                <motion.button
-                  type="button"
-                  onClick={handleReply}
-                  disabled={replying || !replyText.trim()}
-                  whileTap={{ scale: 0.88 }}
-                  animate={
-                    replying
-                      ? { scale: [1, 0.92, 1], rotate: [0, -12, 0] }
-                      : replySentPulse
-                        ? { scale: [1, 1.15, 1], opacity: [1, 0.7, 1] }
-                        : { scale: 1 }
-                  }
-                  transition={{ duration: 0.35 }}
-                  className={`${storyGlassButtonClass} !h-8 !w-8 !p-0 bg-[var(--ios-blue)] border-[var(--ios-blue)] disabled:opacity-40`}
-                  aria-label="Send reply"
-                >
-                  <IconSend size={18} />
-                </motion.button>
-              </motion.div>
-              <StoryReactionButton
-                showReactionPicker={showReactionPicker}
-                onTogglePicker={() => setShowReactionPicker((v) => !v)}
-                storyReactions={effectiveReactions}
-                viewerId={viewerId}
-                onReact={(emoji) => {
-                  handleStoryReaction(emoji)
-                  setShowReactionPicker(false)
-                }}
-              />
+                </div>
+                {showDesktopSend ? (
+                  <motion.button
+                    type="button"
+                    onClick={handleReply}
+                    disabled={replying || !replyText.trim()}
+                    whileTap={{ scale: 0.88 }}
+                    animate={
+                      replying
+                        ? { scale: [1, 0.92, 1], rotate: [0, -12, 0] }
+                        : replySentPulse
+                          ? { scale: [1, 1.15, 1], opacity: [1, 0.7, 1] }
+                          : { scale: 1 }
+                    }
+                    transition={{ duration: 0.35 }}
+                    className={`${storyGlassButtonClass} !h-8 !w-8 !p-0 bg-[var(--ios-blue)] border-[var(--ios-blue)] disabled:opacity-40`}
+                    aria-label="Send reply"
+                  >
+                    <IconSend size={18} />
+                  </motion.button>
+                ) : null}
+              </div>
+
+              <AnimatePresence initial={false} mode="popLayout">
+                {replyComposing ? (
+                  <motion.button
+                    key="story-reply-send-slot"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={
+                      replying
+                        ? { opacity: 1, scale: [1, 0.92, 1], rotate: [0, -12, 0] }
+                        : replySentPulse
+                          ? { opacity: 1, scale: [1, 1.15, 1] }
+                          : { opacity: 1, scale: 1 }
+                    }
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.18 }}
+                    whileTap={{ scale: 0.88 }}
+                    onClick={handleReply}
+                    disabled={replying || !replyText.trim()}
+                    className={`${storyGlassButtonClass} h-full aspect-square !p-0 shrink-0 bg-[var(--ios-blue)] border-[var(--ios-blue)] disabled:opacity-40`}
+                    aria-label="Send reply"
+                  >
+                    <IconSend size={18} />
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="story-reply-reaction-slot"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.18 }}
+                    className="h-full shrink-0"
+                  >
+                    <StoryReactionButton
+                      showReactionPicker={showReactionPicker}
+                      onTogglePicker={() => setShowReactionPicker((v) => !v)}
+                      storyReactions={effectiveReactions}
+                      viewerId={viewerId}
+                      onReact={(emoji) => {
+                        handleStoryReaction(emoji)
+                        setShowReactionPicker(false)
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         )}
@@ -1267,7 +1317,7 @@ export default function StoryViewer({
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-center">
+            <div className={`flex justify-center ${STORY_FOOTER_ROW_H}`}>
               <StoryReactionButton
                 showReactionPicker={showReactionPicker}
                 onTogglePicker={() => setShowReactionPicker((v) => !v)}

@@ -15,11 +15,13 @@ import HobbiesSelect from './HobbiesSelect'
 import Modal from '../ui/Modal'
 import FieldHint from '../ui/FieldHint'
 import LoadingSpinner from '../ui/LoadingSpinner'
-import { pageTitleClass, typoSubheadClass, typoTitle3Class } from '../../utils/designSystem'
+import Button from '../ui/Button'
+import SubpageShell from '../layout/SubpageShell'
+import { typoSubheadClass, typoTitle3Class } from '../../utils/designSystem'
 import { DEFAULT_CITY_ID, normalizeCity, normalizeHobbies } from '../../utils/profileOptions'
 
 export default function ProfileSetup() {
-  const { user, refreshProfile } = useAuth()
+  const { user, refreshProfile, logout } = useAuth()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [age, setAge] = useState(18)
@@ -62,6 +64,11 @@ export default function ProfileSetup() {
     setPhotos(next)
   }
 
+  const handleBack = async () => {
+    await logout()
+    navigate('/login', { replace: true })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!canSubmit) {
@@ -98,13 +105,18 @@ export default function ProfileSetup() {
   }
 
   return (
-    <div className="h-full overflow-y-auto pb-24">
-      <div className="px-6 pt-8 pb-4">
-        <h1 className={pageTitleClass}>Set up your profile</h1>
-        <p className={`${typoSubheadClass} mt-1`}>Tell us about yourself</p>
-      </div>
+    <SubpageShell
+      title="Set up your profile"
+      onBack={handleBack}
+      footer={
+        <Button type="submit" form="profile-setup-form" fullWidth disabled={loading || !canSubmit}>
+          {loading ? <LoadingSpinner size="w-5 h-5" /> : 'Complete Profile'}
+        </Button>
+      }
+    >
+      <p className={`${typoSubheadClass} px-[var(--ios-page-x-lg)] mb-6`}>Tell us about yourself</p>
 
-      <form onSubmit={handleSubmit} className="px-6 space-y-6">
+      <form id="profile-setup-form" onSubmit={handleSubmit} className="px-[var(--ios-page-x-lg)] space-y-6">
         <PhotoUrlSection
           photos={photos}
           updatePhoto={updatePhoto}
@@ -215,14 +227,6 @@ export default function ProfileSetup() {
             className="bg-white/10"
           />
         </div>
-
-        <button
-          type="submit"
-          disabled={loading || !canSubmit}
-          className="w-full py-3 bg-blue-500 hover:bg-blue-600 rounded-full font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? <LoadingSpinner size="w-5 h-5" /> : 'Complete Profile'}
-        </button>
       </form>
 
       <Modal isOpen={showBothInfo} onClose={() => setShowBothInfo(false)}>
@@ -255,6 +259,6 @@ export default function ProfileSetup() {
           </div>
         </div>
       </Modal>
-    </div>
+    </SubpageShell>
   )
 }

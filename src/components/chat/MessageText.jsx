@@ -204,7 +204,7 @@ export default function MessageText({
 
   return (
     <span
-      className={`whitespace-pre-wrap break-words ${className}`}
+      className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0 ${className}`}
       data-allow-copy
       data-allow-contextmenu={onContextMenu ? true : undefined}
       onContextMenu={onContextMenu}

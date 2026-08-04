@@ -146,7 +146,9 @@ export default function App() {
           ) : profile?.username ? (
             <Navigate to="/discover" replace />
           ) : (
-            <ProfileSetup />
+            <div className="h-full min-h-0 overflow-hidden bg-[var(--ios-bg)]">
+              <ProfileSetup />
+            </div>
           )
         }
       />

@@ -5,11 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:device": "CAP_DEV_HOST=lan vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cap:sync": "npm run build && npx cap sync",
-    "cap:ios": "npm run cap:sync && npx cap open ios"
+    "cap:sync": "CAP_PRODUCTION=1 npm run build && CAP_PRODUCTION=1 node scripts/writeCapacitorConfig.mjs && CAP_PRODUCTION=1 npx cap sync",
+    "cap:live": "CAP_DEV_HOST=lan node scripts/writeCapacitorConfig.mjs && npx cap sync",
+    "cap:ios": "CAP_PRODUCTION=1 npm run cap:sync && npx cap open ios",
+    "cap:ios:live": "CAP_DEV_HOST=lan node scripts/writeCapacitorConfig.mjs && npx cap sync ios && npx cap open ios",
+    "cap:ios:sim": "CAP_DEV_HOST=localhost node scripts/writeCapacitorConfig.mjs && DEVELOPER_DIR=/Users/nvr/Downloads/Xcode.app/Contents/Developer npx cap sync ios",
+    "cap:ios:sim:open": "npm run cap:ios:sim && DEVELOPER_DIR=/Users/nvr/Downloads/Xcode.app/Contents/Developer npx cap open ios",
+    "cap:ios:sim:run": "CAP_DEV_HOST=localhost node scripts/writeCapacitorConfig.mjs && DEVELOPER_DIR=/Users/nvr/Downloads/Xcode.app/Contents/Developer npx cap run ios --live-reload --host localhost --port 5173"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.0",

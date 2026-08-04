@@ -3,6 +3,8 @@
 const APPLE_EMOJI_CDN = 'https://cdn.jsdelivr.net/npm/emoji-datasource-apple/img/apple/64/'
 
 const urlCache = new Map()
+/** Optional localStorage-backed data URLs — set by emojiImageCache (avoids circular import). */
+let localUrlResolver = null
 
 const EMOJI_SEGMENT_REGEX =
   /\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?)*/gu
@@ -18,7 +20,13 @@ export function emojiToUnified(emoji) {
   return codepoints.join('-')
 }
 
-export function getAppleEmojiUrl(emoji) {
+/** Used by emojiImageCache to inject persisted data-URL lookups. */
+export function setAppleEmojiLocalResolver(resolver) {
+  localUrlResolver = typeof resolver === 'function' ? resolver : null
+}
+
+/** Always the CDN PNG URL (never a localStorage data URL). */
+export function getAppleEmojiCdnUrl(emoji) {
   if (!emoji) return ''
   const cached = urlCache.get(emoji)
   if (cached) return cached
@@ -26,6 +34,13 @@ export function getAppleEmojiUrl(emoji) {
   const url = `${APPLE_EMOJI_CDN}${emojiToUnified(emoji)}.png`
   urlCache.set(emoji, url)
   return url
+}
+
+export function getAppleEmojiUrl(emoji) {
+  if (!emoji) return ''
+  const local = localUrlResolver?.(emoji)
+  if (local) return local
+  return getAppleEmojiCdnUrl(emoji)
 }
 
 // Some datasource files drop a trailing FE0F presentation selector.

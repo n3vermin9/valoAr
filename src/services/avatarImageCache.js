@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core'
+
 const CACHE_NAME = 'arvoli-avatars-v2'
 const blobByUrl = new Map()
 const pendingByUrl = new Map()
@@ -27,6 +29,12 @@ export function getAvatarDisplayUrl(url, size = 128) {
 }
 
 async function loadAvatarImage(optimized) {
+  // iOS Simulator + CapacitorHttp/URLSession often fail Google image hosts with
+  // NSURLError -1017 (HTTP/3). Let <img> load through WKWebView instead.
+  if (Capacitor.isNativePlatform()) {
+    return optimized
+  }
+
   if (typeof caches !== 'undefined') {
     try {
       const cache = await caches.open(CACHE_NAME)
