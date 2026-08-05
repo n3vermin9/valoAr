@@ -42,7 +42,7 @@ export default function AnalyticsDashboard({ onBack }) {
   }, [])
 
   return (
-    <div className="fixed inset-0 z-[80] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[80] bg-[var(--ios-bg)] flex flex-col">
       <SubpageHeaderBar title="Analytics" onBack={onBack} />
 
       <div className="flex-1 overflow-y-auto pb-8">

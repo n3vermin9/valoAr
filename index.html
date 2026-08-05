@@ -13,6 +13,22 @@
     <meta name="apple-mobile-web-app-title" content="valoAr" />
     <meta name="format-detection" content="telephone=no" />
     <title>valoAr</title>
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('valoAr.appearance') || 'system'
+          if (pref !== 'light' && pref !== 'dark' && pref !== 'system') pref = 'system'
+          var dark =
+            pref === 'dark' ||
+            (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var root = document.documentElement
+          root.classList.toggle('theme-light', !dark)
+          root.classList.toggle('theme-dark', dark)
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', dark ? '#000000' : '#f2f2f7')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

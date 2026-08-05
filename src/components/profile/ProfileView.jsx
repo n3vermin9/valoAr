@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { IconAdjustmentsHorizontal, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconPalette, IconChartBar } from '@tabler/icons-react'
+import { IconAdjustmentsHorizontal, IconLogout, IconTrash, IconDotsVertical, IconBellOff, IconBell, IconSettings, IconUserMinus, IconBan, IconMessage, IconUserPlus, IconCheck, IconX, IconSearch, IconUsers, IconChartBar } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchUser, fetchDeletedUser, recordSwipe, removeMatch, removeMatchKeepChat, updateUserSettings, acceptLike, cancelFriendRequest, subscribeIncomingRequest, subscribeOutgoingRequest, subscribeToUser, patchProfileAfterSwipe, patchProfileAfterMatch } from '../../services/userService'
 import { subscribeChat } from '../../services/chatService'
@@ -11,7 +11,7 @@ import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { getMatchId } from '../../utils/helpers'
 import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoCaptionClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoFootnoteClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
 import { canDirectMessage } from '../../utils/directMessages'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
@@ -28,8 +28,7 @@ import PhotoHeroView, {
 import { ProfileSkeleton } from '../ui/Skeleton'
 import CopyableUsername from '../ui/CopyableUsername'
 import ChevronBack from '../ui/ChevronBack'
-import { SubpageHeaderBar } from '../layout/SubpageShell'
-import ChatBackgroundSettings from './ChatBackgroundSettings'
+import PushPage from '../layout/PushPage'
 import ProfileMutualGroups from './ProfileMutualGroups'
 import ProfileAboutBlock from './ProfileAboutBlock'
 import ProfileInterestsCard from './ProfileInterestsCard'
@@ -41,6 +40,11 @@ import { isDurovAdmin } from '../../utils/appAdmin'
 import { deletedAccountAvatarClass, deletedAccountAvatarSrc } from '../../utils/deletedAccountAvatar'
 import { getCityLabel } from '../../utils/profileOptions'
 import { hasActiveDiscoverFilters, loadDiscoverFilters } from '../../utils/discoverFilters'
+import {
+  applyAppearance,
+  getStoredAppearance,
+  normalizeAppearance,
+} from '../../utils/appearance'
 
 function profileAgeCityLine(profile) {
   const age = profile?.age != null ? `${profile.age} years old` : null
@@ -59,7 +63,6 @@ export default function ProfileView() {
   const [friendProfileId, setFriendProfileId] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showAnalytics, setShowAnalytics] = useState(false)
-  const [showChatBackground, setShowChatBackground] = useState(false)
   const [showDiscoverFilters, setShowDiscoverFilters] = useState(false)
   const [discoverSettingsFilters, setDiscoverSettingsFilters] = useState(loadDiscoverFilters)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -70,6 +73,9 @@ export default function ProfileView() {
   const [allowDirectMessages, setAllowDirectMessages] = useState(false)
   const [showFriendCount, setShowFriendCount] = useState(true)
   const [useMilitaryTime, setUseMilitaryTime] = useState(true)
+  const [appearance, setAppearance] = useState(() =>
+    normalizeAppearance(profile?.appearance ?? getStoredAppearance())
+  )
 
   useEffect(() => {
     setAllowDirectMessages(profile?.allowDirectMessages === true)
@@ -82,6 +88,10 @@ export default function ProfileView() {
   useEffect(() => {
     setUseMilitaryTime(profile?.useMilitaryTime !== false)
   }, [profile?.useMilitaryTime])
+
+  useEffect(() => {
+    setAppearance(normalizeAppearance(profile?.appearance ?? getStoredAppearance()))
+  }, [profile?.appearance])
 
   useEffect(() => {
     if (!location.state?.openSettings) return
@@ -165,8 +175,28 @@ export default function ProfileView() {
     }
   }
 
+  const handleAppearanceChange = async (next) => {
+    if (!user?.uid || savingSettings) return
+    const value = normalizeAppearance(next)
+    if (value === appearance) return
+    const previous = appearance
+    setAppearance(value)
+    applyAppearance(value)
+    setSavingSettings(true)
+    try {
+      await updateUserSettings(user.uid, { appearance: value })
+      setProfile((prev) => (prev ? { ...prev, appearance: value } : prev))
+    } catch {
+      setAppearance(previous)
+      applyAppearance(previous)
+      toast.error('Failed to update appearance')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
   return (
-    <div className="h-full min-h-0 overflow-y-auto pb-24 bg-black">
+    <div className="h-full min-h-0 overflow-y-auto pb-[var(--ios-nav-clearance)] bg-[var(--ios-bg)]">
       <PhotoHeroFixedTopRight>
         <button
           type="button"
@@ -241,7 +271,6 @@ export default function ProfileView() {
 
         <div className={`${insetCardOuterClass} mt-6 min-w-0 mx-[var(--ios-page-x-lg)]`}>
           <ProfileAboutBlock profile={profile} socialsVisible />
-          <InfoRow label="Member Since" value={memberSince} small />
         </div>
         <ProfileInterestsCard profile={profile} />
       </PhotoHeroContentOverlap>
@@ -255,151 +284,176 @@ export default function ProfileView() {
             value={String(profile.matches?.length || 0)}
             onClick={() => setShowMatches(true)}
           />
-          <SettingsNavRow
-            icon={IconBan}
-            iconTone="red"
-            label="Blocked Users"
-            value={String(profile.blocked?.length || 0)}
-            onClick={() => setShowBlocked(true)}
-          />
         </SettingsSection>
       </div>
 
-      {showSettings && (
-        <div className="fixed inset-0 z-[80] bg-black flex flex-col">
-          <SubpageHeaderBar title="Settings" onBack={() => setShowSettings(false)} />
+      <MemberSinceLine value={memberSince} />
 
-          <div className="flex-1 overflow-y-auto pb-[var(--ios-nav-clearance)] space-y-6">
-            <SettingsSection title="Privacy">
-              <div className="px-4 py-4 border-b border-white/10">
-                <p className={typoHeadlineClass}>Who can message you</p>
-                <p className={`${typoSubheadClass} mt-1 mb-3`}>
-                  When you are not friends yet. Both people need to allow everyone to chat.
-                </p>
-                <div className={segmentedControlClass}>
-                  {[
-                    { id: 'friends', label: 'Friends only' },
-                    { id: 'everybody', label: 'Everybody' },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      disabled={savingSettings}
-                      onClick={() => handleMessageAudienceChange(option.id)}
-                      className={
-                        (allowDirectMessages ? 'everybody' : 'friends') === option.id
-                          ? segmentedItemActiveClass
-                          : segmentedItemClass
-                      }
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+      <PushPage open={showSettings} title="Settings" onBack={() => setShowSettings(false)}>
+        <div className="flex-1 overflow-y-auto pb-[var(--ios-nav-clearance)] space-y-6">
+          <SettingsSection title="Privacy & Security">
+            <div className="px-4 py-4 border-b border-[var(--ios-hairline)]">
+              <p className={typoHeadlineClass}>Who can message you</p>
+              <p className={`${typoSubheadClass} mt-1 mb-3`}>
+                When you are not friends yet. Both people need to allow everyone to chat.
+              </p>
+              <div className={segmentedControlClass}>
+                {[
+                  { id: 'friends', label: 'Friends only' },
+                  { id: 'everybody', label: 'Everybody' },
+                ].map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={savingSettings}
+                    onClick={() => handleMessageAudienceChange(option.id)}
+                    className={
+                      (allowDirectMessages ? 'everybody' : 'friends') === option.id
+                        ? segmentedItemActiveClass
+                        : segmentedItemClass
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
-              <SettingSwitch
-                label="Show friend count"
-                checked={showFriendCount}
-                disabled={savingSettings}
-                onChange={handleToggleShowFriendCount}
-              />
-              <SettingSwitch
-                label="24-hour time"
-                checked={useMilitaryTime}
-                disabled={savingSettings}
-                onChange={handleToggleUseMilitaryTime}
-              />
-            </SettingsSection>
+            </div>
+            <SettingSwitch
+              label="Show friend count"
+              description="Let other people see how many friends you have."
+              checked={showFriendCount}
+              disabled={savingSettings}
+              onChange={handleToggleShowFriendCount}
+            />
+            <SettingsNavRow
+              icon={IconBan}
+              iconTone="red"
+              label="Blocked Users"
+              description="People who can't message or find you."
+              value={String(profile.blocked?.length || 0)}
+              onClick={() => setShowBlocked(true)}
+            />
+          </SettingsSection>
 
-            <SettingsSection title="Appearance">
-              <SettingsNavRow
-                icon={IconPalette}
-                iconTone="violet"
-                label="Chat background"
-                onClick={() => setShowChatBackground(true)}
-              />
-            </SettingsSection>
+          <SettingsSection title="Appearance">
+            <div className="px-4 py-4 border-b border-[var(--ios-hairline)]">
+              <p className={typoHeadlineClass}>Theme</p>
+              <p className={`${typoSubheadClass} mt-1 mb-3`}>
+                Light, dark, or match your device settings.
+              </p>
+              <div className={segmentedControlClass}>
+                {[
+                  { id: 'light', label: 'Light' },
+                  { id: 'dark', label: 'Dark' },
+                  { id: 'system', label: 'System' },
+                ].map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={savingSettings}
+                    onClick={() => handleAppearanceChange(option.id)}
+                    className={
+                      appearance === option.id ? segmentedItemActiveClass : segmentedItemClass
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <SettingSwitch
+              label="24-hour time"
+              description="Show message times as 18:30 instead of 6:30 PM."
+              checked={useMilitaryTime}
+              disabled={savingSettings}
+              onChange={handleToggleUseMilitaryTime}
+            />
+          </SettingsSection>
 
-            <SettingsSection title="Discover">
-              <SettingsNavRow
-                icon={IconAdjustmentsHorizontal}
-                iconTone="blue"
-                label="Discover filters"
-                description="Optional city and interest filters for your Discover feed."
-                value={discoverFiltersActive ? 'On' : 'Off'}
-                onClick={() => setShowDiscoverFilters(true)}
-              />
-            </SettingsSection>
+          <SettingsSection>
+            <SettingsNavRow
+              icon={IconAdjustmentsHorizontal}
+              iconTone="blue"
+              label="Discover filters"
+              description="Optional city and interest filters for your Discover feed."
+              value={discoverFiltersActive ? 'On' : 'Off'}
+              onClick={() => setShowDiscoverFilters(true)}
+            />
+          </SettingsSection>
 
-            {isDurovAdmin(profile) && (
-              <SettingsSection title="Admin">
-                <SettingsNavRow
-                  icon={IconChartBar}
-                  iconTone="blue"
-                  label="App analytics"
-                  onClick={() => {
-                    setShowSettings(false)
-                    setShowAnalytics(true)
-                  }}
-                />
-              </SettingsSection>
-            )}
-
+          {isDurovAdmin(profile) && (
             <SettingsSection>
               <SettingsNavRow
-                icon={IconLogout}
-                iconTone="red"
-                danger
-                label="Log out"
+                icon={IconChartBar}
+                iconTone="blue"
+                label="App analytics"
                 onClick={() => {
                   setShowSettings(false)
-                  logout()
+                  setShowAnalytics(true)
                 }}
-                trailing={null}
-              />
-              <SettingsNavRow
-                icon={IconTrash}
-                iconTone="red"
-                danger
-                label="Delete account"
-                onClick={() => {
-                  setShowSettings(false)
-                  setShowDeleteConfirm(true)
-                }}
-                trailing={null}
               />
             </SettingsSection>
-          </div>
-        </div>
-      )}
+          )}
 
-      {showChatBackground && (
-        <ChatBackgroundSettings onBack={() => setShowChatBackground(false)} />
-      )}
-
-      {showDiscoverFilters && (
-        <div className="fixed inset-0 z-[90] bg-black flex flex-col">
-          <SubpageHeaderBar title="Discover Filters" onBack={() => setShowDiscoverFilters(false)} />
-          <div className="flex-1 overflow-y-auto px-[var(--ios-page-x-lg)] pb-[var(--ios-nav-clearance)]">
-            <p className={`${typoSubheadClass} mb-5`}>
-              These filters are optional and only affect your Discover cards.
-            </p>
-            <DiscoverFiltersPanel
-              filters={discoverSettingsFilters}
-              onChange={setDiscoverSettingsFilters}
-              userId={user?.uid}
+          <SettingsSection>
+            <SettingsNavRow
+              icon={IconLogout}
+              iconTone="red"
+              danger
+              label="Log out"
+              onClick={() => {
+                setShowSettings(false)
+                logout()
+              }}
+              trailing={null}
             />
-          </div>
+            <SettingsNavRow
+              icon={IconTrash}
+              iconTone="red"
+              danger
+              label="Delete account"
+              onClick={() => {
+                setShowSettings(false)
+                setShowDeleteConfirm(true)
+              }}
+              trailing={null}
+            />
+          </SettingsSection>
         </div>
-      )}
+      </PushPage>
+
+      <PushPage
+        open={showBlocked}
+        title="Blocked Users"
+        onBack={() => setShowBlocked(false)}
+        zIndexClass="z-[85]"
+      >
+        <div className="flex-1 overflow-y-auto pb-[var(--ios-nav-clearance)]">
+          <BlockedList showTitle={false} />
+        </div>
+      </PushPage>
+
+      <PushPage
+        open={showDiscoverFilters}
+        title="Discover Filters"
+        onBack={() => setShowDiscoverFilters(false)}
+        zIndexClass="z-[90]"
+      >
+        <div className="flex-1 overflow-y-auto px-[var(--ios-page-x-lg)] pb-[var(--ios-nav-clearance)]">
+          <p className={`${typoSubheadClass} mb-5`}>
+            These filters are optional and only affect your Discover cards.
+          </p>
+          <DiscoverFiltersPanel
+            filters={discoverSettingsFilters}
+            onChange={setDiscoverSettingsFilters}
+            userId={user?.uid}
+          />
+        </div>
+      </PushPage>
 
       {showAnalytics && (
         <AnalyticsDashboard onBack={() => setShowAnalytics(false)} />
       )}
-
-      <Modal isOpen={showBlocked} onClose={() => setShowBlocked(false)} className="max-w-lg">
-        <BlockedList />
-      </Modal>
 
       <Modal isOpen={showMatches} onClose={() => setShowMatches(false)} className="max-w-lg">
         <MatchHistory onSelectFriend={setFriendProfileId} />
@@ -447,16 +501,12 @@ export default function ProfileView() {
   )
 }
 
-function InfoRow({ label, value, capitalize, small }) {
+/** Closes out a profile: no card, no separator — just a quiet line under everything. */
+function MemberSinceLine({ value }) {
   return (
-    <div
-      className={`flex justify-between px-4 pb-4 pt-3 border-t border-white/10 ${
-        small ? 'text-xs text-white/40' : ''
-      }`}
-    >
-      <span className={small ? '' : 'text-white/50'}>{label}</span>
-      <span className={`${capitalize ? 'capitalize' : ''} ${small ? 'text-white/50' : ''}`}>{value}</span>
-    </div>
+    <p className={`${typoFootnoteClass} text-center text-[var(--ios-label-tertiary)] mt-8 mb-2`}>
+      Member since {value}
+    </p>
   )
 }
 
@@ -974,7 +1024,6 @@ export function PublicProfileView({
           friendCount={friendCount}
           socialsVisible={isSelf || isMatched}
         />
-        <InfoRow label="Member Since" value={memberSince} small />
       </div>
       <ProfileInterestsCard profile={profile} />
 
@@ -989,6 +1038,8 @@ export function PublicProfileView({
           }}
         />
       )}
+
+      <MemberSinceLine value={memberSince} />
 
       </PhotoHeroContentOverlap>
 

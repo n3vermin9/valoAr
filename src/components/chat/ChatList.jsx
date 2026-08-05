@@ -534,7 +534,7 @@ export default function ChatList() {
           className="h-3 shrink-0 flex items-center justify-center px-[var(--ios-page-x-lg)]"
           aria-label={hasUnseenStories ? 'Show stories — new stories available' : 'Show stories'}
         >
-          <span className="relative w-full max-w-[7rem] h-px rounded-full bg-white/25">
+          <span className="relative w-full max-w-[7rem] h-px rounded-full bg-[var(--ios-separator)]">
             {hasUnseenStories ? (
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[var(--ios-green)]" />
             ) : null}
@@ -670,7 +670,7 @@ export default function ChatList() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                       <div
-                          className={`truncate min-w-0 ${unreadCount > 0 ? 'font-semibold' : 'font-medium'} ${isRemoved ? 'text-white/50' : ''}`}
+                          className={`truncate min-w-0 text-[var(--ios-label)] ${unreadCount > 0 ? 'font-semibold' : 'font-medium'} ${isRemoved ? 'text-[var(--ios-label-secondary)]' : ''}`}
                         >
                         {isSaved ? (
                           'Saved Messages'
@@ -685,7 +685,7 @@ export default function ChatList() {
                         )}
                         </div>
                         {isMuted && (
-                          <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
+                          <IconBellOff size={14} className="text-[var(--ios-label-secondary)] shrink-0" aria-label="Muted" />
                         )}
                         {isTemporary && (
                           <IconClockHour4 size={14} className="text-amber-300 shrink-0" aria-label="Temporary chat" />
@@ -696,7 +696,7 @@ export default function ChatList() {
                       </div>
                       {lastMsg?.createdAt && (
                         <span
-                          className={`text-xs shrink-0 ${unreadCount > 0 ? 'text-blue-400' : 'text-white/40'}`}
+                          className={`text-xs shrink-0 ${unreadCount > 0 ? 'text-[var(--ios-blue)]' : 'text-[var(--ios-label-tertiary)]'}`}
                         >
                           {formatChatTime(lastMsg.createdAt, militaryTime)}
                         </span>
@@ -705,10 +705,10 @@ export default function ChatList() {
                     <p
                       className={`text-sm truncate mt-0.5 flex items-center gap-1 ${
                         isTyping
-                          ? 'text-blue-300 font-medium italic'
+                          ? 'text-[var(--ios-blue)] font-medium italic'
                           : unreadCount > 0
-                            ? 'text-white/80 font-medium'
-                            : 'text-white/50'
+                            ? 'text-[var(--ios-label)] font-medium'
+                            : 'text-[var(--ios-label-secondary)]'
                       }`}
                     >
                       {isTyping ? (
@@ -718,9 +718,9 @@ export default function ChatList() {
                           {sentByYou && (
                             <span className="inline-flex shrink-0 not-italic">
                               {lastMsg?.read ? (
-                                <IconChecks size={14} className="text-blue-400" stroke={2} />
+                                <IconChecks size={14} className="text-[var(--ios-blue)]" stroke={2} />
                               ) : (
-                                <IconCheck size={14} className="text-white/40" stroke={2} />
+                                <IconCheck size={14} className="text-[var(--ios-label-tertiary)]" stroke={2} />
                               )}
                             </span>
                           )}
@@ -837,7 +837,7 @@ function ContextMenuItem({ children, onClick, icon: Icon, danger = false }) {
       className={danger ? dropdownMenuItemWithIconDangerClass : dropdownMenuItemWithIconClass}
     >
       {Icon && (
-        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-red-400' : 'text-white/55'}`} />
+        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-red-400' : 'text-[var(--ios-label-secondary)]'}`} />
       )}
       {children}
     </button>

@@ -3,7 +3,6 @@ import {
   KEYBOARD_MS,
   claimKeyboardInset,
   measureKeyboardInset,
-  measureViewportOffsetTop,
   onNativeKeyboardHeight,
   publishKeyboardInset,
   resetDocumentScroll,
@@ -33,7 +32,7 @@ export default function useChatKeyboardLayout({ matchId, paneRef, dockRef, ready
   const userScrollingRef = useRef(false)
   const scrollBottomRef = useRef(0)
   const geometryRef = useRef({ inset: -1, dock: -1, header: -1 })
-  const lastVvTopRef = useRef(-1)
+  const measuredRef = useRef(false)
 
   const captureScrollBottom = useCallback(() => {
     const pane = paneRef.current
@@ -99,15 +98,17 @@ export default function useChatKeyboardLayout({ matchId, paneRef, dockRef, ready
         )
       : null
     const headerHeight = header ? Math.ceil(header.getBoundingClientRect().height) : 0
-    const vvTop = measureViewportOffsetTop()
 
     const prev = geometryRef.current
     const moved =
       (dockHeight > 0 && prev.dock !== dockHeight) ||
       (headerHeight > 0 && prev.header !== headerHeight) ||
       prev.inset !== inset
+    // First pass only records the chrome sizes; there is no scroll offset worth
+    // preserving yet, and following one would fight the open-at-bottom jump.
+    const settled = measuredRef.current
 
-    if (moved && !followingRef.current && !userScrollingRef.current) {
+    if (moved && settled && !followingRef.current && !userScrollingRef.current) {
       captureScrollBottom()
     }
 
@@ -116,17 +117,14 @@ export default function useChatKeyboardLayout({ matchId, paneRef, dockRef, ready
       dock: dockHeight > 0 ? dockHeight : prev.dock,
       header: headerHeight > 0 ? headerHeight : prev.header,
     }
+    if (dockHeight > 0 && headerHeight > 0) measuredRef.current = true
 
-    if (vvTop !== lastVvTopRef.current) {
-      lastVvTopRef.current = vvTop
-      writeVar('--vv-top', vvTop)
-    }
     if (dockHeight > 0) writeVar('--chat-room-composer-height', dockHeight)
     if (headerHeight > 0) writeVar('--chat-room-header-height', headerHeight)
     publishKeyboardInset(inset)
     resetDocumentScroll()
 
-    if (moved && !userScrollingRef.current) startFollow()
+    if (moved && settled && !userScrollingRef.current) startFollow()
   }, [captureScrollBottom, dockRef, matchId, startFollow])
 
   useEffect(() => {
@@ -211,10 +209,9 @@ export default function useChatKeyboardLayout({ matchId, paneRef, dockRef, ready
       if (scheduled) cancelAnimationFrame(scheduled)
       stopFollow()
       geometryRef.current = { inset: -1, dock: -1, header: -1 }
-      lastVvTopRef.current = -1
+      measuredRef.current = false
       root.style.removeProperty('--chat-room-composer-height')
       root.style.removeProperty('--chat-room-header-height')
-      root.style.setProperty('--vv-top', '0px')
       publishKeyboardInset(0)
     }
   }, [applyLayout, captureScrollBottom, dockRef, matchId, paneRef, ready, stopFollow])

@@ -8,6 +8,7 @@ import {
   compactInputAffixClass,
   photoHeroFrameClass,
   photoHeroImageClass,
+  sectionLabelClass,
 } from '../../utils/designSystem'
 import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
 import AppTextInput from '../ui/AppTextInput'
@@ -253,21 +254,27 @@ function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
   }
 
   return (
-    <div className="mb-4 px-[var(--ios-page-x-lg)]">
-      <p className="text-xs text-white/40 mb-2">Sample photos</p>
-      <div className="grid grid-cols-4 gap-2">
+    <div
+      className={`mb-2 px-[var(--ios-page-x-lg)] ${
+        variant === 'hero'
+          ? 'pt-[calc(var(--ios-safe-top)+3.75rem)]'
+          : ''
+      }`}
+    >
+      <p className={`${sectionLabelClass} normal-case !mb-3 !px-0`}>Sample photos</p>
+      <div className="grid grid-cols-4 gap-2.5">
         {SAMPLE_PROFILE_PHOTOS.map((url) => (
           <button
             key={url}
             type="button"
             onClick={() => updatePhoto(0, url)}
-            className="rounded-xl overflow-hidden border-2 border-white/10 transition-colors hover:border-white/25"
+            className="rounded-[var(--ios-radius-lg)] overflow-hidden border border-white/12 bg-white/[0.04] transition-colors hover:border-white/28 active:scale-[0.98]"
           >
             <img
               src={url}
               alt=""
               referrerPolicy="no-referrer"
-              className="w-full aspect-square object-cover"
+              className="w-full aspect-[3/4] object-cover"
             />
           </button>
         ))}

@@ -39,7 +39,7 @@ html {
 .chat-room-header-pinned,
 .chat-room-top-scrim {
   position: fixed !important;
-  top: var(--vv-top, 0px) !important;
+  top: 0 !important;
   right: 0 !important;
   left: 0 !important;
   transform: none !important;
@@ -57,10 +57,10 @@ html {
   height: calc(var(--chat-room-header-height) + 28px);
   background: linear-gradient(
     to bottom,
-    rgb(0 0 0 / 0.9) 0%,
-    rgb(0 0 0 / 0.78) 45%,
-    rgb(0 0 0 / 0.36) 78%,
-    rgb(0 0 0 / 0) 100%
+    var(--ios-scrim-strong) 0%,
+    var(--ios-scrim-mid) 45%,
+    var(--ios-scrim-soft) 78%,
+    transparent 100%
   );
 }
 
@@ -87,10 +87,10 @@ html {
   pointer-events: none;
   background: linear-gradient(
     to top,
-    rgb(0 0 0 / 0.9) 0%,
-    rgb(0 0 0 / 0.78) 45%,
-    rgb(0 0 0 / 0.36) 78%,
-    rgb(0 0 0 / 0) 100%
+    var(--ios-scrim-strong) 0%,
+    var(--ios-scrim-mid) 45%,
+    var(--ios-scrim-soft) 78%,
+    transparent 100%
   );
 }
 
@@ -101,7 +101,7 @@ html {
  */
 .chat-room-messages-pane {
   /* Extends under header + composer so both gradients darken scrolling content. */
-  top: var(--vv-top, 0px);
+  top: 0;
   bottom: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -111,10 +111,9 @@ html {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Swipe-to-reply moves one bubble only — clip so translateX can't widen the scroller.
- * content-visibility skips paint for off-screen rows (big win on long threads). */
+/* content-visibility skips paint for off-screen rows (big win on long threads).
+ * No overflow-x here — clip on one axis forces the other to auto and chops reaction pills. */
 .chat-room-messages-pane [data-message-id] {
-  overflow-x: clip;
   touch-action: pan-y;
   content-visibility: auto;
   contain-intrinsic-size: auto 72px;

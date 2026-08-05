@@ -14,6 +14,7 @@ import {
   IconX,
   IconSettings,
   IconPin,
+  IconPalette,
 } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -101,6 +102,8 @@ import { getStoryReplyDisplay, storyOpenOriginFromRect } from '../../utils/story
 import { isChatMuteActive } from '../../utils/chatMute'
 import MuteChatModal from './MuteChatModal'
 import UsernameLabel from '../ui/UsernameLabel'
+import PushPage from '../layout/PushPage'
+import ChatBackgroundSettings from '../profile/ChatBackgroundSettings'
 import {
   dismissAppKeyboard,
   getNativeKeyboardHeight,
@@ -260,10 +263,12 @@ export default function ChatRoom() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [memberProfiles, setMemberProfiles] = useState(() => roomSnapshot?.memberProfiles || {})
   const [showMuteModal, setShowMuteModal] = useState(false)
+  const [showChatBackground, setShowChatBackground] = useState(false)
   const [previewJoining, setPreviewJoining] = useState(false)
   const messagesEndRef = useRef(null)
   const highlightTimerRef = useRef(null)
   const messagesContainerRef = useRef(null)
+  const messagesInnerRef = useRef(null)
   const composerDockRef = useRef(null)
   const replyRevealTimerRef = useRef(null)
   const stickToBottomRef = useRef(true)
@@ -755,11 +760,14 @@ export default function ChatRoom() {
     const el = messagesContainerRef.current
     if (!el) return undefined
 
+    // Watch the content box too: quoted stories, avatars and images settle after the
+    // first paint, and without this the last message stays cut off under the composer.
     const observer = new ResizeObserver(() => {
       if (!stickToBottomRef.current) return
       el.scrollTop = el.scrollHeight
     })
     observer.observe(el)
+    if (messagesInnerRef.current) observer.observe(messagesInnerRef.current)
 
     return () => observer.disconnect()
   }, [matchId, loading])
@@ -773,10 +781,24 @@ export default function ChatRoom() {
     scrollMessagesToBottom('auto')
   }, [lastThreadKey, deleteTarget, scrollMessagesToBottom])
 
+  // Open on the newest message, then hold that position while the chrome is measured
+  // and late content resolves, so the thread never opens mid-message.
   useLayoutEffect(() => {
-    if (loading) return
+    if (loading) return undefined
     stickToBottomRef.current = true
     scrollMessagesToBottom('auto')
+
+    const raf = requestAnimationFrame(() => {
+      if (stickToBottomRef.current) scrollMessagesToBottom('auto')
+    })
+    const settle = window.setTimeout(() => {
+      if (stickToBottomRef.current) scrollMessagesToBottom('auto')
+    }, CHAT_LAYOUT_SETTLE_MS)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      window.clearTimeout(settle)
+    }
   }, [matchId, loading, scrollMessagesToBottom])
 
   const handleOpenImage = useCallback((url, rect) => {
@@ -1396,6 +1418,15 @@ export default function ChatRoom() {
               {isMuted ? 'Unmute' : 'Mute'}
             </MenuItem>
           )}
+          <MenuItem
+            icon={IconPalette}
+            onClick={() => {
+              setShowMenu(false)
+              setShowChatBackground(true)
+            }}
+          >
+            Chat background
+          </MenuItem>
           {isGroup ? (
             <MenuItem
               icon={IconLogout}
@@ -1416,7 +1447,7 @@ export default function ChatRoom() {
               }}
               danger
             >
-              {isSavedMessages ? 'Clear chat' : 'Remove Chat'}
+              {isSavedMessages ? 'Clear chat' : 'Delete chat'}
             </MenuItem>
           )}
         </motion.div>
@@ -1527,7 +1558,7 @@ export default function ChatRoom() {
           <div
             data-chat-room-chrome
             className="pointer-events-none fixed inset-x-0 z-[35] flex justify-center px-[var(--chat-room-page-x)]"
-            style={{ top: 'calc(var(--vv-top, 0px) + var(--chat-room-header-height) + 6px)' }}
+            style={{ top: 'calc(var(--chat-room-header-height) + 6px)' }}
             data-chat-pinned-bar="true"
           >
             <button
@@ -1581,6 +1612,7 @@ export default function ChatRoom() {
           }`}
         >
           <div
+            ref={messagesInnerRef}
             className={chatRoomMessagesInnerClass}
             style={
               pinnedMessage
@@ -1878,16 +1910,25 @@ export default function ChatRoom() {
         isOpen={confirmAction === 'removeChat'}
         onClose={() => setConfirmAction(null)}
         onConfirm={runConfirmAction}
-        title={isSavedMessages ? 'Clear saved messages?' : 'Remove chat?'}
+        title={isSavedMessages ? 'Clear saved messages?' : 'Delete chat?'}
         message={
           isSavedMessages
             ? 'All saved messages will be deleted. The chat will stay in your list.'
             : 'This will delete all messages and hide the chat for both of you.'
         }
-        confirmLabel={isSavedMessages ? 'Clear messages' : 'Remove Chat'}
+        confirmLabel={isSavedMessages ? 'Clear messages' : 'Delete chat'}
         danger
         loading={confirmLoading}
       />
+
+      <PushPage
+        open={showChatBackground}
+        title="Chat background"
+        onBack={() => setShowChatBackground(false)}
+        zIndexClass="z-[90]"
+      >
+        <ChatBackgroundSettings />
+      </PushPage>
 
       <Modal isOpen={Boolean(profileViewUserId)} onClose={closeProfile} fullscreen>
         {profileViewUserId && (

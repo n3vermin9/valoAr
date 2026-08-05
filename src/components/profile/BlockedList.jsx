@@ -11,7 +11,7 @@ import { SettingsSection } from '../ui/SettingsUI'
 import { btnSecondarySmClass, settingsRowClass, typoTitle3Class } from '../../utils/designSystem'
 import { sad } from '../../assets'
 
-export default function BlockedList() {
+export default function BlockedList({ showTitle = true }) {
   const { user, refreshProfile } = useAuth()
   const [blockedUsers, setBlockedUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -39,7 +39,9 @@ export default function BlockedList() {
 
   return (
     <div className="pt-5 pb-5">
-      <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-3`}>Blocked Users</h2>
+      {showTitle ? (
+        <h2 className={`${typoTitle3Class} px-[var(--ios-page-x-lg)] mb-3`}>Blocked Users</h2>
+      ) : null}
       {loading ? (
         <ListSkeleton rows={4} className="px-[var(--ios-page-x-lg)]" />
       ) : blockedUsers.length === 0 ? (

@@ -352,7 +352,7 @@ export default memo(function MessageBubble({
           />
         )}
         {hasMessageBubble && (
-          <div className="relative w-fit max-w-full min-w-0">
+          <div className={`relative w-fit max-w-full min-w-0 ${hasReactions ? 'pb-3' : ''}`}>
             <div
               ref={bubbleRef}
               onContextMenu={readOnly ? undefined : handleContextMenu}
@@ -372,7 +372,7 @@ export default memo(function MessageBubble({
                     ? (emoji) => onReactionClick(message, emoji)
                     : undefined
                 }
-                className={`absolute z-[1] -bottom-2.5 ${isOwn ? 'right-1' : 'left-1'}`}
+                className={`absolute z-[1] bottom-0 ${isOwn ? 'right-1' : 'left-1'}`}
               />
             )}
           </div>

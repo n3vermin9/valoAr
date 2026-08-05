@@ -929,8 +929,6 @@ function MeetupManager({
   onBeforeExpand,
   currentUserId,
 }) {
-  const myCount = myMeetups.length
-  const availCount = availableMeetups.length
   const [placeSearchQuery, setPlaceSearchQuery] = useState('')
   const [searchActive, setSearchActive] = useState(false)
   const [joinTarget, setJoinTarget] = useState(null)
@@ -1021,12 +1019,13 @@ function MeetupManager({
         initial={false}
         animate={{
           maxHeight: expanded ? expandedMaxHeight : 48,
-          borderRadius: expanded ? 18 : 999,
+          borderRadius: expanded ? 20 : 999,
         }}
-        transition={{
-          duration: 0.24,
-          ease: [0.22, 1, 0.36, 1],
-        }}
+        transition={
+          expanded
+            ? { type: 'spring', stiffness: 420, damping: 34, mass: 0.8 }
+            : { duration: 0.22, ease: [0.4, 0, 0.2, 1] }
+        }
         className={panelChromeClass}
         style={{ willChange: 'max-height, border-radius' }}
       >
@@ -1043,36 +1042,30 @@ function MeetupManager({
             initial={false}
             animate={{
               opacity: expanded ? 0 : 1,
-              scale: expanded ? 0.98 : 1,
+              y: expanded ? -4 : 0,
             }}
-            transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
-            className={`absolute inset-0 h-12 px-4 flex items-center justify-between gap-3 ${
+            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            className={`absolute inset-0 h-12 px-4 flex items-center gap-2.5 ${
               expanded ? 'pointer-events-none' : 'pointer-events-auto'
             }`}
             aria-label="Open meetups manager"
             tabIndex={expanded ? -1 : 0}
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <IconCalendarPlus size={18} stroke={2} className="text-[var(--ios-blue)] shrink-0" />
-              <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="min-w-[22px] h-6 px-2 rounded-full bg-[var(--ios-blue)] text-white text-[12px] font-semibold flex items-center justify-center">
-                {myCount}
-              </span>
-              <span className="min-w-[22px] h-6 px-2 rounded-full bg-white/[0.08] border border-white/10 text-white text-[12px] font-semibold flex items-center justify-center">
-                {availCount}
-              </span>
-            </div>
+            <IconCalendarPlus size={18} stroke={2} className="text-[var(--ios-blue)] shrink-0" />
+            <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">Meetups</p>
           </motion.button>
 
           <motion.div
             initial={false}
             animate={{
               opacity: expanded ? 1 : 0,
-              y: expanded ? 0 : -6,
+              y: expanded ? 0 : 10,
             }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            transition={{
+              duration: 0.2,
+              ease: [0.22, 1, 0.36, 1],
+              delay: expanded ? 0.05 : 0,
+            }}
             className={`p-3 ${expanded ? 'pointer-events-auto' : 'pointer-events-none'}`}
             aria-hidden={!expanded}
           >
@@ -1674,13 +1667,10 @@ export default function DiscoverMap({
   }
 
   return (
-    <motion.div
+    <div
       className={`flex-1 min-h-0 relative discover-map-container discover-map-theme-${theme.id}${
         addingPlace ? ' discover-map-placing' : ''
       }`}
-      initial={{ opacity: 0.86 }}
-      animate={{ opacity: 1 }}
-      transition={pageSwitchMotion.transition}
     >
       <MapContainer
         center={center}
@@ -1743,7 +1733,12 @@ export default function DiscoverMap({
       </MapContainer>
 
       {!chromeHidden && (
-        <div className="absolute top-[calc(var(--ios-safe-top)+12px)] left-3 right-3 z-[1100] flex items-start gap-2 pointer-events-none">
+        <motion.div
+          initial={{ opacity: 0, y: -14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.85 }}
+          className="absolute top-[calc(var(--ios-safe-top)+12px)] left-3 right-3 z-[1100] flex items-start gap-2 pointer-events-none"
+        >
           {!meetupDraft && !editorPlace && !showSettings && !addingPlace ? (
             <div className="flex-1 min-w-0 pointer-events-auto">
               <MeetupManager
@@ -1762,17 +1757,24 @@ export default function DiscoverMap({
             <div className="flex-1 min-w-0" />
           )}
 
-          {!meetupManagerExpanded && onExitMap && (
-            <button
-              type="button"
-              onClick={handleChromeClose}
-              className="pointer-events-auto shrink-0 h-12 w-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md text-[var(--ios-label)] flex items-center justify-center"
-              aria-label={chromeCloseLabel}
-            >
-              <IconX size={20} stroke={2} />
-            </button>
-          )}
-        </div>
+          <AnimatePresence initial={false}>
+            {!meetupManagerExpanded && onExitMap ? (
+              <motion.button
+                key="map-exit"
+                type="button"
+                onClick={handleChromeClose}
+                initial={{ opacity: 0, scale: 0.86 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.86, transition: { duration: 0.12 } }}
+                transition={{ type: 'spring', stiffness: 480, damping: 32 }}
+                className="pointer-events-auto shrink-0 h-12 w-12 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/95 backdrop-blur-md text-[var(--ios-label)] flex items-center justify-center"
+                aria-label={chromeCloseLabel}
+              >
+                <IconX size={20} stroke={2} />
+              </motion.button>
+            ) : null}
+          </AnimatePresence>
+        </motion.div>
       )}
 
       {!chromeHidden && meetupManagerExpanded && (
@@ -1928,6 +1930,6 @@ export default function DiscoverMap({
           onOpenChat?.(meetup.chatId)
         }}
       />
-    </motion.div>
+    </div>
   )
 }

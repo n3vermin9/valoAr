@@ -36,7 +36,6 @@ import {
   fieldLabelClass,
   compactInputAffixClass,
   navGlassClass,
-  sectionLabelClass,
   chatFloatingButtonClass,
 } from '../../utils/designSystem'
 import {
@@ -46,10 +45,10 @@ import {
   normalizeHobbies,
 } from '../../utils/profileOptions'
 
-function EditFieldSection({ children, compact = false }) {
+function EditFieldSection({ children, compact = false, title }) {
   return (
-    <SettingsSection>
-      <div className={compact ? 'px-4 py-3' : 'px-4 py-4'}>{children}</div>
+    <SettingsSection title={title}>
+      <div className={compact ? 'px-4 py-3.5' : 'px-4 py-5 space-y-4'}>{children}</div>
     </SettingsSection>
   )
 }
@@ -209,7 +208,7 @@ export default function EditProfile({ onCancel }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[70] bg-[var(--ios-bg)] flex flex-col">
       <form
         id="edit-profile-form"
         onSubmit={handleSubmit}
@@ -248,7 +247,7 @@ export default function EditProfile({ onCancel }) {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-              className="overflow-hidden bg-black"
+              className="overflow-hidden bg-[var(--ios-bg)]"
             >
               <div className="px-[var(--ios-page-x-lg)] py-3">
                 <PhotoUrlInput
@@ -270,48 +269,52 @@ export default function EditProfile({ onCancel }) {
             paddingTop: showExtraPhotoInput ? '1rem' : '2rem',
           }}
           transition={{ layout: { type: 'spring', stiffness: 420, damping: 36 }, marginTop: { type: 'spring', stiffness: 420, damping: 36 }, paddingTop: { type: 'spring', stiffness: 420, damping: 36 } }}
-          className="relative z-10 bg-gradient-to-b from-transparent via-black/95 to-black"
+          className="relative z-10 bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--ios-bg)_95%,transparent)] to-[var(--ios-bg)]"
         >
-          <div className="space-y-4 pb-4">
+          <div className="space-y-5 pb-6">
           <EditFieldSection>
-            <label className={fieldLabelClass}>Username</label>
-            <div className={`${compactInputAffixClass} border ${usernameBorder}`}>
-              <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px] leading-none">@</span>
+            <div>
+              <label className={fieldLabelClass}>Username</label>
+              <div className={`${compactInputAffixClass} border ${usernameBorder}`}>
+                <span className="pl-4 pr-1 text-[var(--ios-label-secondary)] text-[15px] leading-none">@</span>
+                <AppTextInput
+                  bare
+                  label="Username"
+                  value={username}
+                  onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
+                  maxLength={20}
+                  className="pl-0"
+                />
+              </div>
+              <FieldHint
+                tone={
+                  usernameChanged && usernameError
+                    ? 'error'
+                    : usernameChanged && status === 'available'
+                      ? 'success'
+                      : 'neutral'
+                }
+              >
+                {usernameChanged && usernameError
+                  ? usernameError
+                  : usernameChanged && status === 'available'
+                    ? 'Available'
+                    : usernameChanged && status === 'checking'
+                      ? 'Checking…'
+                      : null}
+              </FieldHint>
+            </div>
+
+            <div>
+              <label className={fieldLabelClass}>Bio</label>
               <AppTextInput
-                bare
-                label="Username"
-                value={username}
-                onChange={createSanitizedChangeHandler(setUsername, normalizeUsername)}
-                maxLength={20}
-                className="pl-0"
+                label="Bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell people about yourself…"
+                maxLength={120}
               />
             </div>
-            <FieldHint
-              tone={
-                usernameChanged && usernameError
-                  ? 'error'
-                  : usernameChanged && status === 'available'
-                    ? 'success'
-                    : 'neutral'
-              }
-            >
-              {usernameChanged && usernameError
-                ? usernameError
-                : usernameChanged && status === 'available'
-                  ? 'Available'
-                  : usernameChanged && status === 'checking'
-                    ? 'Checking…'
-                    : null}
-            </FieldHint>
-
-            <label className={`${fieldLabelClass} mt-4`}>Bio</label>
-            <AppTextInput
-              label="Bio"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Tell people about yourself…"
-              maxLength={120}
-            />
           </EditFieldSection>
 
           <EditFieldSection compact>
@@ -319,49 +322,56 @@ export default function EditProfile({ onCancel }) {
           </EditFieldSection>
 
           <EditFieldSection>
-            <label className={fieldLabelClass}>City</label>
-            <CitySelect value={city} onChange={setCity} />
+            <div>
+              <label className={fieldLabelClass}>City</label>
+              <CitySelect value={city} onChange={setCity} />
+            </div>
           </EditFieldSection>
 
-          <section>
-            <p className={`${sectionLabelClass} normal-case`}>
-              <span
-                className={
-                  profile?.gender === 'female'
-                    ? 'text-pink-400'
-                    : profile?.gender === 'male'
-                      ? 'text-[var(--ios-blue)]'
-                      : ''
-                }
-              >
-                {formatGenderLabel(profile?.gender)}
-              </span>
-              {' looking for'}
-            </p>
-            <div className={`mx-4 ${navGlassClass} p-1.5`}>
-              <div className="relative flex gap-1">
-                {[
-                  { value: 'men', label: 'Men' },
-                  { value: 'women', label: 'Women' },
-                  { value: 'both', label: 'Both' },
-                ].map((opt) => (
-                  <RoleOptionButton
-                    key={opt.value}
-                    label={opt.label}
-                    selected={interestedIn === opt.value}
-                    onClick={() => setInterestedIn(opt.value)}
-                  />
-                ))}
+          <SettingsSection
+            title={
+              <>
+                <span
+                  className={
+                    profile?.gender === 'female'
+                      ? 'text-pink-400'
+                      : profile?.gender === 'male'
+                        ? 'text-[var(--ios-blue)]'
+                        : ''
+                  }
+                >
+                  {formatGenderLabel(profile?.gender)}
+                </span>
+                {' looking for'}
+              </>
+            }
+          >
+            <div className="p-2">
+              <div className={`${navGlassClass} p-1`}>
+                <div className="relative flex gap-1">
+                  {[
+                    { value: 'men', label: 'Men' },
+                    { value: 'women', label: 'Women' },
+                    { value: 'both', label: 'Both' },
+                  ].map((opt) => (
+                    <RoleOptionButton
+                      key={opt.value}
+                      label={opt.label}
+                      selected={interestedIn === opt.value}
+                      onClick={() => setInterestedIn(opt.value)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </section>
+          </SettingsSection>
 
           <EditFieldSection>
             <HobbiesSelect value={hobbies} onChange={setHobbies} userId={user?.uid} />
           </EditFieldSection>
 
           <SettingsSection title="Links">
-            <div className="px-4 py-4 flex justify-center">
+            <div className="px-4 py-5 flex justify-center">
               <SocialLinksEditor socials={socials} onChange={setSocials} />
             </div>
           </SettingsSection>

@@ -20,7 +20,7 @@ export function SettingsSection({ title, children, className = '' }) {
 
 export function SettingSwitch({ label, description, checked, onChange, disabled }) {
   return (
-    <div className="px-4 py-4 border-b border-white/10 last:border-b-0">
+    <div className="px-4 py-4 border-b border-[var(--ios-hairline)] last:border-b-0">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className={typoHeadlineClass}>{label}</p>
@@ -33,7 +33,7 @@ export function SettingSwitch({ label, description, checked, onChange, disabled 
           disabled={disabled}
           onClick={() => onChange(!checked)}
           className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
-            checked ? 'bg-blue-500' : 'bg-white/20'
+            checked ? 'bg-[var(--ios-blue)]' : 'bg-[var(--ios-fill)]'
           }`}
         >
           <span
@@ -78,7 +78,7 @@ export function SettingsNavRow({
       </div>
       {value ? <span className={typoSubheadClass}>{value}</span> : null}
       {trailing === undefined ? (
-        <IconChevronRight size={18} className="text-white/35 shrink-0" stroke={1.75} />
+        <IconChevronRight size={18} className="text-[var(--ios-label-tertiary)] shrink-0" stroke={1.75} />
       ) : (
         trailing
       )}
@@ -95,7 +95,7 @@ export function SettingsListRow({ label, value, onClick, children }) {
           <p className={typoHeadlineClass}>{label}</p>
         </div>
         {value ? <span className={typoSubheadClass}>{value}</span> : null}
-        <IconChevronRight size={18} className="text-white/35 shrink-0" stroke={1.75} />
+        <IconChevronRight size={18} className="text-[var(--ios-label-tertiary)] shrink-0" stroke={1.75} />
       </button>
     )
   }
@@ -118,7 +118,9 @@ export function RoleOptionButton({ label, selected, onClick, disabled }) {
       onClick={onClick}
       disabled={disabled}
       className={`relative z-10 flex-1 py-2.5 text-[15px] font-medium rounded-full transition-colors disabled:opacity-40 ${
-        selected ? 'bg-blue-500 text-white' : 'text-white/70 hover:bg-white/[0.06]'
+        selected
+          ? 'bg-[var(--ios-blue)] text-white'
+          : 'text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)]'
       }`}
     >
       {label}

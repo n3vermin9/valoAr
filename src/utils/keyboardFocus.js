@@ -47,25 +47,20 @@ function setAppKeyboardInset(px) {
  * it. visualViewport reports the obscured area on most iOS versions; the plugin
  * height covers the ones where it does not. Taking the larger of the two keeps the
  * composer clear of the keys either way.
+ *
+ * `vv.offsetTop` is deliberately ignored: WKWebView reports it as the obscured
+ * height even though nothing panned, so honouring it double counts the keyboard.
  */
 export function measureKeyboardInset() {
   const root = document.documentElement
   const layoutHeight = root.clientHeight || window.innerHeight || 0
   const vv = window.visualViewport
-  const covered = vv
-    ? Math.round(layoutHeight - vv.height - Math.max(0, vv.offsetTop))
-    : 0
+  const covered = vv ? Math.round(layoutHeight - vv.height) : 0
 
   const raw = Math.max(nativeHeight, covered > KEYBOARD_MIN_PX ? covered : 0)
   if (raw <= KEYBOARD_MIN_PX) return 0
   // Never eat more than 3/4 of the screen, whatever a stale reading claims.
   return Math.min(raw, Math.round(layoutHeight * 0.75))
-}
-
-/** visualViewport pan offset — 0 unless the webview scrolled the layout viewport. */
-export function measureViewportOffsetTop() {
-  const vv = window.visualViewport
-  return vv ? Math.max(0, Math.round(vv.offsetTop)) : 0
 }
 
 /** Take over writing --app-keyboard-inset (chat room). Returns a release fn. */

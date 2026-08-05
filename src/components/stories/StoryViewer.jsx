@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, animate, motion, useMotionValue, useTransform } from 'framer-motion'
 import {
   IconX,
   IconTrash,
@@ -133,6 +133,16 @@ function resolveStoryNav(queue, nav) {
 
 const STORY_FOOTER_ROW_H = 'h-11'
 
+/** Swipe down to dismiss: how far / how fast a drag has to be to let go of the story. */
+const SWIPE_CLOSE_PX = 110
+const SWIPE_CLOSE_VELOCITY = 0.45
+const SWIPE_START_PX = 8
+/** Travel that maps to the full shrink-away, so short drags barely move the card. */
+const SWIPE_RANGE_PX = 420
+const SWIPE_SNAP_BACK = { type: 'spring', stiffness: 560, damping: 42, mass: 0.7 }
+/** Exits accelerate out — the open ease decelerates and would crawl at the end. */
+const STORY_CLOSE_TRANSITION = { duration: 0.2, ease: [0.4, 0, 1, 1] }
+
 function StoryReactionButton({
   showReactionPicker,
   onTogglePicker,
@@ -239,7 +249,13 @@ export default function StoryViewer({
   const [confirmJoinMeetup, setConfirmJoinMeetup] = useState(false)
   const [joiningMeetup, setJoiningMeetup] = useState(false)
   const [isPresent, setIsPresent] = useState(true)
+  const [swipeClosing, setSwipeClosing] = useState(false)
   const [slideGeneration, setSlideGeneration] = useState(0)
+  const swipeRef = useRef({ tracking: false, active: false, dy: 0 })
+  const swipeY = useMotionValue(0)
+  const swipeProgress = useTransform(swipeY, [0, SWIPE_RANGE_PX], [0, 1])
+  const swipeScale = useTransform(swipeProgress, [0, 1], [1, 0.82])
+  const swipeRadius = useTransform(swipeProgress, [0, 1], ['0px', '32px'])
   const slideDirectionRef = useRef(1)
   const frameRef = useRef(null)
   const rafRef = useRef(null)
@@ -247,7 +263,7 @@ export default function StoryViewer({
   const elapsedRef = useRef(0)
   const holdTimerRef = useRef(null)
   const holdActiveRef = useRef(false)
-  const pointerRef = useRef({ time: 0, x: 0, zone: 'center' })
+  const pointerRef = useRef({ time: 0, x: 0, y: 0, zone: 'center' })
   const queueRef = useRef(sessionQueue)
   const navRef = useRef(nav)
   const openedAtRef = useRef(performance.now())
@@ -278,6 +294,13 @@ export default function StoryViewer({
     blockGhostClickRef.current = true
     setIsPresent(false)
   }, [])
+
+  /** Let the swipe carry the story the rest of the way out instead of scaling to the avatar. */
+  const closeBySwipe = useCallback(() => {
+    setSwipeClosing(true)
+    animate(swipeY, window.innerHeight, STORY_CLOSE_TRANSITION)
+    requestClose()
+  }, [requestClose, swipeY])
 
   const scheduleClose = requestClose
 
@@ -821,7 +844,8 @@ export default function StoryViewer({
     if (interactionBlocked) return
 
     const zone = getTapZone(e.clientX)
-    pointerRef.current = { time: performance.now(), x: e.clientX, zone }
+    pointerRef.current = { time: performance.now(), x: e.clientX, y: e.clientY, zone }
+    swipeRef.current = { tracking: true, active: false, dy: 0 }
     holdActiveRef.current = false
     clearHoldTimer()
 
@@ -834,7 +858,49 @@ export default function StoryViewer({
     }
   }
 
+  const handleStoryPointerMove = (e) => {
+    if (interactionBlocked || swipeClosing) return
+
+    const swipe = swipeRef.current
+    // Only a pressed pointer drags — a hovering mouse also fires pointermove.
+    if (!swipe.tracking) return
+    if (e.pointerType === 'mouse' && e.buttons === 0) {
+      swipe.tracking = false
+      if (swipe.active) {
+        swipe.active = false
+        swipe.dy = 0
+        animate(swipeY, 0, SWIPE_SNAP_BACK)
+      }
+      return
+    }
+
+    const dy = e.clientY - pointerRef.current.y
+    const dx = e.clientX - pointerRef.current.x
+    if (!swipe.active) {
+      if (dy < SWIPE_START_PX || dy <= Math.abs(dx)) return
+      swipe.active = true
+      // A drag is not a tap — drop the pending long-press so the story does not pause.
+      clearHoldTimer()
+    }
+    swipe.dy = Math.max(0, dy)
+    swipeY.set(swipe.dy)
+  }
+
   const handleStoryPointerUp = (e) => {
+    const swipe = swipeRef.current
+    swipe.tracking = false
+    if (swipe.active) {
+      swipeRef.current = { tracking: false, active: false, dy: 0 }
+      clearHoldTimer()
+      setHolding(false)
+      holdActiveRef.current = false
+
+      const heldMs = Math.max(1, performance.now() - pointerRef.current.time)
+      if (swipe.dy > SWIPE_CLOSE_PX || swipe.dy / heldMs > SWIPE_CLOSE_VELOCITY) closeBySwipe()
+      else animate(swipeY, 0, SWIPE_SNAP_BACK)
+      return
+    }
+
     if (performance.now() - openedAtRef.current < OPEN_TAP_GUARD_MS) return
 
     const zone = pointerRef.current.zone
@@ -876,6 +942,9 @@ export default function StoryViewer({
     clearHoldTimer()
     setHolding(false)
     holdActiveRef.current = false
+    const wasActive = swipeRef.current.active
+    swipeRef.current = { tracking: false, active: false, dy: 0 }
+    if (wasActive && !swipeClosing) animate(swipeY, 0, SWIPE_SNAP_BACK)
   }
 
   const handleDelete = async () => {
@@ -986,7 +1055,7 @@ export default function StoryViewer({
         data-story-viewer
         initial={{ scale: 1, opacity: 1 }}
         animate={{ scale: closeScale, opacity: 0 }}
-        transition={storyShellTransition}
+        transition={STORY_CLOSE_TRANSITION}
         onAnimationComplete={handleShellAnimationComplete}
         style={{ transformOrigin: openMotion.transformOrigin }}
         className="fixed inset-0 z-[95] overflow-hidden will-change-transform bg-black"
@@ -1005,13 +1074,20 @@ export default function StoryViewer({
       animate={
         isPresent
           ? { scale: 1, opacity: 1 }
-          : { scale: closeScale, opacity: 0 }
+          : swipeClosing
+            ? { scale: 1, opacity: 0 }
+            : { scale: closeScale, opacity: 0 }
       }
-      transition={storyShellTransition}
+      transition={isPresent ? storyShellTransition : STORY_CLOSE_TRANSITION}
       onAnimationComplete={handleShellAnimationComplete}
       style={{ transformOrigin: openMotion.transformOrigin }}
       className="fixed inset-0 z-[95] overflow-hidden will-change-transform bg-black"
     >
+      {/* Swipe-to-dismiss layer: the story itself travels, the shell only fades. */}
+      <motion.div
+        className="absolute inset-0 overflow-hidden"
+        style={{ y: swipeY, scale: swipeScale, borderRadius: swipeRadius }}
+      >
       <AnimatePresence custom={slideCustom}>
         <motion.div
           key={userSlideKey}
@@ -1094,6 +1170,7 @@ export default function StoryViewer({
           className="absolute inset-x-0 top-[72px] z-[8] touch-none select-none"
           style={{ bottom: footerReserve }}
           onPointerDown={handleStoryPointerDown}
+          onPointerMove={handleStoryPointerMove}
           onPointerUp={handleStoryPointerUp}
           onPointerLeave={handleStoryPointerCancel}
           onPointerCancel={handleStoryPointerCancel}
@@ -1421,6 +1498,7 @@ export default function StoryViewer({
 
         </motion.div>
       </AnimatePresence>
+      </motion.div>
 
       <Modal
           isOpen={Boolean(profileUserId)}

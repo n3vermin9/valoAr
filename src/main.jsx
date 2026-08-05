@@ -12,8 +12,10 @@ import { setupKeyboardFocusScroll, setupKeyboardInset } from './utils/keyboardFo
 import { AppKeyboardProvider } from './components/ui/AppKeyboard'
 import { getCachedAppleEmojiDataUrl, preloadMainEmojis } from './services/emojiImageCache'
 import { setAppleEmojiLocalResolver } from './utils/iosEmoji'
+import { bootAppearance } from './utils/appearance'
 
 setAppleEmojiLocalResolver(getCachedAppleEmojiDataUrl)
+bootAppearance()
 setupInteractionGuards()
 setupSafeAreaInsets()
 setupKeyboardFocusScroll()

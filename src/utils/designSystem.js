@@ -48,23 +48,23 @@ export const chatMessageTextClass =
   'text-[16px] leading-[1.35] break-words [overflow-wrap:anywhere] min-w-0'
 export const chatBubblePadClass = 'px-3.5 py-2'
 export const chatComposerInputClass =
-  'ios-emoji-field flex-1 min-w-0 py-2.5 pr-1 bg-transparent outline-none placeholder:text-white/40 resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-[1.25] max-h-36'
+  'ios-emoji-field flex-1 min-w-0 py-2.5 pr-1 bg-transparent outline-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] resize-none overflow-y-auto whitespace-pre-wrap break-words text-[16px] leading-[1.25] max-h-36'
 
 export const glassActionButtonClass = `${glassInputBarClass} h-11 w-11 shrink-0 flex items-center justify-center rounded-full transition-colors`
 
 export const notificationGlassClass =
-  'rounded-full border border-[var(--ios-glass-border)] bg-black/45 backdrop-blur-lg shadow-[var(--ios-glass-shadow)]'
+  'rounded-full border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-lg shadow-[var(--ios-glass-shadow)]'
 
 export const modalGlassClass =
   'rounded-[var(--ios-radius-xl)] border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[var(--ios-glass-shadow-modal)]'
 
-export const modalScrimClass = 'bg-black/40 backdrop-blur-md'
+export const modalScrimClass = 'bg-[color-mix(in_srgb,var(--ios-label)_40%,transparent)] backdrop-blur-md'
 
 export const dropdownMenuClass =
   'w-44 py-1 rounded-[var(--ios-radius-lg)] overflow-hidden liquid-glass liquid-glass-rounded'
 
 export const dropdownMenuItemClass =
-  'w-full px-3.5 py-2 text-left text-[15px] font-medium transition-colors duration-75 text-[var(--ios-label)] hover:bg-white/[0.08] active:bg-white/[0.14]'
+  'w-full px-3.5 py-2 text-left text-[15px] font-medium transition-colors duration-75 text-[var(--ios-label)] hover:bg-[var(--ios-hover-fill)] active:bg-[var(--ios-fill-tertiary)]'
 
 export const dropdownMenuItemDangerClass =
   'w-full px-3.5 py-2 text-left text-[15px] font-medium transition-colors duration-75 text-[var(--ios-red)] hover:text-red-300 hover:bg-red-500/10 active:bg-red-500/20 active:text-red-200'
@@ -91,7 +91,7 @@ export const typoCaptionClass = 'text-[13px] font-medium text-[var(--ios-label-s
 
 export const sectionLabelClass = `${typoCaptionClass} mb-2 px-[var(--ios-page-x-lg)]`
 export const insetCardClass =
-  'rounded-[var(--ios-radius-xl)] border border-white/10 bg-white/[0.055]'
+  'rounded-[var(--ios-radius-xl)] border border-[var(--ios-hairline)] bg-[var(--ios-bg-secondary)]'
 export const insetCardOuterClass = `mx-4 ${insetCardClass}`
 export const subpageHeaderClass =
   'flex items-center gap-3 px-[var(--ios-page-x-lg)] pt-[max(1rem,var(--ios-safe-top))] pb-4 shrink-0'
@@ -99,7 +99,7 @@ export const subpageTitleClass = 'text-[17px] font-medium text-[var(--ios-label)
 export const fieldLabelClass = `${typoSubheadClass} mb-2 block`
 
 const compactInputBase =
-  'w-full min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 text-[15px] leading-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
+  'w-full min-h-[var(--ios-control-min)] bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-hairline)] text-[15px] leading-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
 
 export const compactInputClass = `${compactInputBase} px-4 outline-none focus:border-[var(--ios-blue)]`
 
@@ -110,24 +110,24 @@ export const compactInputInnerClass =
 
 /** Compact search pill (iOS ~36px) — use in fullscreen Cap / no Safari chrome. */
 export const searchFieldShellClass =
-  'flex items-center gap-2 h-9 min-h-9 max-h-9 rounded-full border border-white/10 bg-white/10 px-3'
+  'flex items-center gap-2 h-9 min-h-9 max-h-9 rounded-full border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] px-3'
 
 export const searchFieldInputClass =
   'flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] leading-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] appearance-none'
 
 export const compactTextareaClass =
-  'w-full min-h-[56px] px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-y text-[15px] leading-snug text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
+  'w-full min-h-[56px] px-4 py-2.5 bg-[var(--ios-fill-tertiary)] rounded-[var(--ios-radius-xl)] border border-[var(--ios-hairline)] outline-none focus:border-[var(--ios-blue)] resize-y text-[15px] leading-snug text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]'
 export const linkActionClass =
   'text-[15px] font-medium text-[var(--ios-blue)] hover:text-blue-400 transition-colors'
 export const dangerLinkActionClass =
   'text-[15px] font-medium text-red-400 hover:text-red-300 transition-colors disabled:opacity-50'
 export const btnSecondarySmClass =
-  'px-4 py-2 min-h-[36px] rounded-full text-[15px] font-medium bg-white/10 hover:bg-white/15 border border-white/10 transition-colors'
+  'px-4 py-2 min-h-[36px] rounded-full text-[15px] font-medium bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)] border border-[var(--ios-hairline)] text-[var(--ios-label)] transition-colors'
 
 export const listRowClass =
-  'w-full flex items-center gap-3 px-[var(--ios-page-x-lg)] py-3.5 transition-colors hover:bg-white/[0.05] active:bg-white/[0.08]'
+  'w-full flex items-center gap-3 px-[var(--ios-page-x-lg)] py-3.5 transition-colors hover:bg-[var(--ios-hover-fill)] active:bg-[var(--ios-fill-tertiary)]'
 
-export const settingsRowClass = `${listRowClass} w-full text-left border-b border-white/10 last:border-b-0 py-4 min-h-[60px]`
+export const settingsRowClass = `${listRowClass} w-full text-left border-b border-[var(--ios-hairline)] last:border-b-0 py-4 min-h-[60px]`
 
 export const ICON_TONE_CLASSES = {
   blue: 'bg-blue-500/15 text-blue-400',
@@ -139,7 +139,7 @@ export const ICON_TONE_CLASSES = {
 
 export const iconTileClass = 'w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0'
 
-export const listRowSelectedClass = 'bg-white/[0.06]'
+export const listRowSelectedClass = 'bg-[var(--ios-hover-fill)]'
 
 export const insetListClass =
   'mx-4 rounded-[var(--ios-radius-xl)] overflow-hidden border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]'
@@ -154,16 +154,16 @@ export const btnFilledDangerClass =
   'inline-flex items-center justify-center h-11 px-5 rounded-full text-[15px] font-medium leading-none bg-[var(--ios-red)] text-white hover:brightness-110 active:brightness-95 transition-all disabled:opacity-50'
 
 export const btnBorderedClass =
-  'inline-flex items-center justify-center h-11 px-5 rounded-full text-[15px] font-medium leading-none border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-input)] backdrop-blur-md hover:bg-white/[0.12] transition-colors disabled:opacity-50'
+  'inline-flex items-center justify-center h-11 px-5 rounded-full text-[15px] font-medium leading-none border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-input)] backdrop-blur-md text-[var(--ios-label)] hover:bg-[var(--ios-hover-fill)] transition-colors disabled:opacity-50'
 
 export const btnPlainClass =
-  'inline-flex items-center justify-center h-10 px-4 rounded-full text-[15px] font-medium leading-none text-[var(--ios-blue)] hover:bg-white/[0.06] active:bg-white/[0.1] transition-colors disabled:opacity-50'
+  'inline-flex items-center justify-center h-10 px-4 rounded-full text-[15px] font-medium leading-none text-[var(--ios-blue)] hover:bg-[var(--ios-hover-fill)] active:bg-[var(--ios-fill-tertiary)] transition-colors disabled:opacity-50'
 
 export const iconButtonClass =
-  'p-2 rounded-full text-[var(--ios-label)] hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors'
+  'p-2 rounded-full text-[var(--ios-label)] hover:bg-[var(--ios-hover-fill)] active:bg-[var(--ios-fill-tertiary)] transition-colors'
 
 export const profileActionBtnClass =
-  'flex-1 min-w-0 h-14 flex items-center justify-center rounded-[var(--ios-radius-md)] bg-white/10 hover:bg-white/15 border border-white/10 disabled:opacity-50 transition-colors'
+  'flex-1 min-w-0 h-14 flex items-center justify-center rounded-[var(--ios-radius-md)] bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)] border border-[var(--ios-hairline)] text-[var(--ios-label)] disabled:opacity-50 transition-colors'
 
 export const segmentedControlClass =
   'flex rounded-full border border-[var(--ios-glass-border)] bg-[var(--ios-fill-tertiary)] p-1'
@@ -192,18 +192,29 @@ export const pageSwitchMotion = {
   transition: pageSwitchTransition,
 }
 
-/** Chat room — opacity only so fixed/portaled layers are not trapped in a transform. */
+/**
+ * Chat room — opacity only so fixed chrome isn't trapped in a transform containing block.
+ * Enter is a full fade so opening a chat still reads as a page transition.
+ */
 export const chatPageSwitchMotion = {
-  initial: { opacity: 0.96 },
+  initial: { opacity: 0 },
   animate: { opacity: 1 },
-  exit: { opacity: 0, transition: { duration: 0.16, ease: [0.4, 0, 0.2, 1] } },
-  transition: { duration: 0.2, ease: pageSwitchEase },
+  exit: { opacity: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } },
+  transition: { duration: 0.28, ease: pageSwitchEase },
 }
 
 export const pageSwitchVariants = {
   enter: { scale: 1.05, opacity: 0.92 },
   center: { scale: 1, opacity: 1 },
   exit: { scale: 1, opacity: 0 },
+}
+
+/** iOS push — drill-in pages enter from the trailing edge and leave the same way. */
+export const pushPageMotion = {
+  initial: { x: '100%' },
+  animate: { x: '0%' },
+  exit: { x: '100%', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } },
+  transition: { duration: 0.34, ease: pageSwitchEase },
 }
 
 /** Header gradient — geometry and gradient live in index.css. */

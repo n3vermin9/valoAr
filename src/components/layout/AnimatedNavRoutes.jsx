@@ -74,7 +74,6 @@ export default function AnimatedNavRoutes() {
     if (isChatRoom) {
       syncChatPortals(chatMatchId)
     } else {
-      root.style.setProperty('--vv-top', '0px')
       hideChatPortals()
     }
   }, [isChatRoom, chatMatchId, location.pathname])
@@ -83,7 +82,6 @@ export default function AnimatedNavRoutes() {
     return () => {
       const root = document.documentElement
       root.classList.remove('chat-room-route', 'chat-room-active')
-      root.style.setProperty('--vv-top', '0px')
       hideChatPortals()
     }
   }, [])

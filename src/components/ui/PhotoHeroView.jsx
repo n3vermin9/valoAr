@@ -151,42 +151,45 @@ export default function PhotoHeroView({
           </>
         ) : null}
 
-        {hasMultiplePhotos ? (
-          <div
-            className="absolute top-[calc(var(--ios-safe-top)+2rem)] left-1/2 z-[20] flex w-[min(52vw,200px)] -translate-x-1/2 gap-1 pointer-events-none"
-            aria-hidden
-          >
-            {validPhotos.map((photo, photoIndex) => (
-              <div key={photo} className="flex-1 h-[2px] rounded-full bg-white/25 overflow-hidden">
-                <div
-                  className={`h-full rounded-full bg-white transition-[width] duration-75 ${
-                    photoIndex === safeIndex ? 'w-full' : 'w-0'
-                  }`}
-                />
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {showBack ? (
-          <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] right-[var(--ios-page-x-lg)] z-30">
-            <button
-              type="button"
-              onClick={onBack}
-              className={photoOverlayButtonClass}
-              aria-label="Close"
-            >
-              <IconX size={22} stroke={2} />
-            </button>
-          </div>
-        ) : null}
-
-        {topRightSlot ? (
-          <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] right-[var(--ios-page-x-lg)] z-30">
-            {topRightSlot}
-          </div>
-        ) : null}
       </div>
+
+      {/* Chrome hangs off the shell, not the photo frame: in fullscreen the frame is a
+          vertically centered square, which used to drag the close button mid-screen. */}
+      {hasMultiplePhotos ? (
+        <div
+          className="absolute top-[calc(var(--ios-safe-top)+2rem)] left-1/2 z-[20] flex w-[min(52vw,200px)] -translate-x-1/2 gap-1 pointer-events-none"
+          aria-hidden
+        >
+          {validPhotos.map((photo, photoIndex) => (
+            <div key={photo} className="flex-1 h-[2px] rounded-full bg-white/25 overflow-hidden">
+              <div
+                className={`h-full rounded-full bg-white transition-[width] duration-75 ${
+                  photoIndex === safeIndex ? 'w-full' : 'w-0'
+                }`}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {showBack ? (
+        <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] right-[var(--ios-page-x-lg)] z-30">
+          <button
+            type="button"
+            onClick={onBack}
+            className={photoOverlayButtonClass}
+            aria-label="Close"
+          >
+            <IconX size={22} stroke={2} />
+          </button>
+        </div>
+      ) : null}
+
+      {topRightSlot ? (
+        <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] right-[var(--ios-page-x-lg)] z-30">
+          {topRightSlot}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -204,7 +207,7 @@ export function PhotoHeroContentOverlap({ children, className = '' }) {
         marginTop: { type: 'spring', stiffness: 420, damping: 36 },
         paddingTop: { type: 'spring', stiffness: 420, damping: 36 },
       }}
-      className={`relative z-10 bg-gradient-to-b from-transparent via-black/95 to-black ${className}`}
+      className={`relative z-10 bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--ios-bg)_95%,transparent)] to-[var(--ios-bg)] ${className}`}
     >
       {children}
     </motion.div>

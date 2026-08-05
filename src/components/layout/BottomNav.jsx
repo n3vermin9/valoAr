@@ -133,7 +133,9 @@ export default function BottomNav({ badges = {} }) {
                   <Icon
                     size={26}
                     className={`transition-colors duration-200 ${
-                      isActive ? 'text-white' : 'text-white/45'
+                      isActive
+                        ? 'text-[var(--ios-label)]'
+                        : 'text-[var(--ios-label-tertiary)]'
                     }`}
                     stroke={1.75}
                   />

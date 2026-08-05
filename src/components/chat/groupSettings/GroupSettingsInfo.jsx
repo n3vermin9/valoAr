@@ -114,7 +114,7 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
     !(isPublic && (!normalizedUsername || (usernameChanged && usernameStatus !== 'available')))
 
   return (
-    <div className="h-full bg-black flex flex-col">
+    <div className="h-full bg-[var(--ios-bg)] flex flex-col">
       <form
         id="group-info-form"
         onSubmit={handleSave}
@@ -152,7 +152,7 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
             marginTop: { type: 'spring', stiffness: 420, damping: 36 },
             paddingTop: { type: 'spring', stiffness: 420, damping: 36 },
           }}
-          className="relative z-10 bg-gradient-to-b from-transparent via-black/95 to-black"
+          className="relative z-10 bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--ios-bg)_95%,transparent)] to-[var(--ios-bg)]"
         >
           <div className="space-y-4 pb-4">
             <EditFieldSection>
@@ -257,7 +257,7 @@ export default function GroupSettingsInfo() {
 
   if (loading) {
     return (
-      <div className="h-full overflow-y-auto bg-black">
+      <div className="h-full overflow-y-auto bg-[var(--ios-bg)]">
         <FormSkeleton />
       </div>
     )
@@ -265,7 +265,7 @@ export default function GroupSettingsInfo() {
 
   if (!chat || !isMember || !canEditInfo) {
     return (
-      <div className="h-full bg-black flex flex-col">
+      <div className="h-full bg-[var(--ios-bg)] flex flex-col">
         <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
           <ChevronBack
             onClick={handleBack}

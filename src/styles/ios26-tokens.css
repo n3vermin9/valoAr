@@ -5,6 +5,8 @@
  */
 
 :root {
+  color-scheme: dark;
+
   /* Labels */
   --ios-label: #ffffff;
   --ios-label-secondary: rgba(235, 235, 245, 0.6);
@@ -19,6 +21,8 @@
   --ios-fill: rgba(120, 120, 128, 0.36);
   --ios-fill-secondary: rgba(120, 120, 128, 0.32);
   --ios-fill-tertiary: rgba(118, 118, 128, 0.24);
+  --ios-hover-fill: rgba(255, 255, 255, 0.08);
+  --ios-hairline: rgba(255, 255, 255, 0.1);
 
   /* Separators */
   --ios-separator: rgba(84, 84, 88, 0.65);
@@ -46,11 +50,17 @@
     0 8px 32px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 
+  /* Scrims that darken under chrome (chat header / composer) */
+  --ios-scrim-strong: color-mix(in srgb, var(--ios-bg) 90%, transparent);
+  --ios-scrim-mid: color-mix(in srgb, var(--ios-bg) 78%, transparent);
+  --ios-scrim-soft: color-mix(in srgb, var(--ios-bg) 36%, transparent);
+
   /* Layout */
   --ios-page-x: 16px;
   --ios-page-x-lg: 20px;
   --ios-nav-float-bottom: 16px;
-  --ios-nav-clearance: 96px;
+  /* Floating tab bar sits at safe-bottom + float offset, so clearance must include both. */
+  --ios-nav-clearance: calc(96px + var(--ios-safe-bottom));
   /*
    * Prefer env(); fall back to --native-safe-* injected by AppBridgeViewController
    * (WKWebView often reports env(safe-area-inset-*) as 0 under Capacitor).
@@ -67,8 +77,6 @@
   /* iOS keyboard animation. */
   --chat-kb-ms: 260ms;
   --chat-kb-ease: cubic-bezier(0.32, 0.72, 0, 1);
-  /* visualViewport pan offset — non-zero only if the webview scrolls the page. */
-  --vv-top: 0px;
   /*
    * Measured at runtime by useChatKeyboardLayout; these defaults match the real
    * heights (nav bar 66px, composer 76px) so opening a chat needs no correction.
@@ -121,11 +129,67 @@
   --ios-duration-normal: 0.2s;
 }
 
+html.theme-light {
+  color-scheme: light;
+
+  --ios-label: #000000;
+  --ios-label-secondary: rgba(60, 60, 67, 0.6);
+  --ios-label-tertiary: rgba(60, 60, 67, 0.3);
+  --ios-label-quaternary: rgba(60, 60, 67, 0.18);
+
+  --ios-bg: #f2f2f7;
+  --ios-bg-elevated: #ffffff;
+  --ios-bg-secondary: #ffffff;
+  --ios-bg-tertiary: #e5e5ea;
+  --ios-fill: rgba(120, 120, 128, 0.2);
+  --ios-fill-secondary: rgba(120, 120, 128, 0.16);
+  --ios-fill-tertiary: rgba(118, 118, 128, 0.12);
+  --ios-hover-fill: rgba(0, 0, 0, 0.05);
+  --ios-hairline: rgba(60, 60, 67, 0.12);
+
+  --ios-separator: rgba(60, 60, 67, 0.29);
+  --ios-separator-opaque: #c6c6c8;
+
+  --ios-blue: #007aff;
+  --ios-green: #34c759;
+  --ios-red: #ff3b30;
+  --ios-orange: #ff9500;
+  --ios-yellow: #ffcc00;
+
+  --ios-glass-bg: rgba(255, 255, 255, 0.72);
+  --ios-glass-bg-inner: rgba(255, 255, 255, 0.65);
+  --ios-glass-bg-input: rgba(255, 255, 255, 0.88);
+  --ios-glass-border: rgba(0, 0, 0, 0.08);
+  --ios-glass-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --ios-glass-shadow-modal:
+    0 12px 40px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+  --ios-scrim-strong: color-mix(in srgb, var(--ios-bg) 92%, transparent);
+  --ios-scrim-mid: color-mix(in srgb, var(--ios-bg) 78%, transparent);
+  --ios-scrim-soft: color-mix(in srgb, var(--ios-bg) 40%, transparent);
+}
+
+html.theme-dark {
+  color-scheme: dark;
+}
+
 @media (prefers-reduced-transparency: reduce) {
-  :root {
+  :root,
+  html.theme-dark {
     --ios-glass-bg: rgba(28, 28, 30, 0.94);
     --ios-glass-bg-inner: rgba(44, 44, 46, 0.94);
     --ios-glass-bg-input: rgba(44, 44, 46, 0.94);
+    --ios-glass-blur: 0px;
+    --ios-glass-blur-lg: 0px;
+  }
+
+  html.theme-light {
+    --ios-glass-bg: rgba(242, 242, 247, 0.96);
+    --ios-glass-bg-inner: rgba(255, 255, 255, 0.96);
+    --ios-glass-bg-input: rgba(255, 255, 255, 0.98);
     --ios-glass-blur: 0px;
     --ios-glass-blur-lg: 0px;
   }

@@ -19,6 +19,12 @@ import {
 } from '../services/userService'
 import { clearAllAppCaches } from '../services/appCacheClear'
 import { seedProfilePayload } from '../utils/seedAccounts'
+import {
+  applyAppearance,
+  getStoredAppearance,
+  normalizeAppearance,
+  subscribeSystemAppearance,
+} from '../utils/appearance'
 
 const AuthContext = createContext(null)
 
@@ -49,6 +55,18 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const authEpochRef = useRef(0)
   const seedLoginRef = useRef(false)
+
+  useEffect(() => {
+    if (profile?.appearance) {
+      applyAppearance(normalizeAppearance(profile.appearance))
+    }
+  }, [profile?.appearance])
+
+  useEffect(() => {
+    return subscribeSystemAppearance(() =>
+      normalizeAppearance(profile?.appearance ?? getStoredAppearance())
+    )
+  }, [profile?.appearance])
 
   useEffect(() => {
     let settled = false

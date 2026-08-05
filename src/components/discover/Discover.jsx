@@ -18,7 +18,7 @@ import SwipeCard from './SwipeCard'
 import DiscoverMap from './DiscoverMap'
 import LikeMessageModal from './LikeMessageModal'
 import EmptyState from '../ui/EmptyState'
-import { CardSkeleton, PageSkeleton } from '../ui/Skeleton'
+import { CardSkeleton } from '../ui/Skeleton'
 import Modal from '../ui/Modal'
 import UsernameLabel from '../ui/UsernameLabel'
 import { sad } from '../../assets'
@@ -61,6 +61,8 @@ export default function Discover() {
   const [loadError, setLoadError] = useState(null)
   const [section, setSection] = useState('new')
   const [view, setView] = useState('cards')
+  /** Bumped when leaving the map so the cards view can play its enter animation. */
+  const [cardsEnterKey, setCardsEnterKey] = useState(0)
   const [mapFocusPlaceId, setMapFocusPlaceId] = useState(null)
   const [mapFocusCoords, setMapFocusCoords] = useState(null)
   const [newIndex, setNewIndex] = useState(0)
@@ -504,8 +506,18 @@ export default function Discover() {
     )
   }
 
+  const leaveMapToCards = useCallback(() => {
+    setCardsEnterKey((key) => key + 1)
+    setView('cards')
+    feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
+  }, [])
+
   const handleViewChange = (next) => {
     if (next === view) return
+    if (view === 'map' && next === 'cards') {
+      leaveMapToCards()
+      return
+    }
     setView(next)
     feedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
   }
@@ -535,7 +547,7 @@ export default function Discover() {
     userId: user?.uid,
     onViewProfile: handleViewProfileFromMap,
     onOpenChat: (chatId) => navigate(`/chats/${chatId}`),
-    onExitMap: () => setView('cards'),
+    onExitMap: leaveMapToCards,
     chromeHidden: !!viewProfile,
     focusPlaceId: mapFocusPlaceId,
     focusCoords: mapFocusCoords,
@@ -545,66 +557,65 @@ export default function Discover() {
     },
   }
 
-  const discoverMainContent =
-    view === 'map' ? (
-      <DiscoverMap {...discoverMapProps} />
-    ) : (
-      <>
-        <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
-        <div className="flex-1 min-h-0 relative overflow-hidden">
-          <AnimatePresence mode="sync" initial={false}>
-            <motion.div
-              key={section}
-              variants={discoverSectionVariants}
-              initial={contentReadyForMotion ? 'enter' : false}
-              animate="center"
-              exit="exit"
-              transition={discoverSectionTransition}
-              className="absolute inset-0 flex flex-col min-h-0 origin-center"
-            >
-              {renderSectionFeed(remainingProfiles)}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </>
-    )
-
-  const discoverBody = loading ? (
-    view === 'cards' ? (
-      <>
-        <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
-        <div className="flex-1 flex items-center justify-center min-h-0 px-4">
-          <CardSkeleton />
-        </div>
-      </>
-    ) : (
-      <div className="flex-1 min-h-0">
-        <PageSkeleton className="!px-0" />
+  const discoverCardsContent = loading ? (
+    <>
+      <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+      <div className="flex-1 flex items-center justify-center min-h-0 px-4">
+        <CardSkeleton />
       </div>
-    )
+    </>
   ) : loadError ? (
-    view === 'cards' ? (
-      <>
-        <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
-        <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 text-center">
-          <EmptyState message={loadError} />
-          <button
-            type="button"
-            onClick={refreshDiscover}
-            className="mt-4 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-sm font-medium"
-          >
-            Try again
-          </button>
-        </div>
-      </>
-    ) : (
-      <DiscoverMap {...discoverMapProps} />
-    )
+    <>
+      <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 px-6 text-center">
+        <EmptyState message={loadError} />
+        <button
+          type="button"
+          onClick={refreshDiscover}
+          className="mt-4 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-sm font-medium"
+        >
+          Try again
+        </button>
+      </div>
+    </>
   ) : (
-    <div className="flex-1 min-h-0 flex flex-col">
-      {discoverMainContent}
-    </div>
+    <>
+      <DiscoverSectionTabs section={section} onSectionChange={handleSectionChange} />
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        <AnimatePresence mode="sync" initial={false}>
+          <motion.div
+            key={section}
+            variants={discoverSectionVariants}
+            initial={contentReadyForMotion ? 'enter' : false}
+            animate="center"
+            exit="exit"
+            transition={discoverSectionTransition}
+            className="absolute inset-0 flex flex-col min-h-0 origin-center"
+          >
+            {renderSectionFeed(remainingProfiles)}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </>
   )
+
+  // Map unmounts immediately; the cards view remounts with a page-enter after leaving map.
+  const discoverBody =
+    view === 'map' ? (
+      <div className="flex-1 min-h-0 flex flex-col">
+        <DiscoverMap {...discoverMapProps} />
+      </div>
+    ) : (
+      <motion.div
+        key={cardsEnterKey > 0 ? `cards-${cardsEnterKey}` : 'cards'}
+        initial={cardsEnterKey > 0 ? pageSwitchMotion.initial : false}
+        animate={pageSwitchMotion.animate}
+        transition={pageSwitchMotion.transition}
+        className="flex-1 min-h-0 flex flex-col origin-center"
+      >
+        {discoverCardsContent}
+      </motion.div>
+    )
 
   return (
     <>
@@ -756,7 +767,7 @@ function DiscoverSearchPage({
       {isOpen && (
         <motion.div
           {...pageSwitchMotion}
-          className="fixed inset-0 z-[70] bg-black origin-center flex flex-col"
+          className="fixed inset-0 z-[70] bg-[var(--ios-bg)] origin-center flex flex-col"
         >
           <div className="flex items-center gap-2 px-4 pt-[max(0.5rem,var(--ios-safe-top))] pb-2 border-b border-white/10 shrink-0">
             <ChevronBack onClick={onClose} />
