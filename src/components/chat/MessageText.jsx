@@ -7,7 +7,7 @@ import IosEmoji from '../ui/IosEmoji'
 
 const MENTION_REGEX = /@([a-z0-9]{4,20})/gi
 const URL_REGEX =
-  /((?:https?:\/\/|www\.)[^\s<]+[^\s.,;:!?)\]'"]|\/(?:profile|join|chats|groups)(?:\/[^\s<]*)?)/gi
+  /((?:https?:\/\/|www\.)[^\s<]+[^\s.,;:!?)\]'"]|\/(?:profile|story|join|chats|groups)(?:\/[^\s<]*)?)/gi
 
 function splitMessageMentions(text = '') {
   if (!text) return [{ type: 'text', value: '' }]
@@ -120,7 +120,9 @@ function renderTextWithLinks(segment, searchQuery, activeSearchMatch, segmentSta
             e.stopPropagation()
             if (inAppRoute) {
               e.preventDefault()
-              navigate(inAppRoute.to)
+              navigate(inAppRoute.to, {
+                state: { returnTo: window.location.pathname + window.location.search },
+              })
             }
           }}
           onDoubleClick={(e) => e.stopPropagation()}

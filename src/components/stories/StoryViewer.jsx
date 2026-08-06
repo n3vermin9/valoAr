@@ -36,7 +36,7 @@ import {
   getMeetupMapCoords,
   preloadMeetupMapTiles,
   toTimestampMs,
-  buildStoryShareText,
+  shareStory,
   MAX_STORY_REPLY_LENGTH,
   getStoryOpenMotion,
   storyShellTransition,
@@ -55,7 +55,6 @@ import {
   storyProgressTrackClass,
   storyProgressFillClass,
   storyPausedBadgeClass,
-  storyGlassBlur,
   typoCaptionClass,
 } from '../../utils/designSystem'
 import ConfirmDialog from '../ui/ConfirmDialog'
@@ -69,6 +68,7 @@ import MessageReactions, { ReactionPicker } from '../chat/MessageReactions'
 import UsernameLabel from '../ui/UsernameLabel'
 import { useOverlayKeyboardInset } from '../../hooks/useOverlayKeyboardInset'
 import { isMobileInputDevice } from '../../utils/iosInput'
+import { focusFieldWithoutScroll, resetDocumentScroll } from '../../utils/keyboardFocus'
 import { sad } from '../../assets'
 
 function getTapZone(clientX) {
@@ -137,6 +137,9 @@ const STORY_FOOTER_ROW_H = 'h-11'
 const SWIPE_CLOSE_PX = 110
 const SWIPE_CLOSE_VELOCITY = 0.45
 const SWIPE_START_PX = 8
+/** Swipe up to reply (others) or open viewers (own). */
+const SWIPE_UP_PX = 72
+const SWIPE_UP_VELOCITY = 0.4
 /** Travel that maps to the full shrink-away, so short drags barely move the card. */
 const SWIPE_RANGE_PX = 420
 const SWIPE_SNAP_BACK = { type: 'spring', stiffness: 560, damping: 42, mass: 0.7 }
@@ -174,7 +177,7 @@ function StoryReactionButton({
             className={pickerAnchorClass}
           >
             <div
-              className={`${storyGlassBlur} liquid-glass-pill rounded-full px-1.5 py-1`}
+              className={`${storyGlassInputClass} px-1.5 py-1`}
             >
               <ReactionPicker
                 reactions={storyReactions}
@@ -251,7 +254,7 @@ export default function StoryViewer({
   const [isPresent, setIsPresent] = useState(true)
   const [swipeClosing, setSwipeClosing] = useState(false)
   const [slideGeneration, setSlideGeneration] = useState(0)
-  const swipeRef = useRef({ tracking: false, active: false, dy: 0 })
+  const swipeRef = useRef({ tracking: false, active: false, dy: 0, direction: null })
   const swipeY = useMotionValue(0)
   const swipeProgress = useTransform(swipeY, [0, SWIPE_RANGE_PX], [0, 1])
   const swipeScale = useTransform(swipeProgress, [0, 1], [1, 0.82])
@@ -487,6 +490,11 @@ export default function StoryViewer({
     setShowReactionPicker(false)
     setShowReplyEmoji(false)
   }, [replyComposing])
+
+  useEffect(() => {
+    if (!replyFocused && !keyboardOpen) return
+    resetDocumentScroll()
+  }, [replyFocused, keyboardOpen, keyboardInset])
 
   const footerReserve = canReply
     ? keyboardOpen
@@ -845,7 +853,7 @@ export default function StoryViewer({
 
     const zone = getTapZone(e.clientX)
     pointerRef.current = { time: performance.now(), x: e.clientX, y: e.clientY, zone }
-    swipeRef.current = { tracking: true, active: false, dy: 0 }
+    swipeRef.current = { tracking: true, active: false, dy: 0, direction: null }
     holdActiveRef.current = false
     clearHoldTimer()
 
@@ -869,6 +877,7 @@ export default function StoryViewer({
       if (swipe.active) {
         swipe.active = false
         swipe.dy = 0
+        swipe.direction = null
         animate(swipeY, 0, SWIPE_SNAP_BACK)
       }
       return
@@ -877,26 +886,76 @@ export default function StoryViewer({
     const dy = e.clientY - pointerRef.current.y
     const dx = e.clientX - pointerRef.current.x
     if (!swipe.active) {
-      if (dy < SWIPE_START_PX || dy <= Math.abs(dx)) return
+      if (Math.abs(dy) < SWIPE_START_PX || Math.abs(dy) <= Math.abs(dx)) return
+      const goingUp = dy < 0
+      // Up only when it can open reply or the viewers sheet.
+      if (goingUp && !canReply && !isOwn) return
       swipe.active = true
+      swipe.direction = goingUp ? 'up' : 'down'
       // A drag is not a tap — drop the pending long-press so the story does not pause.
       clearHoldTimer()
     }
+
+    if (swipe.direction === 'up') {
+      // Track distance only — do not lift the story (avoids a black gap under the canvas).
+      swipe.dy = Math.max(0, -dy)
+      return
+    }
+
     swipe.dy = Math.max(0, dy)
     swipeY.set(swipe.dy)
+  }
+
+  const focusStoryReply = useCallback(() => {
+    setPaused(true)
+    setReplyFocused(true)
+    // Keep focus in the same gesture tick so the system keyboard can open on iOS.
+    // preventScroll stops WKWebView from panning the page before our inset lifts the footer.
+    focusFieldWithoutScroll(replyInputRef.current)
+  }, [])
+
+  const handleReplyFieldPointerDown = (e) => {
+    // Emoji / send controls handle their own taps.
+    if (e.target.closest('button')) return
+    const field = replyInputRef.current
+    // Field hits: global prevent-scroll focus owns first open; allow caret when editing.
+    if (field && (e.target === field || field.contains?.(e.target))) {
+      if (document.activeElement === field) return
+      e.preventDefault()
+      e.stopPropagation()
+      focusStoryReply()
+      return
+    }
+    // Pad around the field — same path as swipe-up.
+    e.preventDefault()
+    e.stopPropagation()
+    focusStoryReply()
   }
 
   const handleStoryPointerUp = (e) => {
     const swipe = swipeRef.current
     swipe.tracking = false
     if (swipe.active) {
-      swipeRef.current = { tracking: false, active: false, dy: 0 }
+      const direction = swipe.direction
+      const distance = swipe.dy
+      swipeRef.current = { tracking: false, active: false, dy: 0, direction: null }
       clearHoldTimer()
       setHolding(false)
       holdActiveRef.current = false
 
       const heldMs = Math.max(1, performance.now() - pointerRef.current.time)
-      if (swipe.dy > SWIPE_CLOSE_PX || swipe.dy / heldMs > SWIPE_CLOSE_VELOCITY) closeBySwipe()
+      const velocity = distance / heldMs
+
+      if (direction === 'up') {
+        const committed = distance > SWIPE_UP_PX || velocity > SWIPE_UP_VELOCITY
+        if (committed) {
+          if (canReply) focusStoryReply()
+          else if (isOwn) setShowWatchers(true)
+        }
+        return
+      }
+
+      if (distance > SWIPE_CLOSE_PX || velocity > SWIPE_CLOSE_VELOCITY) closeBySwipe()
       else animate(swipeY, 0, SWIPE_SNAP_BACK)
       return
     }
@@ -943,7 +1002,7 @@ export default function StoryViewer({
     setHolding(false)
     holdActiveRef.current = false
     const wasActive = swipeRef.current.active
-    swipeRef.current = { tracking: false, active: false, dy: 0 }
+    swipeRef.current = { tracking: false, active: false, dy: 0, direction: null }
     if (wasActive && !swipeClosing) animate(swipeY, 0, SWIPE_SNAP_BACK)
   }
 
@@ -981,14 +1040,9 @@ export default function StoryViewer({
 
   const handleShare = async () => {
     if (!story || !owner) return
-    const text = buildStoryShareText(story, owner.username || 'User')
     try {
-      if (navigator.share) {
-        await navigator.share({ title: `${owner.username}'s story`, text })
-      } else {
-        await navigator.clipboard.writeText(text)
-        toast.success('Story copied!')
-      }
+      const result = await shareStory(story, { ...owner, id: owner.id || story.userId || ownerId })
+      if (result?.copied) toast.success('Link copied!')
     } catch (err) {
       if (err?.name !== 'AbortError') toast.error('Could not share story')
     }
@@ -1058,7 +1112,7 @@ export default function StoryViewer({
         transition={STORY_CLOSE_TRANSITION}
         onAnimationComplete={handleShellAnimationComplete}
         style={{ transformOrigin: openMotion.transformOrigin }}
-        className="fixed inset-0 z-[95] overflow-hidden will-change-transform bg-black"
+        className="fixed inset-0 z-[110] overflow-hidden will-change-transform bg-black"
       />,
       document.body
     )
@@ -1081,7 +1135,7 @@ export default function StoryViewer({
       transition={isPresent ? storyShellTransition : STORY_CLOSE_TRANSITION}
       onAnimationComplete={handleShellAnimationComplete}
       style={{ transformOrigin: openMotion.transformOrigin }}
-      className="fixed inset-0 z-[95] overflow-hidden will-change-transform bg-black"
+      className="fixed inset-0 z-[110] overflow-hidden will-change-transform bg-black"
     >
       {/* Swipe-to-dismiss layer: the story itself travels, the shell only fades. */}
       <motion.div
@@ -1115,7 +1169,7 @@ export default function StoryViewer({
           ))}
         </div>
 
-        <div className="relative z-30 flex items-center justify-between gap-2 px-4 py-3">
+        <div key={`story-header-${story.id}`} className="relative z-30 flex items-center justify-between gap-2 px-4 py-3">
           <button
             type="button"
             onClick={() => openProfileOverlay(ownerId)}
@@ -1167,7 +1221,7 @@ export default function StoryViewer({
         </div>
 
         <div
-          className="absolute inset-x-0 top-[72px] z-[8] touch-none select-none"
+          className="absolute inset-x-0 top-[72px] z-[6] touch-none select-none"
           style={{ bottom: footerReserve }}
           onPointerDown={handleStoryPointerDown}
           onPointerMove={handleStoryPointerMove}
@@ -1177,12 +1231,42 @@ export default function StoryViewer({
           aria-hidden
         />
 
-        <div className="flex-1 flex items-center justify-center px-8 select-none relative min-h-0 pointer-events-none z-[6]">
-          {!isMeetupAnnouncement ? (
+        {/*
+          Content sits above the gesture layer with pointer-events-none so empty
+          taps fall through (same path as text stories). Only CTAs/reactions
+          opt back in with pointer-events-auto.
+        */}
+        <div className="flex-1 flex items-center justify-center px-8 select-none relative min-h-0 pointer-events-none z-[8]">
+          {isMeetupAnnouncement ? (
+            <MeetupStoryCard
+              variant="story"
+              story={story}
+              meetupData={meetupData}
+              meetupChatId={meetupChatId}
+              meetupTimeLeft={meetupTimeLeft}
+              mapCoords={mapCoords}
+              mapCoordsPending={mapCoordsPending}
+              meetupMaxMembers={meetupMaxMembers}
+              meetupParticipants={meetupParticipants}
+              participantProfiles={effectiveParticipantProfiles}
+              isOwn={isOwn}
+              showJoin={showMeetupJoin}
+              isJoined={isJoinedMeetup}
+              meetupStillActive={meetupStillActive}
+              meetupIsFull={meetupIsFull}
+              keyboardOpen={keyboardOpen}
+              onJoinClick={() => setConfirmJoinMeetup(true)}
+              onOpenChat={() => {
+                if (!meetupChatId) return
+                requestClose()
+                navigate(`/chats/${meetupChatId}`)
+              }}
+            />
+          ) : (
             <p className="text-2xl sm:text-3xl font-semibold leading-relaxed text-center text-white whitespace-pre-wrap break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.25)]">
               {story.text}
             </p>
-          ) : null}
+          )}
           {Object.keys(effectiveReactions).length > 0 && (
             <MessageReactions
               reactions={effectiveReactions}
@@ -1213,39 +1297,9 @@ export default function StoryViewer({
           )}
         </div>
 
-        {isMeetupAnnouncement && (
-          <div
-            className="absolute inset-x-0 z-30 flex items-center justify-center px-6 pointer-events-none"
-            style={{ top: '72px', bottom: footerReserve }}
-          >
-            <MeetupStoryCard
-              story={story}
-              meetupData={meetupData}
-              meetupChatId={meetupChatId}
-              meetupTimeLeft={meetupTimeLeft}
-              mapCoords={mapCoords}
-              mapCoordsPending={mapCoordsPending}
-              meetupMaxMembers={meetupMaxMembers}
-              meetupParticipants={meetupParticipants}
-              participantProfiles={effectiveParticipantProfiles}
-              isOwn={isOwn}
-              showJoin={showMeetupJoin}
-              isJoined={isJoinedMeetup}
-              meetupStillActive={meetupStillActive}
-              meetupIsFull={meetupIsFull}
-              onJoinClick={() => setConfirmJoinMeetup(true)}
-              onOpenChat={() => {
-                if (!meetupChatId) return
-                requestClose()
-                navigate(`/chats/${meetupChatId}`)
-              }}
-              className="pointer-events-auto"
-            />
-          </div>
-        )}
-
         {canReply && (
           <div
+            key={`story-reply-${story.id}`}
             className="relative z-30 px-4 pt-2"
             style={replyFooterStyle}
             onPointerDown={(e) => e.stopPropagation()}
@@ -1259,7 +1313,10 @@ export default function StoryViewer({
               }
               className="absolute bottom-full left-4 mb-2 z-40"
             />
-            <div className={`flex items-center gap-2 ${STORY_FOOTER_ROW_H}`}>
+            <div
+              className={`flex items-center gap-2 ${STORY_FOOTER_ROW_H}`}
+              onPointerDown={handleReplyFieldPointerDown}
+            >
               <div
                 className={`flex-1 flex items-center gap-2 rounded-full px-3 min-w-0 h-full ${storyGlassInputClass}`}
               >
@@ -1287,6 +1344,7 @@ export default function StoryViewer({
                     }}
                     ref={replyInputRef}
                     onFocus={() => {
+                      resetDocumentScroll()
                       elapsedRef.current = progress * STORY_DURATION_MS
                       setReplyFocused(true)
                       setPaused(true)
@@ -1372,6 +1430,7 @@ export default function StoryViewer({
 
         {isOwn && !canReply && (
           <div
+            key={`story-views-${story.id}`}
             className="relative z-30 px-4 pb-[calc(var(--ios-safe-bottom)+12px)] pt-2 flex flex-col items-center gap-2"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -1390,6 +1449,7 @@ export default function StoryViewer({
 
         {!canReply && !isOwn && (
           <div
+            key={`story-react-${story.id}`}
             className="relative z-30 px-4 pb-[calc(var(--ios-safe-bottom)+12px)] pt-2"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -1412,14 +1472,17 @@ export default function StoryViewer({
         )}
 
         <AnimatePresence>
-          {showWatchers && isOwn && (
-            <>
-              <motion.button
+          {showWatchers && isOwn ? (
+            <motion.div
+              key="story-watchers"
+              className="absolute inset-0 z-[40]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
+            >
+              <button
                 type="button"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
                 className={storyWatchersScrimClass}
                 onClick={() => setShowWatchers(false)}
                 aria-label="Close views"
@@ -1428,72 +1491,72 @@ export default function StoryViewer({
                 initial={{ y: '100%' }}
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
-                transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
                 className={storyWatchersSheetClass}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10">
-                  <IconEye size={16} stroke={1.75} />
-                  <span className="font-semibold text-[15px] text-white tabular-nums">
-                    {viewCount} {viewCount === 1 ? 'view' : 'views'}
-                  </span>
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10">
+                    <IconEye size={16} stroke={1.75} />
+                    <span className="font-semibold text-[15px] text-white tabular-nums">
+                      {viewCount} {viewCount === 1 ? 'view' : 'views'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowWatchers(false)}
+                    className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 border border-white/10 text-white hover:bg-white/15 transition-colors"
+                    aria-label="Close views"
+                  >
+                    <IconX size={20} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowWatchers(false)}
-                  className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 border border-white/10 text-white hover:bg-white/15 transition-colors"
-                  aria-label="Close views"
-                >
-                  <IconX size={20} />
-                </button>
-              </div>
-              <div className="overflow-y-auto max-h-[calc(50vh-52px)] px-4 py-2 border-t border-white/10">
-                {watchers.length === 0 ? (
-                  <p className="text-center text-white/50 py-8 text-sm">No views yet</p>
-                ) : (
-                  watchers.map((w) => {
-                    const watcherId = w.viewerId || w.id
-                    const isDeleted = watcherDeleted[watcherId]
-                    const photo = isDeleted ? deletedAccountAvatarSrc : w.photoUrl || watcherPhotos[watcherId]
-                    return (
-                      <button
-                        key={w.id}
-                        type="button"
-                        onClick={() => openProfileOverlay(watcherId)}
-                        className="w-full flex items-center gap-3 py-3 px-1 text-left hover:bg-white/[0.04] active:bg-white/[0.08] transition-colors"
-                      >
-                        <img
-                          src={photo || sad}
-                          alt=""
-                          className={`w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-white/10 ${
-                            isDeleted ? deletedAccountAvatarClass : ''
-                          }`}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <UsernameLabel
-                            username={w.username}
-                            className="font-medium text-sm truncate text-white"
-                            badgeSize={12}
+                <div className="overflow-y-auto max-h-[calc(50vh-52px)] px-4 py-2 border-t border-white/10">
+                  {watchers.length === 0 ? (
+                    <p className="text-center text-white/50 py-8 text-sm">No views yet</p>
+                  ) : (
+                    watchers.map((w) => {
+                      const watcherId = w.viewerId || w.id
+                      const isDeleted = watcherDeleted[watcherId]
+                      const photo = isDeleted ? deletedAccountAvatarSrc : w.photoUrl || watcherPhotos[watcherId]
+                      return (
+                        <button
+                          key={w.id}
+                          type="button"
+                          onClick={() => openProfileOverlay(watcherId)}
+                          className="w-full flex items-center gap-3 py-3 px-1 text-left hover:bg-white/[0.04] active:bg-white/[0.08] transition-colors"
+                        >
+                          <img
+                            src={photo || sad}
+                            alt=""
+                            className={`w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-white/10 ${
+                              isDeleted ? deletedAccountAvatarClass : ''
+                            }`}
                           />
-                          <p className="text-xs text-white/50 mt-0.5">
-                            {formatStoryViewTime(w.viewedAt?.toMillis?.() ?? w.viewedAt)}
-                          </p>
-                        </div>
-                        <span className="shrink-0 w-8 flex items-center justify-center" aria-hidden>
-                          {storyReactions[watcherId] ? (
-                            <IosEmoji emoji={storyReactions[watcherId]} size={20} />
-                          ) : null}
-                        </span>
-                      </button>
-                    )
-                  })
-                )}
-              </div>
+                          <div className="min-w-0 flex-1">
+                            <UsernameLabel
+                              username={w.username}
+                              className="font-medium text-sm truncate text-white"
+                              badgeSize={12}
+                            />
+                            <p className="text-xs text-white/50 mt-0.5">
+                              {formatStoryViewTime(w.viewedAt?.toMillis?.() ?? w.viewedAt)}
+                            </p>
+                          </div>
+                          <span className="shrink-0 w-8 flex items-center justify-center" aria-hidden>
+                            {storyReactions[watcherId] ? (
+                              <IosEmoji emoji={storyReactions[watcherId]} size={20} />
+                            ) : null}
+                          </span>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
               </motion.div>
-            </>
-          )}
+            </motion.div>
+          ) : null}
         </AnimatePresence>
 
         </motion.div>
@@ -1504,7 +1567,7 @@ export default function StoryViewer({
           isOpen={Boolean(profileUserId)}
           onClose={closeProfileOverlay}
           fullscreen
-          overlayClassName="z-[98]"
+          overlayClassName="z-[120]"
         >
           {profileUserId && (
             <PublicProfileView
@@ -1531,7 +1594,7 @@ export default function StoryViewer({
           }
           confirmLabel="Join"
           loading={joiningMeetup}
-          overlayClassName="z-[100]"
+          overlayClassName="z-[130]"
         />
 
         <ConfirmDialog
@@ -1546,7 +1609,7 @@ export default function StoryViewer({
           confirmLabel="Delete"
           danger
           loading={deleting}
-          overlayClassName="z-[100]"
+          overlayClassName="z-[130]"
         />
     </motion.div>,
     document.body

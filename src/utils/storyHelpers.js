@@ -282,9 +282,37 @@ export function formatStoryViewTime(ms) {
   return `${hours}h ago`
 }
 
-export function buildStoryShareText(story, ownerUsername) {
-  const snippet = story.text?.length > 80 ? `${story.text.slice(0, 80)}…` : story.text
-  return `${ownerUsername}'s story on valoAr:\n"${snippet}"`
+export function getStoryShareUrl(ownerId, storyId) {
+  if (!ownerId || !storyId) return null
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/story/${ownerId}/${storyId}`
+}
+
+export function buildStoryShareText(story, ownerUsername, ownerId) {
+  const username = ownerUsername || 'User'
+  const snippet = story?.text?.length > 80 ? `${story.text.slice(0, 80)}…` : story?.text
+  const url = getStoryShareUrl(ownerId || story?.userId, story?.id)
+  let text = `${username}'s story on valoAr`
+  if (snippet) text += `:\n"${snippet}"`
+  if (url) text += `\n${url}`
+  return text
+}
+
+/** Share a story link via the system sheet, or copy the URL. */
+export async function shareStory(story, owner) {
+  const ownerId = owner?.id || owner?.uid || story?.userId
+  const username = owner?.username || 'User'
+  const url = getStoryShareUrl(ownerId, story?.id)
+  const text = buildStoryShareText(story, username, ownerId)
+
+  if (navigator.share) {
+    const payload = { title: `${username}'s story`, text }
+    if (url) payload.url = url
+    return navigator.share(payload)
+  }
+
+  await navigator.clipboard.writeText(url || text)
+  return { copied: true, url: url || text }
 }
 
 const LEGACY_STORY_REPLY_RE = /^📖 Replied to your story "(.*)": (.*)$/s

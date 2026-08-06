@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { IconInfoCircle } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -23,6 +23,11 @@ import { DEFAULT_CITY_ID, normalizeCity, normalizeHobbies } from '../../utils/pr
 export default function ProfileSetup() {
   const { user, refreshProfile, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const postSetupTo =
+    typeof location.state?.from === 'string' && location.state.from.startsWith('/')
+      ? location.state.from
+      : '/discover'
   const [username, setUsername] = useState('')
   const [age, setAge] = useState(18)
   const [gender, setGender] = useState('')
@@ -96,7 +101,7 @@ export default function ProfileSetup() {
       })
       await refreshProfile()
       toast.success('Profile created!')
-      navigate('/discover')
+      navigate(postSetupTo, { replace: true })
     } catch (err) {
       toast.error(err.message)
     } finally {

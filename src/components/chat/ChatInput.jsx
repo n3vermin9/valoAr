@@ -13,8 +13,9 @@ import {
 } from '../../utils/designSystem'
 import ChatSearchControls from './ChatSearchControls'
 import { getChatDraft, setChatDraft, clearChatDraft } from '../../utils/chatDrafts'
-import { focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
+import { focusInputAtEnd, focusInputRefAtEnd, handleInputFocusCursor } from '../../utils/inputHelpers'
 import { allowAutofocus } from '../../utils/iosInput'
+import { focusFieldWithoutScroll, resetDocumentScroll } from '../../utils/keyboardFocus'
 import IosEmojiField from '../ui/IosEmojiField'
 
 const actionButtonClass = chatFloatingButtonClass
@@ -132,6 +133,29 @@ export default function ChatInput({
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
   }, [])
+
+  const focusComposerField = useCallback(() => {
+    focusFieldWithoutScroll(textareaRef.current)
+    focusInputAtEnd(textareaRef.current)
+  }, [])
+
+  /**
+   * Pad around the field still opens the keyboard without a page jump.
+   * Field taps are owned by setupPreventScrollFieldFocus (caret-safe when already focused).
+   */
+  const handleComposerPointerDown = (e) => {
+    if (e.target.closest('button')) return
+    if (recording || sendingVoice) return
+    const field = textareaRef.current
+    if (field && (e.target === field || field.contains?.(e.target))) return
+    e.preventDefault()
+    focusComposerField()
+  }
+
+  const handleComposerFocus = (e) => {
+    resetDocumentScroll()
+    handleInputFocusCursor(e)
+  }
 
   const resetVoiceUi = useCallback(() => {
     clearInterval(timerRef.current)
@@ -413,6 +437,7 @@ export default function ChatInput({
             >
               <div
                 className={`${chatFloatingInputBarClass} flex w-full items-center gap-1.5 rounded-full pl-2 pr-3.5 min-h-12`}
+                onPointerDown={handleComposerPointerDown}
               >
                 <button
                   type="button"
@@ -427,12 +452,13 @@ export default function ChatInput({
                   value={text}
                   multiline
                   data-allow-copy
+                  data-chat-composer-input
                   onChange={(e) => {
                     setText(e.target.value)
                     onTyping?.(true)
                   }}
                   onBlur={() => onTyping?.(false)}
-                  onFocus={handleInputFocusCursor}
+                  onFocus={handleComposerFocus}
                   onKeyDown={handleKeyDown}
                   placeholder={
                     sendingVoice

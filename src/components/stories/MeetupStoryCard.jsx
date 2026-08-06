@@ -17,7 +17,7 @@ import MeetupParticipantRing from './MeetupParticipantRing'
 import MeetupStoryMapPreview from './MeetupStoryMapPreview'
 import { Skeleton } from '../ui/Skeleton'
 
-function MeetupPlacePhoto({ src, compact, onFailed }) {
+function MeetupPlacePhoto({ src, compact, onFailed, framed = true, short = false }) {
   const [displaySrc, setDisplaySrc] = useState('')
   const [failed, setFailed] = useState(false)
 
@@ -48,14 +48,20 @@ function MeetupPlacePhoto({ src, compact, onFailed }) {
   if (!displaySrc) {
     return (
       <Skeleton
-        className="h-[9.5rem] w-full border border-white/15"
+        className={`w-full transition-[height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          short ? 'h-[5rem]' : 'h-[9.5rem]'
+        } ${framed ? 'border border-white/15' : ''}`}
         rounded="lg"
       />
     )
   }
 
   return (
-    <div className="relative h-[9.5rem] w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15 bg-black/30">
+    <div
+      className={`relative w-full overflow-hidden rounded-[var(--ios-radius-lg)] bg-black/40 transition-[height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+        short ? 'h-[5rem]' : 'h-[9.5rem]'
+      } ${framed ? 'border border-white/15' : ''}`}
+    >
       <img
         src={displaySrc}
         alt=""
@@ -70,8 +76,13 @@ function MeetupPlacePhoto({ src, compact, onFailed }) {
           setFailed(true)
         }}
       />
+      <div className="pointer-events-none absolute inset-0 bg-black/25" />
     </div>
   )
+}
+
+function stopControlEvent(e) {
+  e.stopPropagation()
 }
 
 export default function MeetupStoryCard({
@@ -94,9 +105,15 @@ export default function MeetupStoryCard({
   onShowMap,
   hideAction = false,
   compact = false,
+  /** `story` = same shell as text stories (no nested card / gesture capture). */
+  variant = 'card',
+  /** Shrink map/photo when the story reply keyboard is open. */
+  keyboardOpen = false,
   militaryTime = true,
   className = '',
 }) {
+  const isStoryVariant = variant === 'story'
+  const compactMedia = compact || (isStoryVariant && keyboardOpen)
   const { title, venue, time, description } = parseMeetupStoryContent(story, meetupData, {
     militaryTime,
   })
@@ -124,10 +141,16 @@ export default function MeetupStoryCard({
         action = (
           <button
             type="button"
-            onClick={onJoinClick}
-            className={`${btnFilledClass} w-full justify-center gap-2 ${compact ? 'h-10 text-[15px]' : 'py-3 text-[17px]'} font-semibold`}
+            onPointerDown={stopControlEvent}
+            onClick={(e) => {
+              stopControlEvent(e)
+              onJoinClick?.()
+            }}
+            className={`${btnFilledClass} w-full justify-center gap-2 pointer-events-auto ${
+              compact || isStoryVariant ? 'h-10 text-[15px]' : 'py-3 text-[17px]'
+            } font-semibold`}
           >
-            <IconCalendarPlus size={compact ? 16 : 18} stroke={2} />
+            <IconCalendarPlus size={compact || isStoryVariant ? 16 : 18} stroke={2} />
             Join
           </button>
         )
@@ -135,10 +158,16 @@ export default function MeetupStoryCard({
         action = (
           <button
             type="button"
-            onClick={onOpenChat}
-            className={`${btnFilledClass} w-full justify-center gap-2 ${compact ? 'h-10 text-[15px]' : 'py-3 text-[17px]'} font-semibold`}
+            onPointerDown={stopControlEvent}
+            onClick={(e) => {
+              stopControlEvent(e)
+              onOpenChat?.()
+            }}
+            className={`${btnFilledClass} w-full justify-center gap-2 pointer-events-auto ${
+              compact || isStoryVariant ? 'h-10 text-[15px]' : 'py-3 text-[17px]'
+            } font-semibold`}
           >
-            <IconUsers size={compact ? 16 : 18} stroke={2} />
+            <IconUsers size={compact || isStoryVariant ? 16 : 18} stroke={2} />
             Open meetup chat
           </button>
         )
@@ -151,10 +180,16 @@ export default function MeetupStoryCard({
       action = (
         <button
           type="button"
-          onClick={onOpenChat}
-          className={`${btnFilledClass} w-full justify-center gap-2 ${compact ? 'h-10 text-[15px]' : 'py-3 text-[17px]'} font-semibold`}
+          onPointerDown={stopControlEvent}
+          onClick={(e) => {
+            stopControlEvent(e)
+            onOpenChat?.()
+          }}
+          className={`${btnFilledClass} w-full justify-center gap-2 pointer-events-auto ${
+            compact || isStoryVariant ? 'h-10 text-[15px]' : 'py-3 text-[17px]'
+          } font-semibold`}
         >
-          <IconUsers size={compact ? 16 : 18} stroke={2} />
+          <IconUsers size={compact || isStoryVariant ? 16 : 18} stroke={2} />
           Open meetup chat
         </button>
       )
@@ -164,26 +199,128 @@ export default function MeetupStoryCard({
   const mapButton = canShowMap ? (
     <button
       type="button"
+      onPointerDown={stopControlEvent}
       onClick={(e) => {
-        e.stopPropagation()
+        stopControlEvent(e)
         onShowMap?.()
       }}
-      className={`inline-flex items-center justify-center w-full rounded-full font-semibold bg-white text-black hover:bg-white/90 active:bg-white/80 transition-colors ${
-        compact ? 'h-10 text-[15px] gap-2' : 'h-11 text-[15px] gap-2'
+      className={`inline-flex items-center justify-center w-full rounded-full font-semibold bg-white text-black hover:bg-white/90 active:bg-white/80 transition-colors pointer-events-auto ${
+        compact || isStoryVariant ? 'h-10 text-[15px] gap-2' : 'h-11 text-[15px] gap-2'
       }`}
     >
-      <IconMapPin size={compact ? 16 : 18} stroke={2} />
+      <IconMapPin size={compact || isStoryVariant ? 16 : 18} stroke={2} />
       Show on map
     </button>
   ) : null
+
+  const media = showPlacePhoto ? (
+    <MeetupPlacePhoto
+      src={placePhotoUrl}
+      compact={compact || isStoryVariant}
+      framed={!isStoryVariant}
+      short={compactMedia}
+      onFailed={() => setPhotoFailed(true)}
+    />
+  ) : resolvedMapCoords ? (
+    <MeetupStoryMapPreview
+      lat={resolvedMapCoords.lat}
+      lng={resolvedMapCoords.lng}
+      placeName={placePinName}
+      emoji={placePinEmoji}
+      compactHeight={compactMedia}
+    />
+  ) : (
+    <div
+      className={`relative w-full overflow-hidden rounded-[var(--ios-radius-lg)] transition-[height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+        compactMedia ? 'h-[5rem]' : 'h-[9.5rem]'
+      } ${isStoryVariant ? 'bg-black/25' : 'border border-white/15'}`}
+      aria-hidden
+    >
+      <Skeleton className="absolute inset-0 !rounded-none h-full w-full" rounded="sm" />
+      {mapCoordsPending ? (
+        <p className="absolute inset-x-0 bottom-3 text-center text-[11px] font-medium uppercase tracking-wide text-white/45 z-[1]">
+          Loading map…
+        </p>
+      ) : null}
+    </div>
+  )
+
+  const metaRow = (
+    <div
+      className={`flex items-center justify-between gap-2 w-full ${
+        isStoryVariant
+          ? 'absolute left-0 right-0 -top-5 z-10 pointer-events-none'
+          : ''
+      }`}
+    >
+      {meetupTimeLeft ? (
+        <span
+          className={`${storyGlassPillClass} tabular-nums shadow-lg shrink-0 ${
+            isStoryVariant ? 'pointer-events-auto' : ''
+          } ${compact || isStoryVariant ? 'px-2.5 py-1.5 text-[12px] gap-1.5' : 'text-sm'}`}
+        >
+          <IconClockHour4 size={compact || isStoryVariant ? 13 : 16} stroke={2} />
+          <span>{meetupTimeLeft}</span>
+        </span>
+      ) : (
+        <span />
+      )}
+      <MeetupParticipantRing
+        maxMembers={meetupMaxMembers}
+        participants={meetupParticipants}
+        participantProfiles={participantProfiles}
+        size={compact || isStoryVariant ? 'sm' : 'md'}
+        className={`shrink-0 ${
+          isStoryVariant ? 'pointer-events-auto -mr-1.5' : compact ? '-mr-1.5 -mt-0.5' : '-mr-3 -mt-0.5'
+        }`}
+      />
+    </div>
+  )
+
+  // Story viewer: dark modal panel on the story gradient (no full-body scrim).
+  if (isStoryVariant) {
+    return (
+      <div
+        className={`relative mx-auto w-full max-w-[380px] overflow-visible ${className}`}
+      >
+        {metaRow}
+        <div
+          className={`relative w-full rounded-[var(--ios-radius-xl)] border border-white/15 shadow-[0_16px_48px_rgba(0,0,0,0.55)] ${cardBgClass} ${
+            keyboardOpen ? 'px-5 pb-4 pt-7' : 'px-6 pb-6 pt-8'
+          }`}
+        >
+          <div className={`text-center ${keyboardOpen ? 'space-y-2.5' : 'space-y-3.5'}`}>
+            <h2 className="text-2xl sm:text-3xl font-semibold leading-snug text-white whitespace-pre-wrap break-words">
+              {title}
+            </h2>
+            {media}
+            {time ? (
+              <p className="text-[15px] text-white/75 text-center w-full">
+                {time}
+              </p>
+            ) : null}
+            {description && !keyboardOpen ? (
+              <p className="text-[17px] text-white/90 whitespace-pre-wrap break-words text-center">
+                {description}
+              </p>
+            ) : null}
+          </div>
+          {(action || mapButton) && (
+            <div className={`${keyboardOpen ? 'mt-3' : 'mt-5'} w-full space-y-2`}>
+              {action}
+              {mapButton}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
       className={`relative mx-auto overflow-visible ${
         compact ? 'w-[80vw] max-w-[80vw]' : 'w-full max-w-[380px]'
       } ${className}`}
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
     >
       <div
         className={`absolute left-0 right-0 z-10 flex items-center justify-between gap-2 pointer-events-none ${
@@ -192,7 +329,7 @@ export default function MeetupStoryCard({
       >
         {meetupTimeLeft ? (
           <span
-            className={`${storyGlassPillClass} tabular-nums shadow-lg shrink-0 pointer-events-auto ${
+            className={`${storyGlassPillClass} tabular-nums shadow-lg shrink-0 ${
               compact ? 'px-2.5 py-1.5 text-[12px] gap-1.5' : 'text-sm'
             }`}
           >
@@ -207,7 +344,7 @@ export default function MeetupStoryCard({
           participants={meetupParticipants}
           participantProfiles={participantProfiles}
           size={compact ? 'sm' : 'md'}
-          className={`pointer-events-auto shrink-0 ${compact ? '-mr-1.5 -mt-0.5' : '-mr-3 -mt-0.5'}`}
+          className={`shrink-0 ${compact ? '-mr-1.5 -mt-0.5' : '-mr-3 -mt-0.5'}`}
         />
       </div>
 
@@ -221,33 +358,7 @@ export default function MeetupStoryCard({
             {title}
           </h2>
 
-          {showPlacePhoto ? (
-            <MeetupPlacePhoto
-              src={placePhotoUrl}
-              compact={compact}
-              onFailed={() => setPhotoFailed(true)}
-            />
-          ) : resolvedMapCoords ? (
-            <MeetupStoryMapPreview
-              lat={resolvedMapCoords.lat}
-              lng={resolvedMapCoords.lng}
-              placeName={placePinName}
-              emoji={placePinEmoji}
-              className={compact ? '!h-[9.5rem]' : undefined}
-            />
-          ) : (
-            <div
-              className="relative h-[9.5rem] w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15"
-              aria-hidden
-            >
-              <Skeleton className="absolute inset-0 !rounded-none h-full w-full" rounded="sm" />
-              {mapCoordsPending ? (
-                <p className="absolute inset-x-0 bottom-3 text-center text-[11px] font-medium uppercase tracking-wide text-white/45 z-[1]">
-                  Loading map…
-                </p>
-              ) : null}
-            </div>
-          )}
+          {media}
 
           {time ? (
             <p className={`${typoSubheadClass} text-white/75 text-center w-full ${compact ? 'text-[13px]' : ''}`}>

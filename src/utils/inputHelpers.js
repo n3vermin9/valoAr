@@ -1,7 +1,11 @@
+import { resetDocumentScroll } from './keyboardFocus'
+
 export function handleInputFocusCursor(event) {
   const { target } = event
+  resetDocumentScroll()
   requestAnimationFrame(() => {
     if (document.activeElement !== target) return
+    resetDocumentScroll()
 
     if (target.isContentEditable) {
       const selection = window.getSelection()

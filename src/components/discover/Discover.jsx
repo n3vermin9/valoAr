@@ -769,7 +769,7 @@ function DiscoverSearchPage({
           {...pageSwitchMotion}
           className="fixed inset-0 z-[70] bg-[var(--ios-bg)] origin-center flex flex-col"
         >
-          <div className="flex items-center gap-2 px-4 pt-[max(0.5rem,var(--ios-safe-top))] pb-2 border-b border-[var(--ios-hairline)] shrink-0">
+          <div className="flex items-center gap-2 px-[var(--ios-page-x-lg)] pt-[calc(var(--ios-safe-top)+20px)] pb-2 border-b border-[var(--ios-hairline)] shrink-0">
             <ChevronBack onClick={onClose} />
             <div className={`flex-1 min-w-0 ${searchFieldShellClass}`}>
               <IconSearch size={16} stroke={2} className="text-[var(--ios-label-tertiary)] shrink-0" />

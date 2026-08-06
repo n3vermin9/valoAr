@@ -212,6 +212,22 @@ export const pageSwitchVariants = {
   exit: { scale: 1, opacity: 0 },
 }
 
+/** Horizontal tab switch (bottom nav / segmented controls) — direction is +1 / -1. */
+export const tabSlideTransition = { duration: 0.28, ease: pageSwitchEase }
+export const tabSlideVariants = {
+  enter: (direction) => ({
+    x: direction > 0 ? 28 : -28,
+    opacity: 0,
+    zIndex: 10,
+  }),
+  center: { x: 0, opacity: 1, zIndex: 10 },
+  exit: (direction) => ({
+    x: direction > 0 ? -28 : 28,
+    opacity: 0,
+    zIndex: 0,
+  }),
+}
+
 /** iOS push — drill-in pages enter from the trailing edge and leave the same way. */
 export const pushPageMotion = {
   initial: { x: '100%' },
@@ -262,20 +278,27 @@ export const tapScaleClass = 'tap-scale'
 /** Story viewer — Liquid Glass overlays on gradient story canvas */
 export const storyGlassBlur = `${glassBase} ${glassInsetHighlight}`
 
-export const storyGlassButtonClass = `${storyGlassBlur} liquid-glass-circle p-2.5 rounded-full flex items-center justify-center text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-40`
+/**
+ * Frosted chrome over a story gradient. Do not use `liquid-glass` / clip-path here —
+ * isolation + clip-path break backdrop sampling, so controls stay stuck on a stale tint
+ * instead of picking up the current story color.
+ */
+const storyChromeSurface = `border border-white/20 bg-white/12 backdrop-blur-xl backdrop-saturate-[1.8] ${glassInsetHighlight}`
 
-export const storyGlassPillClass = `${storyGlassBlur} liquid-glass-pill rounded-full px-4 py-2.5 flex items-center gap-2 text-white transition-all hover:brightness-110 active:scale-[0.98]`
+export const storyGlassButtonClass = `${storyChromeSurface} rounded-full p-2.5 flex items-center justify-center text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-40`
 
-export const storyGlassInputClass = `${storyGlassBlur} rounded-full`
+export const storyGlassPillClass = `${storyChromeSurface} rounded-full px-4 py-2.5 flex items-center gap-2 text-white transition-all hover:brightness-110 active:scale-[0.98]`
+
+export const storyGlassInputClass = `${storyChromeSurface} rounded-full`
 
 export const storyGlassSheetClass = `rounded-t-[var(--ios-radius-xl)] border border-b-0 border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[var(--ios-glass-shadow-modal)]`
 
-/** Watchers list — solid sheet, no extra backdrop blur (story already has glass UI behind) */
-export const storyWatchersScrimClass = 'absolute inset-0 z-[35] bg-black/55 cursor-default'
+/** Watchers list — solid sheet; scrim is parent-owned (single fade with sheet open). */
+export const storyWatchersScrimClass = 'absolute inset-0 z-0 bg-black/60 cursor-default'
 export const storyWatchersSheetClass =
-  'absolute inset-x-0 bottom-0 z-40 max-h-[50vh] rounded-t-[var(--ios-radius-xl)] border border-b-0 border-white/10 bg-[rgb(18,18,20)] shadow-[0_-12px_40px_rgba(0,0,0,0.5)]'
+  'absolute inset-x-0 bottom-0 z-10 max-h-[50vh] rounded-t-[var(--ios-radius-xl)] border border-b-0 border-white/10 bg-[rgb(18,18,20)] shadow-[0_-12px_40px_rgba(0,0,0,0.5)]'
 
-export const storyAuthorBubbleClass = `${storyGlassBlur} liquid-glass-pill rounded-full pl-1 pr-3 py-1 flex items-center gap-4 min-w-0 max-w-[58%] transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer`
+export const storyAuthorBubbleClass = `${storyChromeSurface} rounded-full pl-1 pr-3 py-1 flex items-center gap-4 min-w-0 max-w-[58%] transition-all hover:brightness-110 active:scale-[0.98] cursor-pointer`
 
 export const storyGlassRowClass =
   'rounded-xl border border-white/5 bg-white/[0.06] backdrop-blur-lg backdrop-saturate-150 hover:bg-white/[0.1] active:bg-white/[0.14] transition-colors'
@@ -283,7 +306,7 @@ export const storyGlassRowClass =
 export const storyProgressTrackClass = 'bg-white/15 backdrop-blur-md backdrop-saturate-150'
 export const storyProgressFillClass = 'bg-white/95 shadow-[0_0_10px_rgba(255,255,255,0.4)]'
 
-export const storyPausedBadgeClass = `${storyGlassBlur} px-4 py-1.5 text-xs font-medium text-white/90 rounded-full`
+export const storyPausedBadgeClass = `${storyChromeSurface} px-4 py-1.5 text-xs font-medium text-white/90 rounded-full`
 
 export const storyRingInnerClass =
   'rounded-full overflow-hidden bg-white/10 backdrop-blur-lg backdrop-saturate-150 border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'

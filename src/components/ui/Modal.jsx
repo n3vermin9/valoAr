@@ -8,6 +8,7 @@ import {
   pushPageMotion,
 } from '../../utils/designSystem'
 import { setModalOverlayOpen } from '../../utils/modalOverlay'
+import { useOverlayKeyboardInset } from '../../hooks/useOverlayKeyboardInset'
 
 const overlayTransition = { duration: 0.24, ease: [0.32, 0.72, 0, 1] }
 
@@ -21,6 +22,7 @@ export default function Modal({
   overlayClassName = 'z-[100]',
 }) {
   const ref = useRef(null)
+  const { inset, ease, ms } = useOverlayKeyboardInset(isOpen && !fullscreen)
 
   useEffect(() => {
     if (!isOpen) return
@@ -54,6 +56,22 @@ export default function Modal({
         glass ? modalScrimClass : 'bg-[var(--ios-modal-scrim)] backdrop-blur-sm'
       }`
 
+  // Extra bottom padding shrinks the flex center box so the sheet sits in the
+  // visible band above the keyboard, then returns to true center when it closes.
+  const overlayStyle = fullscreen
+    ? undefined
+    : {
+        paddingBottom: `calc(1rem + ${inset}px)`,
+        transition: `padding-bottom ${ms}ms ${ease}`,
+      }
+
+  const panelStyle = fullscreen
+    ? undefined
+    : {
+        maxHeight: inset > 0 ? `calc(100dvh - ${inset}px - 2rem)` : undefined,
+        transition: `max-height ${ms}ms ${ease}`,
+      }
+
   const panelMotion = fullscreen
     ? pushPageMotion
     : {
@@ -75,12 +93,14 @@ export default function Modal({
           key="modal-overlay"
           {...overlayMotion}
           className={overlayClass}
+          style={overlayStyle}
         >
           <motion.div
             ref={ref}
             key="modal-panel"
             {...panelMotion}
             className={`origin-center ${panelClass}`}
+            style={panelStyle}
           >
             {children}
           </motion.div>

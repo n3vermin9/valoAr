@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { IconCheck, IconX } from '@tabler/icons-react'
 import { useAuth } from '../../contexts/AuthContext'
@@ -29,10 +30,14 @@ import VerifiedBadge from '../ui/VerifiedBadge'
 import IosEmoji from '../ui/IosEmoji'
 import ChatStoryViewer from '../stories/ChatStoryViewer'
 import StoryUnavailableViewer from '../stories/StoryUnavailableViewer'
-import { chatBubblePadClass, chatMessageTextClass, typoSubheadClass } from '../../utils/designSystem'
+import { chatBubblePadClass, chatMessageTextClass, typoSubheadClass, segmentedControlClass, tabSlideTransition, tabSlideVariants } from '../../utils/designSystem'
 import { getInboxPageSnapshot, setInboxPageSnapshot } from '../../services/inboxPageCache'
 
 const EMPTY_INBOX_TRUST_MS = 2000
+
+const INBOX_TAB_ORDER = { requests: 0, inbox: 1 }
+const inboxListClass =
+  'h-full min-h-0 overflow-y-auto px-[var(--ios-page-x-lg)] pt-2'
 
 function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
   const cardClass = unavailable
@@ -75,6 +80,7 @@ export default function LikedYou() {
   const { user, profile, setProfile } = useAuth()
   const snapshot = user?.uid ? getInboxPageSnapshot(user.uid) : null
   const [section, setSection] = useState(() => inboxTabFromSearch(searchParams))
+  const sectionDirectionRef = useRef(0)
   const [likes, setLikes] = useState(() => snapshot?.likes || [])
   const [profiles, setProfiles] = useState(() => snapshot?.profiles || {})
   const [inboxItems, setInboxItems] = useState(() => snapshot?.inboxItems || [])
@@ -95,10 +101,20 @@ export default function LikedYou() {
   const inboxProfilesRef = useRef(inboxProfiles)
 
   useEffect(() => {
-    setSection(inboxTabFromSearch(searchParams))
+    const next = inboxTabFromSearch(searchParams)
+    setSection((prev) => {
+      if (prev !== next) {
+        sectionDirectionRef.current =
+          (INBOX_TAB_ORDER[next] ?? 0) - (INBOX_TAB_ORDER[prev] ?? 0)
+      }
+      return next
+    })
   }, [searchParams])
 
   const handleSectionChange = (next) => {
+    if (next === section) return
+    sectionDirectionRef.current =
+      (INBOX_TAB_ORDER[next] ?? 0) - (INBOX_TAB_ORDER[section] ?? 0)
     setSection(next)
     setSearchParams(next === 'requests' ? { tab: 'requests' } : {}, { replace: true })
   }
@@ -636,9 +652,9 @@ export default function LikedYou() {
 
   const requestsContent =
     likes.length === 0 && outgoingIds.length === 0 ? (
-      <EmptyState message="No friend requests yet. Keep discovering!" className="flex-1" />
+      <EmptyState message="No friend requests yet. Keep discovering!" className="h-full" />
     ) : (
-      <div className="px-[var(--ios-page-x-lg)] mt-2 space-y-4 overflow-y-auto flex-1 min-h-0">
+      <div className={`${inboxListClass} space-y-4`}>
         {outgoingIds.length > 0 && (
           <div className="space-y-3">
             <p className="text-xs font-medium text-[var(--ios-label-tertiary)] uppercase tracking-wider px-1">Sent</p>
@@ -668,9 +684,9 @@ export default function LikedYou() {
 
   const inboxContent =
     inboxItems.length === 0 ? (
-      <EmptyState message="No notifications yet" className="flex-1" />
+      <EmptyState message="No notifications yet" className="h-full" />
     ) : (
-      <div className="px-[var(--ios-page-x-lg)] mt-2 overflow-y-auto flex-1 min-h-0 divide-y divide-white/5">
+      <div className={`${inboxListClass} divide-y divide-[var(--ios-hairline)]`}>
         {inboxItems.map(renderInboxItem)}
       </div>
     )
@@ -683,7 +699,22 @@ export default function LikedYou() {
         requestCount={likes.length}
         inboxUnread={unreadInbox.length}
       />
-      {section === 'requests' ? requestsContent : inboxContent}
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        <AnimatePresence mode="sync" initial={false} custom={sectionDirectionRef.current}>
+          <motion.div
+            key={section}
+            custom={sectionDirectionRef.current}
+            variants={tabSlideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={tabSlideTransition}
+            className="absolute inset-0 flex flex-col min-h-0 origin-center will-change-transform"
+          >
+            {section === 'requests' ? requestsContent : inboxContent}
+          </motion.div>
+        </AnimatePresence>
+      </div>
 
       <Modal isOpen={!!viewProfile} onClose={() => setViewProfile(null)} fullscreen>
         {viewProfile && (
@@ -707,9 +738,8 @@ export default function LikedYou() {
 
 function InboxSectionTabs({ section, onSectionChange, requestCount, inboxUnread }) {
   return (
-    <>
-      <div className="mx-[var(--ios-page-x-lg)] border-t border-[var(--ios-hairline)]" aria-hidden />
-      <div className="flex px-[var(--ios-page-x-lg)] pt-3 pb-2 z-10">
+    <div className="px-[var(--ios-page-x-lg)] pt-1 pb-1 z-10">
+      <div className={segmentedControlClass}>
         {[
           {
             id: 'requests',
@@ -719,19 +749,32 @@ function InboxSectionTabs({ section, onSectionChange, requestCount, inboxUnread 
             id: 'inbox',
             label: inboxUnread > 0 ? `Inbox (${inboxUnread})` : 'Inbox',
           },
-        ].map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onSectionChange(id)}
-            className={`flex-1 py-1 text-center text-sm font-medium transition-colors ${
-              section === id ? 'text-[var(--ios-label)]' : 'text-[var(--ios-label-tertiary)] hover:text-[var(--ios-label-secondary)]'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        ].map(({ id, label }) => {
+          const active = section === id
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onSectionChange(id)}
+              className={`relative flex-1 py-2 text-center text-sm font-medium rounded-full transition-colors ${
+                active
+                  ? 'text-white'
+                  : 'text-[var(--ios-label-secondary)] hover:text-[var(--ios-label)]'
+              }`}
+            >
+              {active ? (
+                <motion.span
+                  layoutId="inbox-section-pill"
+                  className="absolute inset-0 rounded-full bg-[var(--ios-blue)] shadow-sm"
+                  transition={tabSlideTransition}
+                  aria-hidden
+                />
+              ) : null}
+              <span className="relative z-[1]">{label}</span>
+            </button>
+          )
+        })}
       </div>
-    </>
+    </div>
   )
 }

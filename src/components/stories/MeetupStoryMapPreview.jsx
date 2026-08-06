@@ -8,6 +8,8 @@ export default function MeetupStoryMapPreview({
   placeName = '',
   emoji = '📍',
   className = '',
+  /** Shorten the preview when the story reply keyboard is open. */
+  compactHeight = false,
 }) {
   const mapView = useMemo(() => getMeetupMapTiles(lat, lng), [lat, lng])
   const [ready, setReady] = useState(false)
@@ -27,7 +29,9 @@ export default function MeetupStoryMapPreview({
 
   return (
     <div
-      className={`relative h-[9.5rem] w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15 bg-[#d9d2c6] ${className}`}
+      className={`relative w-full overflow-hidden rounded-[var(--ios-radius-lg)] border border-white/15 bg-[#1a1814] transition-[height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+        compactHeight ? 'h-[5rem]' : 'h-[9.5rem]'
+      } ${className}`}
       aria-hidden
     >
       {!ready ? (
@@ -61,10 +65,13 @@ export default function MeetupStoryMapPreview({
         ))}
       </div>
 
+      {/* Dim map tiles so white story chrome stays legible */}
+      <div className="pointer-events-none absolute inset-0 z-[2] bg-black/35" />
+
       <div
         className={`pointer-events-none absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-opacity duration-200 ${
           ready ? 'opacity-100' : 'opacity-0'
-        }`}
+        } ${compactHeight ? 'scale-90' : ''}`}
       >
         <div className="inline-flex max-w-[11.5rem] items-center gap-2 rounded-full border-2 border-[var(--ios-blue)] bg-[var(--ios-bg-secondary)] px-2.5 py-1.5 shadow-[0_0_0_3px_color-mix(in_srgb,var(--ios-blue)_35%,transparent),0_2px_12px_rgba(0,0,0,0.4)]">
           <span className="shrink-0 text-lg leading-none" aria-hidden>

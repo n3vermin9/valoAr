@@ -8,7 +8,11 @@ import './index.css'
 import { setupInteractionGuards } from './utils/interactionGuards'
 import { setupNativeShell } from './native/setupNativeShell'
 import { setupSafeAreaInsets } from './native/setupSafeAreaInsets'
-import { setupKeyboardFocusScroll, setupKeyboardInset } from './utils/keyboardFocus'
+import {
+  setupKeyboardFocusScroll,
+  setupKeyboardInset,
+  setupPreventScrollFieldFocus,
+} from './utils/keyboardFocus'
 import { AppKeyboardProvider } from './components/ui/AppKeyboard'
 import { getCachedAppleEmojiDataUrl, preloadMainEmojis } from './services/emojiImageCache'
 import { setAppleEmojiLocalResolver } from './utils/iosEmoji'
@@ -18,6 +22,7 @@ setAppleEmojiLocalResolver(getCachedAppleEmojiDataUrl)
 bootAppearance()
 setupInteractionGuards()
 setupSafeAreaInsets()
+setupPreventScrollFieldFocus()
 setupKeyboardFocusScroll()
 setupKeyboardInset()
 void setupNativeShell()

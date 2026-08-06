@@ -105,11 +105,12 @@ export default function ChatStoryViewer({ ownerId, storyId, onClose, openOrigin 
 
   if (!ownerId || !user?.uid) return null
 
+  // Hide loading null so deep-link black bg shows; show unavailable if target gone.
   if (storiesLoaded && storyId && !stories.some((s) => s.id === storyId) && !sessionStartedRef.current) {
     return <StoryUnavailableViewer onClose={onClose} openOrigin={openOrigin} />
   }
 
-  if (storiesLoaded && !stories.length && storyId && !sessionStartedRef.current) {
+  if (storiesLoaded && !stories.length && !sessionStartedRef.current) {
     return <StoryUnavailableViewer onClose={onClose} openOrigin={openOrigin} />
   }
 

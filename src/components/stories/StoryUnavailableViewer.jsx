@@ -41,7 +41,7 @@ export default function StoryUnavailableViewer({ onClose, openOrigin = null }) {
         if (!isPresent) finishClose()
       }}
       style={{ transformOrigin: openMotion.transformOrigin }}
-      className="fixed inset-0 z-[95] overflow-hidden will-change-transform bg-black"
+      className="fixed inset-0 z-[110] overflow-hidden will-change-transform bg-black"
     >
       <div className={`absolute inset-0 flex flex-col ${getStoryColorClass('slate')}`}>
         <div className="flex items-center justify-end px-4 pt-[calc(var(--ios-safe-top)+12px)] pb-3">

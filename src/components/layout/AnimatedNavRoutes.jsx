@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import PageTransition from './PageTransition'
@@ -64,6 +64,26 @@ export default function AnimatedNavRoutes() {
   const transitionKey = getRouteTransitionKey(location.pathname)
   const isChatRoom = isChatRoomPath(location.pathname)
   const chatMatchId = chatMatchIdFromPath(location.pathname)
+  const transitionMetaRef = useRef({
+    key: transitionKey,
+    path: location.pathname,
+    direction: 0,
+    useTabSlide: false,
+  })
+
+  if (transitionKey !== transitionMetaRef.current.key) {
+    const prevIdx = getNavTabIndex(transitionMetaRef.current.path)
+    const nextIdx = getNavTabIndex(location.pathname)
+    const useTabSlide = prevIdx != null && nextIdx != null
+    transitionMetaRef.current = {
+      key: transitionKey,
+      path: location.pathname,
+      direction: useTabSlide ? nextIdx - prevIdx : 0,
+      useTabSlide,
+    }
+  }
+
+  const { direction, useTabSlide } = transitionMetaRef.current
   useNavTabSwipe()
 
   // Sync before paint so portaled header is never CSS-hidden while in a chat.
@@ -100,13 +120,19 @@ export default function AnimatedNavRoutes() {
 
   return (
     <div className="relative h-full overflow-hidden bg-[var(--ios-bg)]">
-      <AnimatePresence mode="sync" initial={false}>
+      <AnimatePresence mode="sync" initial={false} custom={direction}>
         {/*
+          Tab switches use the same directional slide as Inbox sections.
           Chat uses opacity-only motion (no transform) so fixed/portaled layers stay correct.
           Portals are CSS-hidden as soon as we leave a chat route (see useLayoutEffect above),
           so the exit fade cannot leave a stuck header on the next page.
         */}
-        <PageTransition key={transitionKey} disableTransform={isChatRoom}>
+        <PageTransition
+          key={transitionKey}
+          disableTransform={isChatRoom}
+          direction={direction}
+          useTabSlide={useTabSlide && !isChatRoom}
+        >
           {routes}
         </PageTransition>
       </AnimatePresence>

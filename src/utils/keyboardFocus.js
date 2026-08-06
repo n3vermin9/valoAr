@@ -228,9 +228,91 @@ export async function dismissAppKeyboard() {
 
 export { KEYBOARD_EASE, KEYBOARD_MS, KEYBOARD_MIN_PX }
 
+/** Text inputs only — not checkboxes, buttons, selects, file pickers. */
+const TEXT_FIELD_SELECTOR = [
+  'textarea:not([disabled])',
+  'input:not([disabled]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"])',
+  '[contenteditable="true"]',
+].join(',')
+
 function isFocusableField(el) {
   if (!(el instanceof Element)) return false
   return el.matches(FOCUSABLE) || el.closest('[data-app-keyboard-field="true"]')
+}
+
+function isDisabledTextField(el) {
+  if (!(el instanceof Element)) return true
+  if (el.matches?.(':disabled') || el.disabled) return true
+  if (el.readOnly) return true
+  if (el.getAttribute('contenteditable') === 'false') return true
+  if (el.getAttribute('aria-disabled') === 'true') return true
+  return false
+}
+
+/**
+ * Focus a text field without letting WKWebView pan the page to scroll-into-view.
+ * Call from pointer handlers in the same user gesture so iOS still opens the keyboard.
+ */
+export function focusFieldWithoutScroll(el) {
+  if (!(el instanceof HTMLElement) || isDisabledTextField(el)) return false
+  resetDocumentScroll()
+  try {
+    el.focus({ preventScroll: true })
+  } catch {
+    el.focus()
+  }
+  resetDocumentScroll()
+  return true
+}
+
+/**
+ * Own every text-field tap so iOS/Capacitor does not jump the page on keyboard open.
+ * Covers search bars, settings forms, modals, and any raw input/textarea.
+ */
+export function setupPreventScrollFieldFocus() {
+  const resolveField = (target) => {
+    if (!(target instanceof Element)) return null
+
+    // Label → associated control (default activates without preventScroll).
+    const label = target.closest('label')
+    if (label) {
+      const forId = label.htmlFor || label.getAttribute('for')
+      const fromFor = forId ? document.getElementById(forId) : null
+      const nested = label.querySelector(TEXT_FIELD_SELECTOR)
+      const field = fromFor?.matches?.(TEXT_FIELD_SELECTOR) ? fromFor : nested
+      if (field && !isDisabledTextField(field)) return field
+      return null
+    }
+
+    // Leave nested controls alone (emoji, clear, send, password visibility, etc.).
+    if (target.closest('button, a, summary, [role="button"]')) return null
+
+    const field = target.closest(TEXT_FIELD_SELECTOR)
+    if (!field || isDisabledTextField(field)) return null
+    return field
+  }
+
+  const onPointerDown = (event) => {
+    if (!event.isPrimary) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    const field = resolveField(event.target)
+    if (!field) return
+
+    // Already editing — allow normal caret placement; only kill residual page scroll.
+    if (document.activeElement === field) {
+      resetDocumentScroll()
+      return
+    }
+
+    event.preventDefault()
+    focusFieldWithoutScroll(field)
+  }
+
+  document.addEventListener('pointerdown', onPointerDown, { capture: true, passive: false })
+  return () => {
+    document.removeEventListener('pointerdown', onPointerDown, true)
+  }
 }
 
 function getScrollParent(el) {
@@ -250,6 +332,8 @@ function getScrollParent(el) {
 export function scrollFieldAboveKeyboard(el, { behavior = 'smooth', extraPad = 24 } = {}) {
   if (!(el instanceof Element)) return
   if (el.closest('[data-chat-composer="true"]')) return
+  // Story reply lifts via overlay keyboard inset — never scroll the canvas.
+  if (el.closest('[data-story-viewer]') || el.closest('[data-story-reply-input]')) return
 
   const target = el.closest('[data-app-keyboard-field="true"]') || el
   const vv = window.visualViewport
@@ -266,9 +350,6 @@ export function scrollFieldAboveKeyboard(el, { behavior = 'smooth', extraPad = 2
 }
 
 export function setupKeyboardFocusScroll() {
-  // Native: fixed chat layers + Keyboard.setScroll({ isDisabled: true }) handle layout.
-  if (Capacitor.isNativePlatform()) return () => {}
-
   let focused = null
   let frame = 0
 
@@ -281,7 +362,16 @@ export function setupKeyboardFocusScroll() {
   const onFocusIn = (e) => {
     const el = e.target
     if (!isFocusableField(el)) return
+    // Always flatten residual document scroll (native focus pan / leftover).
+    resetDocumentScroll()
+
+    // Native: fixed layers + Keyboard.setScroll handle layout — no scroll-assist.
+    if (Capacitor.isNativePlatform()) return
+
     if (el instanceof Element && el.closest('[data-chat-composer="true"]')) return
+    if (el instanceof Element && (el.closest('[data-story-viewer]') || el.closest('[data-story-reply-input]'))) {
+      return
+    }
     focused = el instanceof Element ? el : null
     schedule(focused, 50)
     schedule(focused, 280)
@@ -292,6 +382,7 @@ export function setupKeyboardFocusScroll() {
   }
 
   const onViewportChange = () => {
+    if (Capacitor.isNativePlatform()) return
     if (!focused || !document.contains(focused)) return
     schedule(focused, 16)
   }

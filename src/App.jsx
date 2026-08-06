@@ -12,6 +12,7 @@ import GroupJoinPage from './components/chat/GroupJoinPage'
 import GroupInfoView from './components/chat/GroupInfoView'
 import CreateGroupPage from './components/chat/CreateGroupPage'
 import GroupSettingsRoutes from './components/chat/groupSettings/GroupSettingsRoutes'
+import StoryDeepLinkPage from './components/stories/StoryDeepLinkPage'
 import { PageSkeleton } from './components/ui/Skeleton'
 import Modal from './components/ui/Modal'
 import DevAssistiveTouch from './components/debug/DevAssistiveTouch'
@@ -124,6 +125,13 @@ function PublicProfileRoute() {
 
 export default function App() {
   const { user, profile, loading } = useAuth()
+  const location = useLocation()
+  const rawFrom = location.state?.from
+  const postAuthTo =
+    typeof rawFrom === 'string' && rawFrom.startsWith('/') && !rawFrom.startsWith('//')
+      ? rawFrom
+      : undefined
+  const authedHome = profile?.username ? postAuthTo || '/discover' : '/setup'
 
   return (
     <>
@@ -135,16 +143,39 @@ export default function App() {
     <Routes>
       <Route
         path="/login"
-        element={!user ? <Login /> : <Navigate to={profile?.username ? '/discover' : '/setup'} />}
+        element={
+          !user ? (
+            <Login />
+          ) : (
+            <Navigate
+              to={authedHome}
+              replace
+              state={postAuthTo ? { from: postAuthTo } : undefined}
+            />
+          )
+        }
       />
-      <Route path="/register" element={!user ? <Register /> : <Navigate to="/setup" />} />
+      <Route
+        path="/register"
+        element={
+          !user ? (
+            <Register />
+          ) : (
+            <Navigate
+              to={profile?.username ? postAuthTo || '/setup' : '/setup'}
+              replace
+              state={postAuthTo ? { from: postAuthTo } : undefined}
+            />
+          )
+        }
+      />
       <Route
         path="/setup"
         element={
           !user ? (
-            <Navigate to="/login" replace />
+            <Navigate to="/login" replace state={{ from: postAuthTo }} />
           ) : profile?.username ? (
-            <Navigate to="/discover" replace />
+            <Navigate to={postAuthTo || '/discover'} replace />
           ) : (
             <div className="h-full min-h-0 overflow-hidden bg-[var(--ios-bg)]">
               <ProfileSetup />
@@ -153,6 +184,7 @@ export default function App() {
         }
       />
       <Route path="/profile/:userId" element={<PublicProfileRoute />} />
+      <Route path="/story/:ownerId/:storyId" element={<StoryDeepLinkPage />} />
       <Route
         path="/join/:inviteCode"
         element={
@@ -160,10 +192,10 @@ export default function App() {
             profile?.username ? (
               <GroupJoinPage />
             ) : (
-              <Navigate to="/setup" />
+              <Navigate to="/setup" state={{ from: location.pathname }} />
             )
           ) : (
-            <Navigate to="/login" />
+            <Navigate to="/login" state={{ from: location.pathname }} />
           )
         }
       />

@@ -19,6 +19,9 @@ export function parseInAppRoute(href) {
   const profileMatch = path.match(/^\/profile\/([^/]+)$/)
   if (profileMatch) return { to: `/profile/${profileMatch[1]}` }
 
+  const storyMatch = path.match(/^\/story\/([^/]+)\/([^/]+)$/)
+  if (storyMatch) return { to: `/story/${storyMatch[1]}/${storyMatch[2]}` }
+
   const joinMatch = path.match(/^\/join\/([^/]+)$/)
   if (joinMatch) return { to: `/join/${joinMatch[1]}` }
 
