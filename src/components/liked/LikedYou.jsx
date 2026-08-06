@@ -36,7 +36,7 @@ const EMPTY_INBOX_TRUST_MS = 2000
 
 function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
   const cardClass = unavailable
-    ? 'bg-white/10'
+    ? 'bg-[var(--ios-fill-tertiary)]'
     : getStoryColorClass(story?.color)
 
   return (
@@ -46,7 +46,7 @@ function StoryReactionPreview({ story, emoji, unavailable = false, onClick }) {
         e.stopPropagation()
         onClick?.(e)
       }}
-      className="relative shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+      className="relative shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
       aria-label={unavailable ? 'Story unavailable' : 'View story'}
     >
       <div
@@ -415,7 +415,7 @@ export default function LikedYou() {
   }
 
   const requestActionBtnClass =
-    'h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/15 border border-white/10 transition-colors'
+    'h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)] border border-[var(--ios-hairline)] transition-colors'
 
   const hasCachedOrLoadedContent =
     !loading || likes.length > 0 || inboxItems.length > 0 || outgoingIds.length > 0
@@ -437,7 +437,7 @@ export default function LikedYou() {
     return (
       <div key={fromId}>
         {like.timestamp && (
-          <span className="block text-xs text-white/50 mb-1.5 px-1">
+          <span className="block text-xs text-[var(--ios-label-tertiary)] mb-1.5 px-1">
             {formatLastSeen(like.timestamp)}
           </span>
         )}
@@ -468,7 +468,7 @@ export default function LikedYou() {
                 className={requestActionBtnClass}
                 aria-label="Decline"
               >
-                <IconX size={20} className="text-white/70" stroke={2} />
+                <IconX size={20} className="text-[var(--ios-label-secondary)]" stroke={2} />
               </button>
               {!isDeleted && (
                 <button
@@ -476,7 +476,7 @@ export default function LikedYou() {
                   className={requestActionBtnClass}
                   aria-label="Accept"
                 >
-                  <IconCheck size={20} className="text-white/70" stroke={2.5} />
+                  <IconCheck size={20} className="text-[var(--ios-label-secondary)]" stroke={2.5} />
                 </button>
               )}
             </div>
@@ -506,7 +506,7 @@ export default function LikedYou() {
     return (
       <div
         key={targetId}
-        className="flex items-center gap-3 p-3 bg-white/5 rounded-2xl border border-white/10"
+        className="flex items-center gap-3 p-3 bg-[var(--ios-fill-tertiary)] rounded-2xl border border-[var(--ios-hairline)]"
       >
         <button
           onClick={() => setViewProfile(targetId)}
@@ -522,7 +522,7 @@ export default function LikedYou() {
               {p.username}
               <VerifiedBadge username={p.username} size={14} />
             </p>
-            <p className="text-xs text-white/50">{isDeleted ? 'Account deleted' : 'Pending'}</p>
+            <p className="text-xs text-[var(--ios-label-tertiary)]">{isDeleted ? 'Account deleted' : 'Pending'}</p>
           </div>
         </button>
         <button
@@ -611,13 +611,13 @@ export default function LikedYou() {
         type="button"
         onClick={() => handleInboxItemClick(item)}
         className={`w-full flex items-center gap-3 py-3 text-left transition-colors ${
-          item.read ? 'opacity-80' : 'bg-white/[0.055]'
+          item.read ? 'opacity-80' : 'bg-[var(--ios-fill-tertiary)]'
         }`}
       >
         <img src={photo} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-white/90 leading-snug">{inboxMessage(item)}</p>
-          <p className="text-xs text-white/45 mt-1">{formatLastSeen(item.timestamp)}</p>
+          <p className="text-sm text-[var(--ios-label)] leading-snug">{inboxMessage(item)}</p>
+          <p className="text-xs text-[var(--ios-label-tertiary)] mt-1">{formatLastSeen(item.timestamp)}</p>
         </div>
         {item.type === 'story_reaction' && (
           <StoryReactionPreview
@@ -641,23 +641,23 @@ export default function LikedYou() {
       <div className="px-[var(--ios-page-x-lg)] mt-2 space-y-4 overflow-y-auto flex-1 min-h-0">
         {outgoingIds.length > 0 && (
           <div className="space-y-3">
-            <p className="text-xs font-medium text-white/40 uppercase tracking-wider px-1">Sent</p>
+            <p className="text-xs font-medium text-[var(--ios-label-tertiary)] uppercase tracking-wider px-1">Sent</p>
             {outgoingIds.map(renderOutgoingRequest)}
           </div>
         )}
         {likes.length > 0 && (
           <div className="space-y-4">
             {outgoingIds.length > 0 && (
-              <p className="text-xs font-medium text-white/40 uppercase tracking-wider px-1 pt-1">
+              <p className="text-xs font-medium text-[var(--ios-label-tertiary)] uppercase tracking-wider px-1 pt-1">
                 Received
               </p>
             )}
             {unreadLikes.map(renderRequest)}
             {unreadLikes.length > 0 && readLikes.length > 0 && (
               <div className="flex items-center gap-3 py-1">
-                <div className="flex-1 h-px bg-white/10" />
-                <span className="text-xs font-medium text-white/40 shrink-0">Earlier</span>
-                <div className="flex-1 h-px bg-white/10" />
+                <div className="flex-1 h-px bg-[var(--ios-hairline)]" />
+                <span className="text-xs font-medium text-[var(--ios-label-tertiary)] shrink-0">Earlier</span>
+                <div className="flex-1 h-px bg-[var(--ios-hairline)]" />
               </div>
             )}
             {readLikes.map(renderRequest)}
@@ -708,7 +708,7 @@ export default function LikedYou() {
 function InboxSectionTabs({ section, onSectionChange, requestCount, inboxUnread }) {
   return (
     <>
-      <div className="mx-[var(--ios-page-x-lg)] border-t border-white/10" aria-hidden />
+      <div className="mx-[var(--ios-page-x-lg)] border-t border-[var(--ios-hairline)]" aria-hidden />
       <div className="flex px-[var(--ios-page-x-lg)] pt-3 pb-2 z-10">
         {[
           {
@@ -725,7 +725,7 @@ function InboxSectionTabs({ section, onSectionChange, requestCount, inboxUnread 
             type="button"
             onClick={() => onSectionChange(id)}
             className={`flex-1 py-1 text-center text-sm font-medium transition-colors ${
-              section === id ? 'text-white' : 'text-white/45 hover:text-white/70'
+              section === id ? 'text-[var(--ios-label)]' : 'text-[var(--ios-label-tertiary)] hover:text-[var(--ios-label-secondary)]'
             }`}
           >
             {label}

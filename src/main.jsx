@@ -31,7 +31,7 @@ createRoot(document.getElementById('root')).render(
           <App />
           <Toaster
             position="bottom-center"
-            containerStyle={{ bottom: 96 }}
+            containerStyle={{ bottom: 'calc(var(--ios-nav-clearance) + 8px)' }}
             gutter={10}
             toastOptions={{
               duration: 2000,

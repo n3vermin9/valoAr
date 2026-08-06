@@ -73,7 +73,7 @@ export default function GroupJoinPage() {
     return (
       <PageShell title="Join group">
         <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center px-6">
-          <p className="text-white/60">This invite link is invalid or has expired.</p>
+          <p className="text-[var(--ios-label-secondary)]">This invite link is invalid or has expired.</p>
           <Button onClick={() => navigate('/chats')}>Back to chats</Button>
         </div>
       </PageShell>
@@ -103,13 +103,13 @@ export default function GroupJoinPage() {
             className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
             aria-label="View group photo"
           >
-            <GroupAvatar photoUrl={group.photoUrl} size={128} className="border-4 border-white/10" />
+            <GroupAvatar photoUrl={group.photoUrl} size={128} className="border-4 border-[var(--ios-hairline)]" />
           </button>
           <h2 className={`${typoTitle2Class} mt-4 text-center`}>{getGroupDisplayName(group)}</h2>
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-[max(1.5rem,var(--ios-safe-bottom))] pt-4 bg-gradient-to-t from-black via-black/95 to-transparent">
+      <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-[max(1.5rem,var(--ios-safe-bottom))] pt-4 bg-gradient-to-t from-[var(--ios-bg)] via-[var(--ios-bg)]/95 to-transparent">
         <Button fullWidth onClick={handleJoin} disabled={joining}>
           {joining ? 'Joining…' : 'Join chat'}
         </Button>

@@ -55,12 +55,12 @@ export default function CreateGroupPage() {
     !isPublic || (normalizedUsername.length >= 4 && usernameStatus === 'available')
 
   const usernameBorder = !isPublic
-    ? 'border-white/10'
+    ? 'border-[var(--ios-hairline)]'
     : usernameStatus === 'available'
       ? 'border-green-500'
       : usernameStatus === 'taken' || usernameStatus === 'invalid'
         ? 'border-red-500'
-        : 'border-white/10'
+        : 'border-[var(--ios-hairline)]'
 
   const handleBack = () => navigate('/chats')
 
@@ -179,7 +179,7 @@ export default function CreateGroupPage() {
             <button
               type="button"
               onClick={() => setVisibility('private')}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left border-b border-white/10"
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left border-b border-[var(--ios-hairline)]"
             >
               <div className="flex-1 min-w-0">
                 <p className={typoHeadlineClass}>Private</p>

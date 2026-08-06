@@ -105,12 +105,12 @@ export function AppKeyboardProvider({ children }) {
       {enabled && session
         ? createPortal(
             <div
-              className="fixed inset-x-0 bottom-0 z-[200] border-t border-white/10 bg-[#1c1c1e] pt-2 pb-[max(0.5rem,var(--ios-safe-bottom))] select-none"
+              className="fixed inset-x-0 bottom-0 z-[200] border-t border-[var(--ios-hairline)] bg-[var(--app-kb-bg)] pt-2 pb-[max(0.5rem,var(--ios-safe-bottom))] select-none"
               role="group"
               aria-label="Keyboard"
             >
               <div className="flex items-center justify-between px-3 pb-2 gap-2">
-                <p className={`${typoHeadlineClass} truncate text-[15px] text-white/70`}>
+                <p className={`${typoHeadlineClass} truncate text-[15px] text-[var(--ios-label-secondary)]`}>
                   {session.label || 'Type'}
                 </p>
                 <button
@@ -194,7 +194,7 @@ function Key({ label, icon, onClick, wide = false, flex = false }) {
         e.preventDefault()
         onClick?.()
       }}
-      className={`h-11 rounded-[8px] bg-[#3a3a3c] text-white text-[17px] font-medium active:bg-[#5a5a5c] transition-colors flex items-center justify-center ${
+      className={`h-11 rounded-[8px] bg-[var(--app-kb-key)] text-[var(--ios-label)] text-[17px] font-medium active:bg-[var(--app-kb-key-active)] shadow-[0_1px_0_rgba(0,0,0,0.18)] transition-colors flex items-center justify-center ${
         flex ? 'flex-[3] min-w-0' : wide ? 'w-11 min-w-[2.75rem] px-1' : 'w-8 min-w-[1.9rem] flex-1 max-w-[2.4rem]'
       }`}
     >

@@ -17,8 +17,8 @@ export default function ProfileAboutBlock({
   return (
     <div className="p-4 min-w-0 flex flex-col gap-3.5">
       <p
-        className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap leading-relaxed ${
-          bio ? '' : 'text-white/40'
+        className={`${typoBodyClass} break-words whitespace-pre-wrap leading-relaxed ${
+          bio ? '' : 'text-[var(--ios-label-tertiary)]'
         }`}
       >
         {bio || 'No bio yet'}
@@ -30,11 +30,11 @@ export default function ProfileAboutBlock({
             <ProfileLookingFor
               gender={profile?.gender}
               interestedIn={profile?.interestedIn}
-              className="text-[13px] leading-snug text-white/45"
+              className="text-[13px] leading-snug text-[var(--ios-label-tertiary)]"
             />
           ) : null}
           {showFriendCount ? (
-            <p className="text-[12px] leading-none text-white/35">
+            <p className="text-[12px] leading-none text-[var(--ios-label-tertiary)]">
               Has {friendCount} {friendCount === 1 ? 'friend' : 'friends'}
             </p>
           ) : null}

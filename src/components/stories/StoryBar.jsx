@@ -45,7 +45,7 @@ export default function StoryBar({
         <button
           type="button"
           onClick={onCompose}
-          className="flex items-center gap-3 w-full px-4 py-3 rounded-[var(--ios-radius-xl)] bg-[var(--ios-fill-tertiary)] border border-[var(--ios-glass-border)] hover:bg-white/[0.08] transition-colors"
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-[var(--ios-radius-xl)] bg-[var(--ios-fill-tertiary)] border border-[var(--ios-glass-border)] hover:bg-[var(--ios-hover-fill)] transition-colors"
         >
           <StoryRing
             as="div"

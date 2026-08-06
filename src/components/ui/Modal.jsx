@@ -51,7 +51,7 @@ export default function Modal({
   const overlayClass = fullscreen
     ? `fixed inset-0 overflow-hidden ${overlayClassName}`
     : `fixed inset-0 flex items-center justify-center p-4 ${overlayClassName} ${
-        glass ? modalScrimClass : 'bg-black/50 backdrop-blur-sm'
+        glass ? modalScrimClass : 'bg-[var(--ios-modal-scrim)] backdrop-blur-sm'
       }`
 
   const panelMotion = fullscreen

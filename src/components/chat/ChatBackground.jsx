@@ -60,8 +60,8 @@ export function ChatBackgroundPreview({ backgroundId, selected = false, onClick,
       aria-label={background.label}
     >
       <div className="absolute inset-0" style={background.style} />
-      <div className="absolute inset-x-0 bottom-0 px-2 py-2 bg-gradient-to-t from-[color-mix(in_srgb,var(--ios-label)_55%,transparent)] to-transparent">
-        <span className="text-[13px] text-white drop-shadow-sm">{background.label}</span>
+      <div className="absolute inset-x-0 bottom-0 px-2 py-2 bg-gradient-to-t from-[color-mix(in_srgb,var(--ios-bg)_88%,transparent)] to-transparent">
+        <span className="text-[13px] text-[var(--ios-label)]">{background.label}</span>
       </div>
       {selected ? (
         <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[var(--ios-blue)] flex items-center justify-center text-[11px] text-white font-semibold">

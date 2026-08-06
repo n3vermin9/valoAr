@@ -11,7 +11,7 @@ import MessageBubble from './MessageBubble'
 import { ReactionPicker } from './MessageReactions'
 
 const contextMenuSurfaceClass =
-  'border border-white/10 bg-[#111111] shadow-[0_8px_28px_rgba(0,0,0,0.55)]'
+  'border border-[var(--ios-hairline)] bg-[var(--ios-bg-elevated)] shadow-[var(--ios-glass-shadow-modal)]'
 
 const VIEWPORT_PADDING = 16
 const MENU_GAP = 12
@@ -159,7 +159,7 @@ const MessageActionOverlay = forwardRef(function MessageActionOverlay(
       transition={{ duration: 0.14, ease: MENU_EASE }}
     >
       <div
-        className="absolute inset-0 bg-black/55"
+        className="absolute inset-0 bg-[var(--ios-modal-scrim)]"
         onClick={onCancel}
         aria-hidden
       />
@@ -242,7 +242,7 @@ const MessageActionOverlay = forwardRef(function MessageActionOverlay(
                 {isPinned ? 'Unpin' : 'Pin'}
               </ActionItem>
             )}
-            {canDelete && canCopy && <div className="my-1.5 mx-3 border-t border-white/10" />}
+            {canDelete && canCopy && <div className="my-1.5 mx-3 border-t border-[var(--ios-hairline)]" />}
             {canDelete && (
               <ActionItem
                 icon={IconTrash}
@@ -278,7 +278,7 @@ function ActionItem({ children, onClick, icon: Icon, danger = false }) {
         <Icon
           size={18}
           stroke={1.75}
-          className={`shrink-0 ${danger ? 'text-red-400' : 'text-white/55'}`}
+          className={`shrink-0 ${danger ? 'text-[var(--ios-red)]' : 'text-[var(--ios-label-secondary)]'}`}
         />
       )}
       {children}

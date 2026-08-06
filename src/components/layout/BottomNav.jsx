@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useRef, useLayoutEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { IconFlame, IconMessage, IconInbox, IconUser } from '@tabler/icons-react'
 import { navGlassClass, navGlassInnerClass } from '../../utils/designSystem'
@@ -59,18 +60,20 @@ export default function BottomNav({ badges = {} }) {
     return () => window.removeEventListener('resize', updatePill)
   }, [activeIndex, location.pathname])
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <nav
-      className="fixed left-4 right-4 z-40"
+      className="fixed inset-x-4 z-40 mx-auto w-auto max-w-md pointer-events-none"
       style={{ bottom: 'calc(var(--ios-safe-bottom) + var(--ios-nav-float-bottom))' }}
     >
-      <div ref={containerRef} className={`relative overflow-visible ${navGlassClass}`}>
+      <div ref={containerRef} className={`relative pointer-events-auto ${navGlassClass}`}>
         <div
           className="absolute inset-0 nav-blur-sides rounded-full pointer-events-none overflow-hidden"
           aria-hidden
         />
 
-        <div className="relative flex items-center justify-around px-2 py-2.5 overflow-hidden rounded-full">
+        <div className="relative flex items-center justify-around px-2 py-2.5 rounded-full">
           {pill && (
             <>
               <motion.div
@@ -135,7 +138,7 @@ export default function BottomNav({ badges = {} }) {
                     className={`transition-colors duration-200 ${
                       isActive
                         ? 'text-[var(--ios-label)]'
-                        : 'text-[var(--ios-label-tertiary)]'
+                        : 'text-[var(--ios-label-secondary)]'
                     }`}
                     stroke={1.75}
                   />
@@ -155,6 +158,7 @@ export default function BottomNav({ badges = {} }) {
           })}
         </div>
       </div>
-    </nav>
+    </nav>,
+    document.body
   )
 }

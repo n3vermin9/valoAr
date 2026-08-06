@@ -11,7 +11,7 @@ import MuteChatModal from '../chat/MuteChatModal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import { getMatchId } from '../../utils/helpers'
 import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
-import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle2Class, typoTitle3Class, typoFootnoteClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, chatFloatingButtonClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
+import { navGlassMenuClass, contextMenuMotion, dropdownMenuClass, dropdownMenuItemWithIconClass, dropdownMenuItemWithIconDangerClass, profileActionBtnClass, typoTitle3Class, typoFootnoteClass, typoSubheadClass, typoHeadlineClass, insetCardOuterClass, btnBorderedClass, photoOverlayButtonClass, photoHeroTitleClass, segmentedControlClass, segmentedItemClass, segmentedItemActiveClass } from '../../utils/designSystem'
 import { canDirectMessage } from '../../utils/directMessages'
 import { SettingsSection, SettingSwitch, SettingsNavRow } from '../ui/SettingsUI'
 import EditProfile from './EditProfile'
@@ -201,10 +201,10 @@ export default function ProfileView() {
         <button
           type="button"
           onClick={() => setShowSettings(true)}
-          className={`${chatFloatingButtonClass} text-white/80`}
+          className={photoOverlayButtonClass}
           aria-label="Settings"
         >
-          <IconSettings size={22} className="text-white/80" stroke={2} />
+          <IconSettings size={22} stroke={2} />
         </button>
       </PhotoHeroFixedTopRight>
 
@@ -253,8 +253,8 @@ export default function ProfileView() {
 
       <PhotoHeroContentOverlap>
         <div className="flex flex-col items-center px-6 w-full">
-          <h2 className={typoTitle2Class}>
-            <CopyableUsername username={profile.username} className={typoTitle2Class} />
+          <h2 className={photoHeroTitleClass}>
+            <CopyableUsername username={profile.username} className={photoHeroTitleClass} />
           </h2>
           <p className={typoSubheadClass}>{profileAgeCityLine(profile)}</p>
         </div>
@@ -468,11 +468,11 @@ export default function ProfileView() {
       <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
         <div className="p-6 text-center">
           <h3 className={`${typoTitle3Class} mb-2`}>Delete Account?</h3>
-          <p className="text-white/60 mb-6">This action is permanent and cannot be undone.</p>
+          <p className="text-[var(--ios-label-secondary)] mb-6">This action is permanent and cannot be undone.</p>
           <div className="flex gap-3">
             <button
               onClick={() => setShowDeleteConfirm(false)}
-              className="flex-1 py-3 bg-white/10 rounded-full"
+              className="flex-1 py-3 bg-[var(--ios-fill-tertiary)] rounded-full"
             >
               Cancel
             </button>
@@ -626,7 +626,7 @@ export function PublicProfileView({
     return (
       <div className="h-full min-h-0 overflow-y-auto pb-24">
         {onClose ? <PhotoHeroFixedBack onBack={onClose} /> : null}
-        <p className="px-6 mt-[calc(var(--ios-safe-top)+4rem)] text-center text-white/60">User not found</p>
+        <p className="px-6 mt-[calc(var(--ios-safe-top)+4rem)] text-center text-[var(--ios-label-secondary)]">User not found</p>
       </div>
     )
   }
@@ -642,18 +642,18 @@ export function PublicProfileView({
             <img
               src={deletedAccountAvatarSrc}
               alt=""
-              className={`w-28 h-28 rounded-full object-cover border-4 border-white/10 ${deletedAccountAvatarClass}`}
+              className={`w-28 h-28 rounded-full object-cover border-4 border-[var(--ios-hairline)] ${deletedAccountAvatarClass}`}
             />
           </div>
         </PhotoHeroPlaceholder>
         <PhotoHeroContentOverlap>
           <div className="flex flex-col items-center px-6">
             <div className="flex items-center gap-2">
-              <h2 className={typoTitle2Class}>
-                <CopyableUsername username={deletedProfile.username} className={typoTitle2Class} />
+              <h2 className={photoHeroTitleClass}>
+                <CopyableUsername username={deletedProfile.username} className={photoHeroTitleClass} />
               </h2>
             </div>
-            <p className="text-sm text-white/50 mt-1">Account deleted</p>
+            <p className="text-sm text-[var(--ios-label-tertiary)] mt-1">Account deleted</p>
           </div>
         </PhotoHeroContentOverlap>
       </div>
@@ -812,7 +812,7 @@ export function PublicProfileView({
           className={`${actionBtnClass} w-full`}
           aria-label="More options"
         >
-          <IconDotsVertical size={20} className="text-white/70" stroke={3} />
+          <IconDotsVertical size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
         </button>
 
         <AnimatePresence>
@@ -830,7 +830,7 @@ export function PublicProfileView({
                   }}
                   className={dropdownMenuItemWithIconClass}
                 >
-                  <IconUserMinus size={18} stroke={1.75} className="shrink-0 text-white/55" />
+                  <IconUserMinus size={18} stroke={1.75} className="shrink-0 text-[var(--ios-label-secondary)]" />
                   Remove Friend
                 </button>
               )}
@@ -916,14 +916,14 @@ export function PublicProfileView({
       <PhotoHeroContentOverlap>
         <div className="flex flex-col items-center px-6 w-full">
         <div className="flex items-center gap-2">
-          <h2 className={typoTitle2Class}>
-            <CopyableUsername username={profile.username} className={typoTitle2Class} />
+          <h2 className={photoHeroTitleClass}>
+            <CopyableUsername username={profile.username} className={photoHeroTitleClass} />
           </h2>
           {isMuted && (
-            <IconBellOff size={18} className="text-white/50 shrink-0" aria-label="Muted" />
+            <IconBellOff size={18} className="text-[var(--ios-label-tertiary)] shrink-0" aria-label="Muted" />
           )}
         </div>
-        <p className="text-white/60">{profileAgeCityLine(profile)}</p>
+        <p className="text-[var(--ios-label-secondary)]">{profileAgeCityLine(profile)}</p>
 
         {showProfileActions &&
           (showAcceptRequest ||
@@ -941,7 +941,7 @@ export function PublicProfileView({
                   aria-label="Accept friend request"
                   className={actionBtnClass}
                 >
-                  <IconCheck size={20} className="text-white/70" stroke={3} />
+                  <IconCheck size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
                 </button>
               )}
               {!showAcceptRequest && showMessage && (
@@ -951,7 +951,7 @@ export function PublicProfileView({
                   aria-label="Message"
                   className={actionBtnClass}
                 >
-                  <IconMessage size={20} className="text-white/70" stroke={3} />
+                  <IconMessage size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
                 </button>
               )}
               {!showAcceptRequest && showSendRequest && (
@@ -974,17 +974,17 @@ export function PublicProfileView({
                     <>
                       <IconCheck
                         size={20}
-                        className="text-white/60 group-hover:hidden"
+                        className="text-[var(--ios-label-secondary)] group-hover:hidden"
                         stroke={3}
                       />
                       <IconX
                         size={20}
-                        className="hidden text-white/90 group-hover:block"
+                        className="hidden text-[var(--ios-label)] group-hover:block"
                         stroke={3}
                       />
                     </>
                   ) : (
-                    <IconUserPlus size={20} className="text-white/70" stroke={3} />
+                    <IconUserPlus size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
                   )}
                 </button>
               )}
@@ -995,7 +995,7 @@ export function PublicProfileView({
                   aria-label="Search chat"
                   className={actionBtnClass}
                 >
-                  <IconSearch size={20} className="text-white/70" stroke={3} />
+                  <IconSearch size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
                 </button>
               )}
               {showMuteButton && (
@@ -1006,9 +1006,9 @@ export function PublicProfileView({
                   className={actionBtnClass}
                 >
                   {isMuted ? (
-                    <IconBell size={20} className="text-white/70" stroke={3} />
+                    <IconBell size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
                   ) : (
-                    <IconBellOff size={20} className="text-white/70" stroke={3} />
+                    <IconBellOff size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
                   )}
                 </button>
               )}
@@ -1057,7 +1057,7 @@ export function PublicProfileView({
       <Modal isOpen={confirmRemoveMatch} onClose={() => !removeMatchLoading && setConfirmRemoveMatch(false)} glass>
         <div className="p-6">
           <h3 className={`${typoTitle3Class} mb-2`}>Remove friend?</h3>
-          <p className="text-white/60 mb-5">Choose what happens to your chat with this person.</p>
+          <p className="text-[var(--ios-label-secondary)] mb-5">Choose what happens to your chat with this person.</p>
           <div className="flex flex-col gap-3">
             <button
               type="button"
@@ -1067,7 +1067,7 @@ export function PublicProfileView({
             >
               {removeMatchLoading ? 'Please wait...' : 'Unfriend — keep chat'}
             </button>
-            <p className="text-xs text-white/45 -mt-1 px-1">
+            <p className="text-xs text-[var(--ios-label-tertiary)] -mt-1 px-1">
               Chat stays visible but neither of you can send new messages.
             </p>
             <button
@@ -1078,14 +1078,14 @@ export function PublicProfileView({
             >
               {removeMatchLoading ? 'Please wait...' : 'Unfriend & remove chat'}
             </button>
-            <p className="text-xs text-white/45 -mt-1 px-1">
+            <p className="text-xs text-[var(--ios-label-tertiary)] -mt-1 px-1">
               Deletes the conversation for both of you.
             </p>
             <button
               type="button"
               onClick={() => setConfirmRemoveMatch(false)}
               disabled={removeMatchLoading}
-              className="w-full py-3 rounded-full border border-white/[0.1] bg-white/[0.08] hover:bg-white/[0.12] transition-colors disabled:opacity-50"
+              className="w-full py-3 rounded-full border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)] transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

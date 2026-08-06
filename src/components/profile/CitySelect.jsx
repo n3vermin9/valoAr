@@ -82,7 +82,7 @@ export default function CitySelect({
                 <button
                   type="button"
                   className={`${dropdownMenuItemClass} flex w-full items-center justify-between gap-3 ${
-                    isSelected ? 'bg-white/[0.08]' : ''
+                    isSelected ? 'bg-[var(--ios-fill-tertiary)]' : ''
                   }`}
                   onClick={() => {
                     onChange(city.id)

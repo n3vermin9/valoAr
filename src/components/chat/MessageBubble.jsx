@@ -25,7 +25,7 @@ function BubbleMeta({ sentTime, isOwn, read, tone = 'own' }) {
   return (
     <span
       className={`inline-flex items-center gap-0.5 shrink-0 select-none leading-none ${
-        tone === 'own' ? 'text-white/65' : 'text-white/45'
+        tone === 'own' ? 'text-white/65' : 'text-[var(--chat-meta)]'
       }`}
     >
       {sentTime && <span className="text-[11px] tabular-nums whitespace-nowrap">{sentTime}</span>}
@@ -262,7 +262,7 @@ export default memo(function MessageBubble({
         >
           <UsernameLabel
             username={senderName}
-            className="text-xs font-semibold text-blue-300/90 min-w-0"
+            className="text-xs font-semibold text-[var(--chat-accent)] min-w-0"
             badgeSize={12}
             as="span"
           />
@@ -418,7 +418,7 @@ export default memo(function MessageBubble({
           <div className="relative min-w-0 flex-1">
             {Math.abs(swipeOffset) > 12 && (
               <div
-                className="absolute top-1/2 -translate-y-1/2 right-full mr-2 flex items-center justify-center w-9 h-9 rounded-full bg-white/10 text-white/70 pointer-events-none"
+                className="absolute top-1/2 -translate-y-1/2 right-full mr-2 flex items-center justify-center w-9 h-9 rounded-full bg-[var(--ios-fill)] text-[var(--ios-label-secondary)] pointer-events-none"
                 style={{ opacity: Math.min(Math.abs(swipeOffset) / SWIPE_REPLY_THRESHOLD, 1) }}
               >
                 <IconArrowBackUp size={18} />
@@ -436,7 +436,7 @@ export default memo(function MessageBubble({
       <div className="relative max-w-[78%] min-w-0">
         {Math.abs(swipeOffset) > 12 && (
           <div
-            className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-white/10 text-white/70 pointer-events-none ${
+            className={`absolute top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full bg-[var(--ios-fill)] text-[var(--ios-label-secondary)] pointer-events-none ${
               isOwn ? 'left-full ml-2' : 'right-full mr-2'
             }`}
             style={{ opacity: Math.min(Math.abs(swipeOffset) / SWIPE_REPLY_THRESHOLD, 1) }}

@@ -14,7 +14,6 @@ function groupReactions(reactions = {}) {
 
 export default function MessageReactions({
   reactions,
-  isOwn,
   currentUserId,
   onEmojiClick,
   className = '',
@@ -27,12 +26,10 @@ export default function MessageReactions({
     <div className={`flex flex-wrap gap-1 ${className}`}>
       {entries.map(([emoji, userIds]) => {
         const mine = userIds.includes(currentUserId)
-        const pillClass = `inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-sm border shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-colors ${
+        const pillClass = `inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-sm border shadow-[0_2px_8px_rgba(0,0,0,0.25)] transition-colors ${
           mine
             ? 'bg-blue-500/35 border-blue-400/45'
-            : isOwn
-              ? 'bg-[var(--ios-bg-secondary)] border-white/20 hover:bg-white/15'
-              : 'bg-[var(--ios-bg-secondary)] border-white/15 hover:bg-white/10'
+            : 'bg-[var(--ios-bg-secondary)] border-[var(--ios-hairline)] hover:bg-[var(--ios-hover-fill)]'
         } ${onEmojiClick ? 'cursor-pointer' : ''}`
 
         if (!onEmojiClick) {
@@ -40,7 +37,7 @@ export default function MessageReactions({
             <span key={emoji} className={pillClass}>
               <IosEmoji emoji={emoji} size={16} className="align-text-bottom" />
               {userIds.length > 1 && (
-                <span className="text-[11px] text-white/60 tabular-nums">{userIds.length}</span>
+                <span className="text-[11px] text-[var(--ios-label-secondary)] tabular-nums">{userIds.length}</span>
               )}
             </span>
           )
@@ -59,7 +56,7 @@ export default function MessageReactions({
           >
             <IosEmoji emoji={emoji} size={16} className="align-text-bottom" />
             {userIds.length > 1 && (
-              <span className="text-[11px] text-white/60 tabular-nums">{userIds.length}</span>
+              <span className="text-[11px] text-[var(--ios-label-secondary)] tabular-nums">{userIds.length}</span>
             )}
           </button>
         )
@@ -83,7 +80,7 @@ export function ReactionPicker({ reactions, currentUserId, onReact, className = 
             onReact(emoji)
           }}
           className={`h-10 w-10 flex items-center justify-center rounded-full transition-colors ${
-            myReaction === emoji ? 'bg-blue-500/30 scale-110' : 'hover:bg-white/10'
+            myReaction === emoji ? 'bg-blue-500/30 scale-110' : 'hover:bg-[var(--ios-hover-fill)]'
           }`}
           aria-label={`React with ${emoji}`}
         >

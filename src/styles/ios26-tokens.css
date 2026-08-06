@@ -55,12 +55,27 @@
   --ios-scrim-mid: color-mix(in srgb, var(--ios-bg) 78%, transparent);
   --ios-scrim-soft: color-mix(in srgb, var(--ios-bg) 36%, transparent);
 
+  /* Modal / context-menu dimming layer (black-based in both themes) */
+  --ios-modal-scrim: rgba(0, 0, 0, 0.55);
+
+  /* Chat content over surfaces that flip with the theme (received bubbles, wallpaper).
+   * Own bubbles stay blue with white text in both themes. */
+  --chat-meta: rgba(255, 255, 255, 0.45);
+  --chat-accent: #93c5fd;
+  --story-quote-label: rgba(255, 255, 255, 0.8);
+  --story-quote-text: rgba(255, 255, 255, 0.95);
+
+  /* Custom in-app keyboard (mirrors the iOS system keyboard) */
+  --app-kb-bg: #1c1c1e;
+  --app-kb-key: #3a3a3c;
+  --app-kb-key-active: #5a5a5c;
+
   /* Layout */
   --ios-page-x: 16px;
   --ios-page-x-lg: 20px;
-  --ios-nav-float-bottom: 16px;
-  /* Floating tab bar sits at safe-bottom + float offset, so clearance must include both. */
-  --ios-nav-clearance: calc(96px + var(--ios-safe-bottom));
+  --ios-nav-float-bottom: 20px;
+  /* nav height (~74px) + float offset + content breathing room */
+  --ios-nav-clearance: calc(102px + var(--ios-safe-bottom));
   /*
    * Prefer env(); fall back to --native-safe-* injected by AppBridgeViewController
    * (WKWebView often reports env(safe-area-inset-*) as 0 under Capacitor).
@@ -170,6 +185,17 @@ html.theme-light {
   --ios-scrim-strong: color-mix(in srgb, var(--ios-bg) 92%, transparent);
   --ios-scrim-mid: color-mix(in srgb, var(--ios-bg) 78%, transparent);
   --ios-scrim-soft: color-mix(in srgb, var(--ios-bg) 40%, transparent);
+
+  --ios-modal-scrim: rgba(0, 0, 0, 0.3);
+
+  --chat-meta: rgba(60, 60, 67, 0.5);
+  --chat-accent: #007aff;
+  --story-quote-label: rgba(28, 28, 40, 0.62);
+  --story-quote-text: rgba(18, 18, 28, 0.92);
+
+  --app-kb-bg: #d1d4d9;
+  --app-kb-key: #ffffff;
+  --app-kb-key-active: #dcdee2;
 }
 
 html.theme-dark {

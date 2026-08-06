@@ -46,7 +46,7 @@ export default function ChatSearchResultsList({
     >
       <button
         type="button"
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm pointer-events-auto"
+        className="absolute inset-0 bg-[var(--ios-modal-scrim)] backdrop-blur-sm pointer-events-auto"
         onClick={onClose}
         aria-label="Close search results"
       />
@@ -74,33 +74,33 @@ export default function ChatSearchResultsList({
                 <div
                   className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold ${
                     message.senderId === currentUserId
-                      ? 'bg-blue-500/20 text-blue-200 border border-blue-400/30'
-                      : 'bg-white/10 text-white/80 border border-white/15'
+                      ? 'bg-blue-500/20 text-[var(--chat-accent)] border border-blue-400/30'
+                      : 'bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)] border border-[var(--ios-hairline)]'
                   }`}
                 >
                   {getSenderLabel(message.senderId).slice(0, 1).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-3">
-                    <p className={`truncate text-sm flex items-center gap-1 min-w-0 ${isSelected ? 'font-bold text-white' : 'font-semibold'}`}>
+                    <p className={`truncate text-sm flex items-center gap-1 min-w-0 text-[var(--ios-label)] ${isSelected ? 'font-bold' : 'font-semibold'}`}>
                       <UsernameLabel
                         username={getSenderLabel(message.senderId)}
                         className="truncate min-w-0"
                         badgeSize={12}
                       />
                       {group.matchCount > 1 ? (
-                        <span className="ml-1.5 text-xs font-medium text-white/45">
+                        <span className="ml-1.5 text-xs font-medium text-[var(--ios-label-tertiary)]">
                           · {group.matchCount} matches
                         </span>
                       ) : null}
                     </p>
                     {message.createdAt ? (
-                      <span className={`text-xs shrink-0 ${isSelected ? 'text-blue-400' : 'text-white/40'}`}>
+                      <span className={`text-xs shrink-0 ${isSelected ? 'text-[var(--ios-blue)]' : 'text-[var(--ios-label-tertiary)]'}`}>
                         {formatChatTime(message.createdAt, militaryTime)}
                       </span>
                     ) : null}
                   </div>
-                  <p className={`text-sm truncate mt-0.5 ${isSelected ? 'text-white/80' : 'text-white/50'}`}>
+                  <p className={`text-sm truncate mt-0.5 ${isSelected ? 'text-[var(--ios-label)]' : 'text-[var(--ios-label-secondary)]'}`}>
                     {message.text ? highlightPreview(previewSource, query) : previewSource}
                   </p>
                 </div>

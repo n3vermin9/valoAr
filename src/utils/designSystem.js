@@ -11,9 +11,12 @@ const glassInsetHighlight = 'shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]'
 const glassBase =
   'liquid-glass border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-xl backdrop-saturate-[1.8]'
 
+const navGlassSurface =
+  'border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-xl backdrop-saturate-[1.8]'
+
 export const glassRegularClass = `${glassBase} ${glassInsetHighlight} shadow-[var(--ios-glass-shadow)]`
 
-export const navGlassClass = `liquid-glass liquid-glass-circle rounded-full ${glassBase} backdrop-blur-lg backdrop-saturate-[1.6] ${glassInsetHighlight} shadow-[var(--ios-glass-shadow)]`
+export const navGlassClass = `nav-glass-shell liquid-glass-circle rounded-full ${navGlassSurface} backdrop-blur-lg backdrop-saturate-[1.6] ${glassInsetHighlight} shadow-[var(--ios-glass-shadow)]`
 
 export const navGlassInnerClass =
   'rounded-full border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg-inner)] backdrop-blur-sm backdrop-saturate-[1.5] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-1px_0_rgba(255,255,255,0.04),0_2px_8px_rgba(0,0,0,0.08)]'
@@ -58,7 +61,7 @@ export const notificationGlassClass =
 export const modalGlassClass =
   'rounded-[var(--ios-radius-xl)] border border-[var(--ios-glass-border)] bg-[var(--ios-glass-bg)] backdrop-blur-2xl backdrop-saturate-[1.8] shadow-[var(--ios-glass-shadow-modal)]'
 
-export const modalScrimClass = 'bg-[color-mix(in_srgb,var(--ios-label)_40%,transparent)] backdrop-blur-md'
+export const modalScrimClass = 'bg-[var(--ios-modal-scrim)] backdrop-blur-md'
 
 export const dropdownMenuClass =
   'w-44 py-1 rounded-[var(--ios-radius-lg)] overflow-hidden liquid-glass liquid-glass-rounded'
@@ -67,7 +70,7 @@ export const dropdownMenuItemClass =
   'w-full px-3.5 py-2 text-left text-[15px] font-medium transition-colors duration-75 text-[var(--ios-label)] hover:bg-[var(--ios-hover-fill)] active:bg-[var(--ios-fill-tertiary)]'
 
 export const dropdownMenuItemDangerClass =
-  'w-full px-3.5 py-2 text-left text-[15px] font-medium transition-colors duration-75 text-[var(--ios-red)] hover:text-red-300 hover:bg-red-500/10 active:bg-red-500/20 active:text-red-200'
+  'w-full px-3.5 py-2 text-left text-[15px] font-medium transition-colors duration-75 text-[var(--ios-red)] hover:bg-red-500/10 active:bg-red-500/20'
 
 export const dropdownMenuItemWithIconClass = `${dropdownMenuItemClass} flex items-center gap-2.5`
 
@@ -120,7 +123,7 @@ export const compactTextareaClass =
 export const linkActionClass =
   'text-[15px] font-medium text-[var(--ios-blue)] hover:text-blue-400 transition-colors'
 export const dangerLinkActionClass =
-  'text-[15px] font-medium text-red-400 hover:text-red-300 transition-colors disabled:opacity-50'
+  'text-[15px] font-medium text-[var(--ios-red)] hover:opacity-75 transition-opacity disabled:opacity-50'
 export const btnSecondarySmClass =
   'px-4 py-2 min-h-[36px] rounded-full text-[15px] font-medium bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)] border border-[var(--ios-hairline)] text-[var(--ios-label)] transition-colors'
 
@@ -219,6 +222,14 @@ export const pushPageMotion = {
 
 /** Header gradient — geometry and gradient live in index.css. */
 export const chatRoomTopScrimClass = 'chat-room-top-scrim fixed inset-x-0 pointer-events-none'
+
+/** Always-black fade at the top of photo heroes (status-bar contrast; never theme-white). */
+export const photoHeroTopScrimClass =
+  'absolute inset-x-0 top-0 z-[10] pointer-events-none bg-gradient-to-b from-black/75 via-black/40 to-transparent'
+
+/** Title overlaid on the photo hero bottom gradient — stays white in both themes. */
+export const photoHeroTitleClass =
+  'text-[22px] font-bold leading-tight text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]'
 
 /** Square profile/group hero — crops non-square photos to center fill */
 export const photoHeroFrameClass = 'relative w-full aspect-square overflow-hidden bg-black'

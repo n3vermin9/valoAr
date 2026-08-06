@@ -656,7 +656,7 @@ export default function ChatList() {
                           }}
                         />
                         {isOnline && !isTyping && (
-                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-black rounded-full pointer-events-none" />
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-[var(--ios-bg)] rounded-full pointer-events-none" />
                         )}
                       </>
                     )}
@@ -688,7 +688,7 @@ export default function ChatList() {
                           <IconBellOff size={14} className="text-[var(--ios-label-secondary)] shrink-0" aria-label="Muted" />
                         )}
                         {isTemporary && (
-                          <IconClockHour4 size={14} className="text-amber-300 shrink-0" aria-label="Temporary chat" />
+                          <IconClockHour4 size={14} className="text-[var(--ios-orange)] shrink-0" aria-label="Temporary chat" />
                         )}
                         {isPinned && (
                           <IconPin size={14} className="text-blue-400 shrink-0" aria-label="Pinned" />

@@ -114,13 +114,13 @@ export default function DebugTools() {
   return (
     <div className="h-full overflow-y-auto pb-24 px-5 pt-6">
       <h1 className="text-2xl font-bold">Debug Tools</h1>
-      <p className="text-white/60 mt-1">Hidden tools for rapid testing.</p>
+      <p className="text-[var(--ios-label-secondary)] mt-1">Hidden tools for rapid testing.</p>
 
       <div className="mt-6 space-y-3">
         <button
           onClick={handleResetMatches}
           disabled={busy}
-          className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-full disabled:opacity-50"
+          className="w-full py-3 bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)] rounded-full disabled:opacity-50"
         >
           Reset all matches for this user
         </button>

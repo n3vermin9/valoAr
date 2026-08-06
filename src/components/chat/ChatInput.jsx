@@ -320,18 +320,18 @@ export default function ChatInput({
       {replyTo && (
         <div className="px-4 pb-2">
           <div className={`${chatFloatingPanelClass} flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5`}>
-            <div className="flex-1 min-w-0 border-l-2 border-blue-400 pl-3">
-              <p className="text-[13px] font-semibold text-blue-300 truncate">
+            <div className="flex-1 min-w-0 border-l-2 border-[var(--chat-accent)] pl-3">
+              <p className="text-[13px] font-semibold text-[var(--chat-accent)] truncate">
                 Replying to {replyAuthorName}
               </p>
-              <p className="text-[13px] text-white/55 truncate">
+              <p className="text-[13px] text-[var(--ios-label-secondary)] truncate">
                 <IosEmojiText text={getMessagePreviewText(replyTo)} size={14} />
               </p>
             </div>
             <button
               type="button"
               onClick={onClearReply}
-              className="shrink-0 self-center p-1.5 text-white/50 hover:text-white rounded-full transition-colors"
+              className="shrink-0 self-center p-1.5 text-[var(--ios-label-tertiary)] hover:text-[var(--ios-label)] rounded-full transition-colors"
               aria-label="Cancel reply"
             >
               <IconX size={18} />
@@ -383,7 +383,7 @@ export default function ChatInput({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className={`${actionButtonClass} text-white/70 hover:text-white`}
+              className={`${actionButtonClass} text-[var(--ios-label-secondary)] hover:text-[var(--ios-label)]`}
               disabled={recording || sendingVoice}
             >
               <IconPhoto size={22} />
@@ -417,7 +417,7 @@ export default function ChatInput({
                 <button
                   type="button"
                   onClick={() => setShowEmoji(!showEmoji)}
-                  className="h-9 w-9 shrink-0 flex items-center justify-center text-white/60 hover:text-white rounded-full transition-colors"
+                  className="h-9 w-9 shrink-0 flex items-center justify-center text-[var(--ios-label-secondary)] hover:text-[var(--ios-label)] rounded-full transition-colors"
                   disabled={recording || sendingVoice}
                 >
                   <IconMoodSmile size={22} />
@@ -462,7 +462,7 @@ export default function ChatInput({
                 onMouseDown={keepComposerFocus}
                 onPointerDown={keepComposerFocus}
                 onClick={handleSend}
-                className={`${actionButtonClass} text-blue-400 hover:text-blue-300`}
+                className={`${actionButtonClass} text-[var(--ios-blue)] hover:brightness-110`}
               >
                 <IconSend size={20} />
               </button>
@@ -473,8 +473,8 @@ export default function ChatInput({
                 disabled={sendingVoice}
                 className={`${actionButtonClass} ${
                   recording
-                    ? 'text-red-400 hover:text-red-300 animate-pulse'
-                    : 'text-white/70 hover:text-white'
+                    ? 'text-[var(--ios-red)] animate-pulse'
+                    : 'text-[var(--ios-label-secondary)] hover:text-[var(--ios-label)]'
                 } disabled:opacity-50`}
                 aria-label={recording ? 'Stop and send voice message' : 'Record voice message'}
               >

@@ -1181,7 +1181,7 @@ export default function ChatRoom() {
   const statusColor =
     chatStatus.variant === 'online'
       ? 'text-green-400'
-      : 'text-white/50'
+      : 'text-[var(--ios-label-secondary)]'
 
   const handleMute = () => {
     setShowMenu(false)
@@ -1471,7 +1471,7 @@ export default function ChatRoom() {
             >
               <ChevronBack
                 onClick={() => (isGroupPreview ? navigate(previewReturnTo) : navigate('/chats'))}
-                buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+                buttonClassName={`${chatFloatingButtonClass}${chatFloatingButtonClass} text-[var(--ios-label)]`}
                 className="w-6 h-6"
               />
             </div>
@@ -1511,7 +1511,7 @@ export default function ChatRoom() {
                 <button
                   type="button"
                   onClick={closeSearch}
-                  className={`${chatFloatingButtonClass} text-white/80 shrink-0`}
+                  className={`${chatFloatingButtonClass}${chatFloatingButtonClass} text-[var(--ios-label)] shrink-0`}
                   aria-label="Close search"
                 >
                   <IconX size={22} stroke={2} />
@@ -1523,7 +1523,7 @@ export default function ChatRoom() {
                   ref={menuButtonRef}
                   type="button"
                   onClick={() => setShowMenu((open) => !open)}
-                  className={`${chatFloatingButtonClass} text-white/80`}
+                  className={`${chatFloatingButtonClass}${chatFloatingButtonClass} text-[var(--ios-label)]`}
                   aria-label="Chat options"
                 >
                   <IconDotsVertical size={22} />
@@ -1564,14 +1564,14 @@ export default function ChatRoom() {
             <button
               type="button"
               onClick={() => scrollToMessage(pinnedMessage.id)}
-              className="pointer-events-auto w-[90%] max-w-full text-left rounded-[var(--ios-radius-lg)] border border-white/10 bg-[var(--ios-bg-secondary)]/92 px-3 py-2.5 flex items-center gap-2 shadow-[0_8px_20px_rgba(0,0,0,0.35)]"
+              className="pointer-events-auto w-[90%] max-w-full text-left rounded-[var(--ios-radius-lg)] border border-[var(--ios-hairline)] bg-[var(--ios-bg-secondary)]/92 px-3 py-2.5 flex items-center gap-2 shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
             >
               <IconPin size={16} className="text-[var(--ios-blue)] shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-[var(--ios-blue)]">
                   {isMeetupInfoMessage(pinnedMessage) ? 'Pinned meetup' : 'Pinned message'}
                 </p>
-                <p className="text-sm text-white/85 truncate mt-0.5">
+                <p className="text-sm text-[var(--ios-label)] truncate mt-0.5">
                   {getStoryReplyDisplay(pinnedMessage).text ||
                     (pinnedMessage.imageUrl
                       ? 'Photo'
@@ -1595,7 +1595,7 @@ export default function ChatRoom() {
                       handleUnpinMessage()
                     }
                   }}
-                  className="shrink-0 self-center flex items-center justify-center p-1 text-white/45 hover:text-white/70"
+                  className="shrink-0 self-center flex items-center justify-center p-1 text-[var(--ios-label-tertiary)] hover:text-[var(--ios-label-secondary)]"
                   aria-label="Unpin message"
                 >
                   <IconX size={16} />
@@ -1722,7 +1722,7 @@ export default function ChatRoom() {
               exit={{ opacity: 0, scale: 0.85, y: 8 }}
               transition={{ duration: 0.18 }}
               onClick={scrollToBottom}
-              className={`${chatRoomScrollFabClass} ${chatFloatingButtonClass} text-white/80`}
+              className={`${chatRoomScrollFabClass} ${chatFloatingButtonClass}${chatFloatingButtonClass} text-[var(--ios-label)]`}
               aria-label="Scroll to bottom"
             >
               <IconChevronDown size={22} />
@@ -1750,13 +1750,13 @@ export default function ChatRoom() {
 
             {!iBlockedThem && theyBlockedMe && (
               <div className="px-4 py-4 text-center">
-                <p className="text-white/60 text-sm">You can't message this user</p>
+                <p className="text-[var(--ios-label-secondary)] text-sm">You can't message this user</p>
               </div>
             )}
 
             {!iBlockedThem && !theyBlockedMe && directMessageBlockReason && !opponentRemoved && (
               <div className="px-4 py-4 text-center space-y-3">
-                <p className="text-white/60 text-sm">{directMessageBlockReason.message}</p>
+                <p className="text-[var(--ios-label-secondary)] text-sm">{directMessageBlockReason.message}</p>
                 {directMessageBlockReason.showSettingsLink && (
                   <button
                     type="button"
@@ -1771,20 +1771,20 @@ export default function ChatRoom() {
 
             {opponentRemoved && (
               <div className="px-4 py-4 text-center">
-                <p className="text-white/60 text-sm">This account has been deleted — messaging is disabled</p>
+                <p className="text-[var(--ios-label-secondary)] text-sm">This account has been deleted — messaging is disabled</p>
               </div>
             )}
 
             {isGroup && isGroupMemberMuted(chatMeta, user?.uid) && (
               <div className="px-4 py-4 text-center">
-                <p className="text-white/60 text-sm">You are muted in this group — messaging is disabled</p>
+                <p className="text-[var(--ios-label-secondary)] text-sm">You are muted in this group — messaging is disabled</p>
               </div>
             )}
 
             {!chatFrozen && !isGroupPreview && (
               <>
                 {isTyping && !isSavedMessages && !isGroup && otherUser && !opponentRemoved && (
-                  <div className="px-5 py-2 text-xs text-blue-300/90 italic flex items-center gap-1">
+                  <div className="px-5 py-2 text-xs text-[var(--chat-accent)] italic flex items-center gap-1">
                     <UsernameLabel username={otherUser.username} className="text-xs italic" badgeSize={10} />
                     <span>is typing…</span>
                   </div>
@@ -1970,7 +1970,7 @@ function MenuItem({ children, onClick, icon: Icon, danger = false }) {
       className={danger ? dropdownMenuItemWithIconDangerClass : dropdownMenuItemWithIconClass}
     >
       {Icon && (
-        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-red-400' : 'text-white/55'}`} />
+        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-[var(--ios-red)]' : 'text-[var(--ios-label-secondary)]'}`} />
       )}
       {children}
     </button>

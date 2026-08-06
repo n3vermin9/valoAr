@@ -102,12 +102,12 @@ export default function VoiceMessagePlayer({ src, isOwn }) {
 
   const playBtnClass = isOwn
     ? 'bg-white/20 hover:bg-white/30 text-white'
-    : 'bg-white/10 hover:bg-white/15 text-white'
+    : 'bg-[var(--ios-fill)] hover:bg-[var(--ios-fill-secondary)] text-[var(--ios-label)]'
 
-  const barBase = isOwn ? 'bg-white/35' : 'bg-white/30'
-  const barActive = isOwn ? 'bg-white' : 'bg-white/90'
+  const barBase = isOwn ? 'bg-white/35' : 'bg-[var(--ios-label-tertiary)]'
+  const barActive = isOwn ? 'bg-white' : 'bg-[var(--ios-label)]'
 
-  const timeClass = isOwn ? 'text-white/70' : 'text-white/55'
+  const timeClass = isOwn ? 'text-white/70' : 'text-[var(--chat-meta)]'
 
   return (
     <div className="flex items-center gap-3 min-w-[220px] max-w-[260px] select-none">

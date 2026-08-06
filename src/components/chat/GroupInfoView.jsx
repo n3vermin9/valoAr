@@ -24,7 +24,7 @@ import { isChatMuteActive } from '../../utils/chatMute'
 import { SettingsSection } from '../ui/SettingsUI'
 import {
   profileActionBtnClass,
-  typoTitle2Class,
+  photoHeroTitleClass,
   typoBodyClass,
   insetCardClass,
   fieldLabelClass,
@@ -177,7 +177,7 @@ export default function GroupInfoView() {
     return (
       <div className="h-full overflow-y-auto pb-24">
         <PhotoHeroFixedBack onBack={handleBack} />
-        <p className="px-6 mt-[calc(var(--ios-safe-top)+4rem)] text-center text-white/60">Group not found</p>
+        <p className="px-6 mt-[calc(var(--ios-safe-top)+4rem)] text-center text-[var(--ios-label-secondary)]">Group not found</p>
       </div>
     )
   }
@@ -224,7 +224,7 @@ export default function GroupInfoView() {
         ) : (
           <PhotoHeroPlaceholder>
             <div className="absolute inset-0 flex items-center justify-center">
-              <GroupAvatar photoUrl={chat.photoUrl} size={128} className="border-4 border-white/10" />
+              <GroupAvatar photoUrl={chat.photoUrl} size={128} className="border-4 border-[var(--ios-hairline)]" />
             </div>
           </PhotoHeroPlaceholder>
         )}
@@ -232,14 +232,14 @@ export default function GroupInfoView() {
 
       <PhotoHeroContentOverlap>
         <div className="flex flex-col items-center px-6">
-        <h2 className={`${typoTitle2Class} text-center`}>{getGroupDisplayName(chat)}</h2>
+        <h2 className={`${photoHeroTitleClass} text-center`}>{getGroupDisplayName(chat)}</h2>
         {!showPrivatePreview && (
           <div className="flex items-center gap-2 mt-1">
-            <p className="text-white/60">
+            <p className="text-[var(--ios-label-secondary)]">
               {memberCount} member{memberCount === 1 ? '' : 's'}
             </p>
             {isMuted && (
-              <IconBellOff size={16} className="text-white/50 shrink-0" aria-label="Muted" />
+              <IconBellOff size={16} className="text-[var(--ios-label-tertiary)] shrink-0" aria-label="Muted" />
             )}
           </div>
         )}
@@ -252,7 +252,7 @@ export default function GroupInfoView() {
               aria-label="Message"
               className={profileActionBtnClass}
             >
-              <IconMessage size={20} className="text-white/70" stroke={3} />
+              <IconMessage size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
             </button>
             <button
               type="button"
@@ -261,9 +261,9 @@ export default function GroupInfoView() {
               className={profileActionBtnClass}
             >
               {isMuted ? (
-                <IconBell size={20} className="text-white/70" stroke={3} />
+                <IconBell size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
               ) : (
-                <IconBellOff size={20} className="text-white/70" stroke={3} />
+                <IconBellOff size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
               )}
             </button>
             {showSettingsTop && (
@@ -273,7 +273,7 @@ export default function GroupInfoView() {
                 aria-label="Group settings"
                 className={profileActionBtnClass}
               >
-                <IconSettings size={20} className="text-white/70" stroke={3} />
+                <IconSettings size={20} className="text-[var(--ios-label-secondary)]" stroke={3} />
               </button>
             )}
           </div>
@@ -292,14 +292,14 @@ export default function GroupInfoView() {
                   className="w-full flex items-center gap-2 py-1 transition-opacity text-left min-w-0 hover:opacity-80"
                 >
                   <IconLink size={18} className="text-blue-400 shrink-0" />
-                  <span className="text-[15px] text-blue-300/90 truncate">{joinLink}</span>
+                  <span className="text-[15px] text-[var(--chat-accent)] truncate">{joinLink}</span>
                 </button>
               </div>
             )}
             {showFullPreview && (
-              <div className={joinLink ? 'mt-4 pt-4 border-t border-white/10' : ''}>
+              <div className={joinLink ? 'mt-4 pt-4 border-t border-[var(--ios-hairline)]' : ''}>
                 <p className={fieldLabelClass}>Bio</p>
-                <p className={`${typoBodyClass} text-white/90 whitespace-pre-wrap break-words`}>
+                <p className={`${typoBodyClass} whitespace-pre-wrap break-words`}>
                   {description}
                 </p>
               </div>
@@ -312,18 +312,18 @@ export default function GroupInfoView() {
         <div className="mt-6">
           <SettingsSection title={`Members · ${memberCount}`}>
             {memberCount > 8 && (
-              <div className="px-4 py-3 border-b border-white/10">
+              <div className="px-4 py-3 border-b border-[var(--ios-hairline)]">
                 <input
                   type="search"
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
                   placeholder="Search members"
-                  className="w-full h-9 min-h-9 max-h-9 px-4 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 text-[15px] leading-none text-white placeholder:text-white/40 outline-none appearance-none"
+                  className="w-full h-9 min-h-9 max-h-9 px-4 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] text-[15px] leading-none text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] outline-none appearance-none"
                 />
               </div>
             )}
             {filteredMemberIds.length === 0 ? (
-              <p className="px-4 py-4 text-sm text-white/50">No members match your search</p>
+              <p className="px-4 py-4 text-sm text-[var(--ios-label-tertiary)]">No members match your search</p>
             ) : (
               filteredMemberIds.map((memberId) => (
                 <GroupMemberRow
@@ -335,7 +335,7 @@ export default function GroupInfoView() {
                   currentUserId={user?.uid}
                   variant={canManageMembers ? 'info' : 'readonly'}
                   onSelect={setProfileUserId}
-                  className="border-b border-white/10 last:border-b-0"
+                  className="border-b border-[var(--ios-hairline)] last:border-b-0"
                 />
               ))
             )}
@@ -346,7 +346,7 @@ export default function GroupInfoView() {
       </PhotoHeroContentOverlap>
 
       {showJoin && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-[max(1.5rem,var(--ios-safe-bottom))] pt-4 bg-gradient-to-t from-black via-black/95 to-transparent">
+        <div className="fixed bottom-0 left-0 right-0 z-20 px-6 pb-[max(1.5rem,var(--ios-safe-bottom))] pt-4 bg-gradient-to-t from-[var(--ios-bg)] via-[var(--ios-bg)]/95 to-transparent">
           <button
             type="button"
             onClick={handleJoin}

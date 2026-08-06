@@ -61,7 +61,7 @@ export default function AgeSlider({
         onPointerLeave={handlePointerUp}
       >
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full h-4 bg-white/20 rounded-full" />
+          <div className="w-full h-4 bg-[var(--ios-fill)] rounded-full" />
         </div>
         <div
           className="absolute inset-y-0 left-0 flex items-center pointer-events-none overflow-hidden rounded-full"
@@ -74,7 +74,7 @@ export default function AgeSlider({
           style={{ left: `calc(${percentage}% - ${thumbOffset}px)` }}
           animate={{ scale: dragging ? 1.12 : 1 }}
         />
-        <div className={`absolute top-full mt-1 left-0 right-0 flex justify-between text-[11px] text-white/40 px-0.5 ${compact ? 'hidden' : ''}`}>
+        <div className={`absolute top-full mt-1 left-0 right-0 flex justify-between text-[11px] text-[var(--ios-label-tertiary)] px-0.5 ${compact ? 'hidden' : ''}`}>
           <span>{min}</span>
           <span>{max}</span>
         </div>

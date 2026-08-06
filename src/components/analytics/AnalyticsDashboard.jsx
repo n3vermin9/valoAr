@@ -8,7 +8,7 @@ import { typoSubheadClass, typoHeadlineClass } from '../../utils/designSystem'
 
 function StatRow({ label, value, hint }) {
   return (
-    <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-white/5 last:border-b-0">
+    <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-[var(--ios-hairline)] last:border-b-0">
       <div className="min-w-0">
         <p className={typoHeadlineClass}>{label}</p>
         {hint ? <p className={`${typoSubheadClass} mt-0.5`}>{hint}</p> : null}
@@ -50,18 +50,18 @@ export default function AnalyticsDashboard({ onBack }) {
           <FormSkeleton className="pt-6" />
         ) : error ? (
           <div className="px-6 py-12 text-center">
-            <p className="text-white/60 mb-4">{error}</p>
+            <p className="text-[var(--ios-label-secondary)] mb-4">{error}</p>
             <button
               type="button"
               onClick={load}
-              className="px-4 py-2 rounded-full bg-white/10 text-white text-sm font-medium"
+              className="px-4 py-2 rounded-full bg-[var(--ios-fill-tertiary)] text-[var(--ios-label)] text-sm font-medium"
             >
               Retry
             </button>
           </div>
         ) : stats ? (
           <div className="space-y-6 pt-2">
-            <p className="px-[var(--ios-page-x-lg)] text-xs text-white/45">
+            <p className="px-[var(--ios-page-x-lg)] text-xs text-[var(--ios-label-tertiary)]">
               Updated {new Date(stats.fetchedAt).toLocaleString()}
             </p>
 

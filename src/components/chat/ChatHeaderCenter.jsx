@@ -23,7 +23,7 @@ function HeaderSubtitle({ isTyping, typingText, statusText, statusColor }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -3 }}
             transition={{ duration: 0.15 }}
-            className="text-[12px] leading-tight truncate text-blue-300 italic"
+            className="text-[12px] leading-tight truncate text-[var(--chat-accent)] italic"
           >
             {typingText}
           </motion.p>
@@ -106,8 +106,8 @@ export default function ChatHeaderCenter({
               <img src={logo} alt="Logo" className="w-6 h-6 object-cover" />
             </div>
             <div className="min-w-0 flex-1 text-left">
-              <p className="font-semibold text-[15px] truncate text-white">Saved Messages</p>
-              <p className="text-[12px] text-white/65 leading-tight">Only you can see this</p>
+              <p className="font-semibold text-[15px] truncate text-[var(--ios-label)]">Saved Messages</p>
+              <p className="text-[12px] text-[var(--ios-label-secondary)] leading-tight">Only you can see this</p>
             </div>
           </motion.div>
         ) : isGroupChat ? (
@@ -122,15 +122,15 @@ export default function ChatHeaderCenter({
             className="flex items-center gap-4 min-w-0 h-full w-full text-left cursor-pointer"
             aria-label={`Open ${groupName} settings`}
           >
-            <GroupAvatar photoUrl={groupPhotoUrl} size={36} className="ring-1 ring-white/20 shrink-0" />
+            <GroupAvatar photoUrl={groupPhotoUrl} size={36} className="ring-1 ring-[var(--ios-hairline)] shrink-0" />
             <div className="min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1">
-                <p className="font-semibold text-[15px] truncate text-white">{groupName}</p>
+                <p className="font-semibold text-[15px] truncate text-[var(--ios-label)]">{groupName}</p>
                 {isTemporary && (
-                  <IconClockHour4 size={14} className="text-amber-300 shrink-0" aria-label="Temporary chat" />
+                  <IconClockHour4 size={14} className="text-[var(--ios-orange)] shrink-0" aria-label="Temporary chat" />
                 )}
                 {isMuted && (
-                  <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
+                  <IconBellOff size={14} className="text-[var(--ios-label-tertiary)] shrink-0" aria-label="Muted" />
                 )}
               </div>
               <HeaderSubtitle
@@ -159,20 +159,20 @@ export default function ChatHeaderCenter({
                 fallback={sad}
                 size={36}
                 alt=""
-                className={`w-9 h-9 rounded-full object-cover ring-1 ring-white/20 ${
+                className={`w-9 h-9 rounded-full object-cover ring-1 ring-[var(--ios-hairline)] ${
                   opponentRemoved ? deletedAccountAvatarClass : ''
                 }`}
               />
               {presence?.online && !isTyping && !opponentRemoved && (
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-black rounded-full" />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-[var(--ios-bg)] rounded-full" />
               )}
             </div>
             <div className="min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1">
-                <p className="font-semibold text-[15px] truncate text-white">{otherDisplayName}</p>
+                <p className="font-semibold text-[15px] truncate text-[var(--ios-label)]">{otherDisplayName}</p>
                 <VerifiedBadge username={otherUser?.username} size={14} />
                 {isMuted && (
-                  <IconBellOff size={14} className="text-white/50 shrink-0" aria-label="Muted" />
+                  <IconBellOff size={14} className="text-[var(--ios-label-tertiary)] shrink-0" aria-label="Muted" />
                 )}
               </div>
               <HeaderSubtitle

@@ -106,7 +106,7 @@ export default function MapPlaceEditor({ isOpen, place, onClose, onSave, onDelet
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <div
-            className="w-12 h-12 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-2xl shrink-0"
+            className="w-12 h-12 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] flex items-center justify-center text-2xl shrink-0"
             aria-hidden
           >
             {emoji}
@@ -136,7 +136,7 @@ export default function MapPlaceEditor({ isOpen, place, onClose, onSave, onDelet
                 className={`shrink-0 w-11 h-11 rounded-full text-lg flex items-center justify-center border transition-colors ${
                   selected
                     ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/20'
-                    : 'border-white/10 bg-white/[0.05] hover:bg-white/[0.08]'
+                    : 'border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-hover-fill)]'
                 }`}
               >
                 {placeType.emoji}
@@ -167,7 +167,7 @@ export default function MapPlaceEditor({ isOpen, place, onClose, onSave, onDelet
             ) : null}
           </div>
           {trimmedPhoto && !photoFailed ? (
-            <div className="mt-2 rounded-[var(--ios-radius-md)] overflow-hidden border border-white/10">
+            <div className="mt-2 rounded-[var(--ios-radius-md)] overflow-hidden border border-[var(--ios-hairline)]">
               <img
                 src={trimmedPhoto}
                 alt=""
@@ -204,7 +204,7 @@ export default function MapPlaceEditor({ isOpen, place, onClose, onSave, onDelet
                     onChange={(e) => updateSubplace(sub.id, e.target.value)}
                     placeholder="Spot name"
                     maxLength={40}
-                    className="flex-1 min-w-0 px-3.5 h-10 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]"
+                    className="flex-1 min-w-0 px-3.5 h-10 bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-hairline)] outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]"
                   />
                   <button
                     type="button"

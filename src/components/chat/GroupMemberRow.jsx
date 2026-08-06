@@ -52,7 +52,7 @@ function ContextMenuItem({ children, onClick, icon: Icon, danger = false }) {
       className={danger ? dropdownMenuItemWithIconDangerClass : dropdownMenuItemWithIconClass}
     >
       {Icon ? (
-        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-red-400' : 'text-white/55'}`} />
+        <Icon size={18} stroke={1.75} className={`shrink-0 ${danger ? 'text-[var(--ios-red)]' : 'text-[var(--ios-label-secondary)]'}`} />
       ) : null}
       {children}
     </button>
@@ -278,13 +278,13 @@ export default function GroupMemberRow({
             badgeSize={12}
           />
           {isSelf && (
-            <span className="text-xs text-white/45 shrink-0">(you)</span>
+            <span className="text-xs text-[var(--ios-label-tertiary)] shrink-0">(you)</span>
           )}
         </div>
       </div>
       <GroupRoleBadge chat={chat} userId={memberId} role={role} />
       {showChevron ? (
-        <IconChevronRight size={18} className="text-white/35 shrink-0" stroke={1.75} />
+        <IconChevronRight size={18} className="text-[var(--ios-label-tertiary)] shrink-0" stroke={1.75} />
       ) : null}
     </>
   )
@@ -309,7 +309,7 @@ export default function GroupMemberRow({
           exit={{ opacity: 0, transition: { duration: 0.06 } }}
         >
           <div
-            className="absolute inset-0 bg-black/55 backdrop-blur-md"
+            className="absolute inset-0 bg-[var(--ios-modal-scrim)] backdrop-blur-md"
             onClick={closeMenu}
             aria-hidden
           />

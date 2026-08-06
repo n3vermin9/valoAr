@@ -24,7 +24,7 @@ const DEFAULT_MAX_MEMBERS = 2
 const CHIP =
   'shrink-0 px-3 h-9 rounded-full text-[13px] border transition-colors'
 const CHIP_ON = 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
-const CHIP_OFF = 'border-white/10 bg-white/[0.06] text-[var(--ios-label-secondary)]'
+const CHIP_OFF = 'border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)]'
 
 function atHour(daysAhead, hour) {
   const d = new Date()
@@ -236,13 +236,13 @@ export default function CreateMeetupModal({
           <button
             type="button"
             onClick={() => setStep('details')}
-            className="w-11 h-11 rounded-full border border-white/10 bg-white/[0.06] flex items-center justify-center text-[var(--ios-label)] shrink-0"
+            className="w-11 h-11 rounded-full border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] flex items-center justify-center text-[var(--ios-label)] shrink-0"
             aria-label="Back"
           >
             <IconChevronLeft size={22} stroke={2} />
           </button>
         ) : (
-          <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-xl shrink-0">
+          <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] flex items-center justify-center text-xl shrink-0">
             {place.emoji}
           </div>
         )}
@@ -292,14 +292,14 @@ export default function CreateMeetupModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
               maxLength={280}
-              className="w-full px-4 h-11 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]"
+              className="w-full px-4 h-11 bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-hairline)] outline-none focus:border-[var(--ios-blue)] text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)]"
             />
 
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setPrivacy((p) => (p === 'public' ? 'friends' : 'public'))}
-                className="inline-flex items-center gap-2 h-11 px-3.5 rounded-full border border-white/10 bg-white/[0.06] text-[14px] text-[var(--ios-label)]"
+                className="inline-flex items-center gap-2 h-11 px-3.5 rounded-full border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] text-[14px] text-[var(--ios-label)]"
                 aria-label={`Privacy: ${privacy === 'public' ? 'Public' : 'Friends only'}. Click to switch.`}
               >
                 <PrivacyIcon size={16} stroke={2} className="text-[var(--ios-blue)]" />
@@ -310,7 +310,7 @@ export default function CreateMeetupModal({
                 <button
                   type="button"
                   onClick={() => setMaxMembers((n) => Math.max(2, n - 1))}
-                  className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.06] flex items-center justify-center text-[var(--ios-label)] disabled:opacity-40"
+                  className="w-9 h-9 rounded-full border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] flex items-center justify-center text-[var(--ios-label)] disabled:opacity-40"
                   disabled={maxMembers <= 2}
                   aria-label="Fewer members"
                 >
@@ -322,7 +322,7 @@ export default function CreateMeetupModal({
                 <button
                   type="button"
                   onClick={() => setMaxMembers((n) => Math.min(MEMBERS_CAP, n + 1))}
-                  className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.06] flex items-center justify-center text-[var(--ios-label)] disabled:opacity-40"
+                  className="w-9 h-9 rounded-full border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] flex items-center justify-center text-[var(--ios-label)] disabled:opacity-40"
                   disabled={maxMembers >= MEMBERS_CAP}
                   aria-label="More members"
                 >
@@ -369,7 +369,7 @@ export default function CreateMeetupModal({
                 type="datetime-local"
                 value={toLocalInput(startMs)}
                 onChange={(e) => handleCustomChange(e.target.value)}
-                className="w-full px-3.5 h-11 bg-[var(--ios-fill-tertiary)] rounded-full border border-white/10 outline-none focus:border-[var(--ios-blue)] text-[14px] text-[var(--ios-label)] [color-scheme:dark]"
+                className="w-full px-3.5 h-11 bg-[var(--ios-fill-tertiary)] rounded-full border border-[var(--ios-hairline)] outline-none focus:border-[var(--ios-blue)] text-[14px] text-[var(--ios-label)]"
               />
             ) : null}
           </div>

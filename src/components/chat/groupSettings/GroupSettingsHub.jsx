@@ -23,9 +23,9 @@ import {
 
 function PreviewInfoRow({ label, value }) {
   return (
-    <div className="flex justify-between px-4 pb-4 pt-3 border-t border-white/10 text-xs text-white/40">
+    <div className="flex justify-between px-4 pb-4 pt-3 border-t border-[var(--ios-hairline)] text-xs text-[var(--ios-label-tertiary)]">
       <span>{label}</span>
-      <span className="text-white/50">{value}</span>
+      <span className="text-[var(--ios-label-secondary)]">{value}</span>
     </div>
   )
 }
@@ -51,7 +51,7 @@ function GroupInfoPreview({ chat }) {
           type="button"
           onClick={openGallery}
           disabled={!hasPhoto}
-          className="relative shrink-0 rounded-full border border-dashed border-white/35 p-[7px] disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+          className="relative shrink-0 rounded-full border border-dashed border-[var(--ios-separator)] p-[7px] disabled:cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
           aria-label={hasPhoto ? 'View group photo' : 'No group photo'}
         >
           <GroupAvatar photoUrl={chat.photoUrl} size={128} />
@@ -60,7 +60,7 @@ function GroupInfoPreview({ chat }) {
           <button
             type="button"
             onClick={openGallery}
-            className={`${typoSubheadClass} mt-2 hover:text-white transition-colors`}
+            className={`${typoSubheadClass} mt-2 hover:text-[var(--ios-label)] transition-colors`}
           >
             View photos
           </button>
@@ -75,7 +75,7 @@ function GroupInfoPreview({ chat }) {
           <p className={`${typoSubheadClass} break-words`}>
             {chat.username ? `@${chat.username}` : 'No username set'}
           </p>
-          <p className={`${typoBodyClass} text-white/90 break-words whitespace-pre-wrap`}>{description}</p>
+          <p className={`${typoBodyClass} break-words whitespace-pre-wrap`}>{description}</p>
         </div>
         <PreviewInfoRow label="Member Since" value={memberSince} />
       </div>
@@ -159,7 +159,7 @@ export default function GroupSettingsHub() {
   if (!chat || !isMember) {
     return (
       <GroupSettingsShell title="Group settings" backTo={`/groups/${chatId}`}>
-        <p className="text-center text-white/60 mt-12 px-6">You cannot edit this group</p>
+        <p className="text-center text-[var(--ios-label-secondary)] mt-12 px-6">You cannot edit this group</p>
       </GroupSettingsShell>
     )
   }

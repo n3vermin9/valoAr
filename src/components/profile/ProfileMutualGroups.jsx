@@ -30,9 +30,9 @@ export default function ProfileMutualGroups({ viewerId, profileUserId, onOpenGro
             key={group.id}
             type="button"
             onClick={() => onOpenGroup?.(group.id)}
-            className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-white/10 last:border-b-0 text-left hover:bg-white/[0.05] active:bg-white/[0.08] transition-colors min-h-[60px]"
+            className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-[var(--ios-hairline)] last:border-b-0 text-left hover:bg-[var(--ios-hover-fill)] active:bg-[var(--ios-fill-tertiary)] transition-colors min-h-[60px]"
           >
-            <GroupAvatar photoUrl={group.photoUrl} size={40} className="ring-1 ring-white/20" />
+            <GroupAvatar photoUrl={group.photoUrl} size={40} className="ring-1 ring-[var(--ios-hairline)]" />
             <div className="min-w-0 flex-1">
               <p className={`${typoHeadlineClass} truncate`}>{getGroupDisplayName(group)}</p>
               <p className={`${typoSubheadClass} truncate`}>

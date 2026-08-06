@@ -345,6 +345,7 @@ html,
 body,
 #root {
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -367,6 +368,18 @@ body {
   font-size: 15px !important;
   font-weight: 500 !important;
   color: var(--ios-label) !important;
+}
+
+.nav-glass-shell {
+  isolation: isolate;
+  transform: translateZ(0);
+  overflow: visible;
+}
+
+.nav-glass-shell.liquid-glass-circle {
+  border-radius: 9999px;
+  clip-path: inset(0 round 9999px);
+  -webkit-clip-path: inset(0 round 9999px);
 }
 
 .nav-blur-sides {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { IconX } from '@tabler/icons-react'
 import ChevronBack from './ChevronBack'
-import { chatRoomTopScrimClass, photoHeroFrameClass, photoHeroFullscreenFrameClass, photoHeroImageClass, photoOverlayButtonClass } from '../../utils/designSystem'
+import { photoHeroFrameClass, photoHeroFullscreenFrameClass, photoHeroImageClass, photoHeroTopScrimClass, photoOverlayButtonClass } from '../../utils/designSystem'
 
 export function PhotoHeroFixedBack({ onBack, className = '' }) {
   if (!onBack) return null
@@ -37,7 +37,7 @@ export function PhotoHeroPlaceholder({ children, className = '' }) {
     <div className={`${photoHeroFrameClass} bg-white/[0.04] ${className}`}>
       <div
         aria-hidden
-        className={chatRoomTopScrimClass}
+        className={photoHeroTopScrimClass}
         style={{ height: 'calc(var(--ios-safe-top) + 4.5rem)' }}
       />
       <div
@@ -141,7 +141,7 @@ export default function PhotoHeroView({
           <>
             <div
               aria-hidden
-              className={chatRoomTopScrimClass}
+              className={photoHeroTopScrimClass}
               style={{ height: 'calc(var(--ios-safe-top) + 4.5rem)' }}
             />
             <div
@@ -207,7 +207,19 @@ export function PhotoHeroContentOverlap({ children, className = '' }) {
         marginTop: { type: 'spring', stiffness: 420, damping: 36 },
         paddingTop: { type: 'spring', stiffness: 420, damping: 36 },
       }}
-      className={`relative z-10 bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--ios-bg)_95%,transparent)] to-[var(--ios-bg)] ${className}`}
+      className={`relative z-10 ${className}`}
+      style={{
+        // Stay clear through the overlaid title so the photo's black bottom
+        // scrim can keep white usernames readable; then blend into page bg.
+        background: `linear-gradient(
+          to bottom,
+          transparent 0,
+          transparent 3.25rem,
+          color-mix(in srgb, var(--ios-bg) 72%, transparent) 4.75rem,
+          var(--ios-bg) 6.25rem,
+          var(--ios-bg) 100%
+        )`,
+      }}
     >
       {children}
     </motion.div>

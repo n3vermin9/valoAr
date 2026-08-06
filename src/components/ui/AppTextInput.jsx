@@ -90,7 +90,7 @@ export default function AppTextInput({
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
           spellCheck={spellCheck}
-          className={`w-full px-5 py-3 bg-[var(--ios-fill-tertiary)] rounded-2xl border border-white/10 outline-none focus:border-[var(--ios-blue)] resize-none min-h-24 whitespace-pre-wrap text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] ${className}`}
+          className={`w-full px-5 py-3 bg-[var(--ios-fill-tertiary)] rounded-2xl border border-[var(--ios-hairline)] outline-none focus:border-[var(--ios-blue)] resize-none min-h-24 whitespace-pre-wrap text-[15px] text-[var(--ios-label)] placeholder:text-[var(--ios-label-tertiary)] ${className}`}
         />
       )
     }
@@ -130,7 +130,7 @@ export default function AppTextInput({
         showPlaceholder ? 'text-[var(--ios-label-tertiary)]' : ''
       }`
     : layout === 'multiline'
-      ? `w-full px-5 py-3 min-h-24 rounded-2xl border border-white/10 bg-[var(--ios-fill-tertiary)] text-left text-[15px] whitespace-pre-wrap ${className} ${
+      ? `w-full px-5 py-3 min-h-24 rounded-2xl border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] text-left text-[15px] whitespace-pre-wrap ${className} ${
           active ? '!border-[var(--ios-blue)]' : ''
         } ${showPlaceholder ? 'text-[var(--ios-label-tertiary)]' : 'text-[var(--ios-label)]'}`
       : `${compactInputClass} text-left ${className} ${

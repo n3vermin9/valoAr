@@ -49,8 +49,8 @@ export default function MuteChatModal({ isOpen, onClose, chatId, chat, userId, t
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} glass className="p-6">
-      <h2 className={`${typoTitle3Class} text-white mb-1`}>{title}</h2>
-      <p className="text-sm text-white/55 mb-5">Choose what you want to be notified about.</p>
+      <h2 className={`${typoTitle3Class} mb-1`}>{title}</h2>
+      <p className="text-sm text-[var(--ios-label-secondary)] mb-5">Choose what you want to be notified about.</p>
       <div className="space-y-2">
         {OPTIONS.map(({ id, label, description }) => (
           <button
@@ -60,8 +60,8 @@ export default function MuteChatModal({ isOpen, onClose, chatId, chat, userId, t
             className={`${listRowClass} w-full text-left ${currentMode === id ? 'ring-1 ring-blue-500/50' : ''}`}
           >
             <div>
-              <p className="font-medium text-white">{label}</p>
-              <p className="text-xs text-white/50 mt-0.5">{description}</p>
+              <p className="font-medium text-[var(--ios-label)]">{label}</p>
+              <p className="text-xs text-[var(--ios-label-tertiary)] mt-0.5">{description}</p>
             </div>
           </button>
         ))}

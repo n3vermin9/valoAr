@@ -56,7 +56,7 @@ export default function ProfileSetup() {
       ? 'border-green-500'
       : status === 'taken' || status === 'invalid'
         ? 'border-red-500'
-        : 'border-white/10'
+        : 'border-[var(--ios-hairline)]'
 
   const updatePhoto = (index, value) => {
     const next = [...photos]
@@ -126,9 +126,9 @@ export default function ProfileSetup() {
         />
 
         <div>
-          <label className="text-sm text-white/60 mb-2 block">Username</label>
-          <div className={`flex items-center bg-white/10 rounded-full border ${usernameBorder}`}>
-            <span className="pl-4 pr-1 text-white/60">@</span>
+          <label className="text-sm text-[var(--ios-label-secondary)] mb-2 block">Username</label>
+          <div className={`flex items-center bg-[var(--ios-fill-tertiary)] rounded-full border ${usernameBorder}`}>
+            <span className="pl-4 pr-1 text-[var(--ios-label-secondary)]">@</span>
             <AppTextInput
               bare
               label="Username"
@@ -155,12 +155,12 @@ export default function ProfileSetup() {
         </div>
 
         <div>
-          <label className="text-sm text-white/60 mb-2 block">Age</label>
+          <label className="text-sm text-[var(--ios-label-secondary)] mb-2 block">Age</label>
           <AgeSlider value={age} onChange={setAge} />
         </div>
 
         <div>
-          <label className="text-sm text-white/60 mb-2 block">Gender</label>
+          <label className="text-sm text-[var(--ios-label-secondary)] mb-2 block">Gender</label>
           <div className="flex gap-2">
             {[
               { value: 'male', label: 'Boy' },
@@ -171,26 +171,26 @@ export default function ProfileSetup() {
                 type="button"
                 onClick={() => setGender(opt.value)}
                 className={`flex-1 py-3 rounded-full transition-colors ${
-                  gender === opt.value ? 'bg-blue-500' : 'bg-white/10 hover:bg-white/20'
+                  gender === opt.value ? 'bg-blue-500' : 'bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)]'
                 }`}
               >
                 {opt.label}
               </button>
             ))}
           </div>
-          <p className="text-xs text-white/40 mt-2">Gender cannot be changed after saving</p>
+          <p className="text-xs text-[var(--ios-label-tertiary)] mt-2">Gender cannot be changed after saving</p>
         </div>
 
         <div>
-          <label className="text-sm text-white/60 mb-2 block">City</label>
+          <label className="text-sm text-[var(--ios-label-secondary)] mb-2 block">City</label>
           <CitySelect value={city} onChange={setCity} />
         </div>
 
         <div>
-          <label className="text-sm text-white/60 mb-2 block flex items-center gap-1">
+          <label className="text-sm text-[var(--ios-label-secondary)] mb-2 block flex items-center gap-1">
             Interested In
             <button type="button" onClick={() => setShowBothInfo(true)}>
-              <IconInfoCircle size={16} className="text-white/40" />
+              <IconInfoCircle size={16} className="text-[var(--ios-label-tertiary)]" />
             </button>
           </label>
           <div className="flex gap-2">
@@ -204,7 +204,7 @@ export default function ProfileSetup() {
                 type="button"
                 onClick={() => setInterestedIn(opt.value)}
                 className={`flex-1 py-3 rounded-full transition-colors ${
-                  interestedIn === opt.value ? 'bg-blue-500' : 'bg-white/10 hover:bg-white/20'
+                  interestedIn === opt.value ? 'bg-blue-500' : 'bg-[var(--ios-fill-tertiary)] hover:bg-[var(--ios-fill-secondary)]'
                 }`}
               >
                 {opt.label}
@@ -216,7 +216,7 @@ export default function ProfileSetup() {
         <HobbiesSelect value={hobbies} onChange={setHobbies} userId={user?.uid} />
 
         <div>
-          <label className="text-sm text-white/60 mb-2 block">Bio</label>
+          <label className="text-sm text-[var(--ios-label-secondary)] mb-2 block">Bio</label>
           <AppTextInput
             label="Bio"
             layout="multiline"
@@ -224,7 +224,7 @@ export default function ProfileSetup() {
             onChange={(e) => setBio(e.target.value)}
             placeholder="Tell people about yourself..."
             maxLength={300}
-            className="bg-white/10"
+            className="bg-[var(--ios-fill-tertiary)]"
           />
         </div>
       </form>
@@ -232,7 +232,7 @@ export default function ProfileSetup() {
       <Modal isOpen={showBothInfo} onClose={() => setShowBothInfo(false)}>
         <div className="p-6">
           <h3 className={`${typoTitle3Class} mb-2`}>About "Both"</h3>
-          <p className="text-white/70">
+          <p className="text-[var(--ios-label-secondary)]">
             Selecting "Both" means you're open to meeting all kinds of people as friends.
             You'll see profiles of all genders that fit your other preferences.
           </p>
@@ -242,14 +242,14 @@ export default function ProfileSetup() {
       <Modal isOpen={showGenderConfirm} onClose={() => setShowGenderConfirm(false)}>
         <div className="p-6">
           <h3 className={`${typoTitle3Class} mb-2`}>Confirm Gender</h3>
-          <p className="text-white/70 mb-6">
-            Your gender will be set to <span className="font-medium text-white">{gender === 'male' ? 'Boy' : 'Girl'}</span> and
+          <p className="text-[var(--ios-label-secondary)] mb-6">
+            Your gender will be set to <span className="font-medium text-[var(--ios-label)]">{gender === 'male' ? 'Boy' : 'Girl'}</span> and
             cannot be changed later. Are you sure?
           </p>
           <div className="flex gap-3">
             <button
               onClick={() => setShowGenderConfirm(false)}
-              className="flex-1 py-3 bg-white/10 rounded-full"
+              className="flex-1 py-3 bg-[var(--ios-fill-tertiary)] rounded-full"
             >
               Go Back
             </button>

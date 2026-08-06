@@ -36,7 +36,7 @@ import {
   fieldLabelClass,
   compactInputAffixClass,
   navGlassClass,
-  chatFloatingButtonClass,
+  photoOverlayButtonClass,
 } from '../../utils/designSystem'
 import {
   DEFAULT_CITY_ID,
@@ -145,12 +145,12 @@ export default function EditProfile({ onCancel }) {
 
   const usernameBorder =
     !usernameChanged
-      ? 'border-white/10'
+      ? 'border-[var(--ios-hairline)]'
       : status === 'available'
         ? 'border-green-500'
         : status === 'taken' || status === 'invalid'
           ? 'border-red-500'
-          : 'border-white/10'
+          : 'border-[var(--ios-hairline)]'
 
   const updatePhoto = (index, value) => {
     const wasEmpty = !photos[index]?.trim()
@@ -220,7 +220,7 @@ export default function EditProfile({ onCancel }) {
           <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
             <ChevronBack
               onClick={onCancel}
-              buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+              buttonClassName={photoOverlayButtonClass}
               className="w-6 h-6"
             />
           </div>
@@ -269,7 +269,17 @@ export default function EditProfile({ onCancel }) {
             paddingTop: showExtraPhotoInput ? '1rem' : '2rem',
           }}
           transition={{ layout: { type: 'spring', stiffness: 420, damping: 36 }, marginTop: { type: 'spring', stiffness: 420, damping: 36 }, paddingTop: { type: 'spring', stiffness: 420, damping: 36 } }}
-          className="relative z-10 bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--ios-bg)_95%,transparent)] to-[var(--ios-bg)]"
+          className="relative z-10"
+          style={{
+            background: `linear-gradient(
+              to bottom,
+              transparent 0,
+              transparent 3.25rem,
+              color-mix(in srgb, var(--ios-bg) 72%, transparent) 4.75rem,
+              var(--ios-bg) 6.25rem,
+              var(--ios-bg) 100%
+            )`,
+          }}
         >
           <div className="space-y-5 pb-6">
           <EditFieldSection>

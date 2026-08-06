@@ -7,9 +7,9 @@ export default function ReplyQuote({ reply, authorName, isOwn, onClick, classNam
   if (!reply) return null
 
   const preview = getMessagePreviewText(reply)
-  const borderClass = isOwn ? 'border-white/50' : 'border-blue-400'
-  const authorClass = isOwn ? 'text-white/90' : 'text-blue-300'
-  const previewClass = isOwn ? 'text-white/65' : 'text-white/55'
+  const borderClass = isOwn ? 'border-white/50' : 'border-[var(--chat-accent)]'
+  const authorClass = isOwn ? 'text-white/90' : 'text-[var(--chat-accent)]'
+  const previewClass = isOwn ? 'text-white/65' : 'text-[var(--ios-label-secondary)]'
 
   const content = (
     <>

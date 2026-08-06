@@ -125,7 +125,7 @@ function renderTextWithLinks(segment, searchQuery, activeSearchMatch, segmentSta
           }}
           onDoubleClick={(e) => e.stopPropagation()}
           className={`underline underline-offset-2 break-all ${
-            isOwn ? 'text-white/95 hover:text-white' : 'text-blue-300 hover:text-blue-200'
+            isOwn ? 'text-white/95 hover:text-white' : 'text-[var(--chat-accent)] hover:opacity-80'
           }`}
         >
           {part.value}
@@ -220,7 +220,7 @@ export default function MessageText({
             }}
             onDoubleClick={(e) => e.stopPropagation()}
             className={`no-tap-scale font-semibold ${
-              isOwn ? 'text-white hover:text-white/90' : 'text-blue-300 hover:text-blue-200'
+              isOwn ? 'text-white hover:text-white/90' : 'text-[var(--chat-accent)] hover:opacity-80'
             }`}
           >
             @{part.value}

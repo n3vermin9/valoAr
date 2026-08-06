@@ -35,10 +35,10 @@ export default function SocialLinksEditor({ socials, onChange }) {
               aria-pressed={isActive}
               className={`inline-flex items-center justify-center w-[52px] h-[52px] rounded-full border transition-colors ${
                 isActive
-                  ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-white'
+                  ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
                   : hasValue
-                    ? 'border-[var(--ios-blue)]/40 bg-white/10 text-white'
-                    : 'border-white/10 bg-white/[0.06] text-white/55 hover:bg-white/10 hover:text-white/80'
+                    ? 'border-[var(--ios-blue)]/40 bg-[var(--ios-fill-tertiary)] text-[var(--ios-label)]'
+                    : 'border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] hover:text-[var(--ios-label)]'
               }`}
             >
               <Icon size={24} />

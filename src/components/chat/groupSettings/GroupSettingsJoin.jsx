@@ -133,7 +133,7 @@ export default function GroupSettingsJoin() {
   if (!chat || !isMember || !canManageSettings) {
     return (
       <GroupSettingsShell title="Join & invite" backTo={`/groups/${chatId}/settings`}>
-        <p className="text-center text-white/60 mt-12 px-6">You cannot manage join settings</p>
+        <p className="text-center text-[var(--ios-label-secondary)] mt-12 px-6">You cannot manage join settings</p>
       </GroupSettingsShell>
     )
   }
@@ -160,19 +160,19 @@ export default function GroupSettingsJoin() {
               const profile = requestProfiles[req.userId]
               const name = profile?.username || req.username || 'User'
               return (
-                <div key={req.id} className="px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-b-0">
+                <div key={req.id} className="px-4 py-3 flex items-center gap-3 border-b border-[var(--ios-hairline)] last:border-b-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-medium text-white truncate">{name}</p>
+                    <p className="text-[15px] font-medium text-[var(--ios-label)] truncate">{name}</p>
                     <p className={`${typoSubheadClass} mt-0.5`}>Wants to join</p>
                   </div>
                   <button
                     type="button"
                     disabled={actingOn === req.userId}
                     onClick={() => handleDeny(req.userId)}
-                    className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center"
+                    className="h-9 w-9 rounded-full bg-[var(--ios-fill-tertiary)] flex items-center justify-center"
                     aria-label={`Decline ${name}`}
                   >
-                    <IconX size={18} className="text-white/70" />
+                    <IconX size={18} className="text-[var(--ios-label-secondary)]" />
                   </button>
                   <button
                     type="button"
@@ -191,11 +191,11 @@ export default function GroupSettingsJoin() {
 
         <SettingsSection title="Invite link">
           <div className="px-4 py-4">
-            <div className="flex items-center gap-2 text-white/70 text-sm mb-2">
+            <div className="flex items-center gap-2 text-[var(--ios-label-secondary)] text-sm mb-2">
               <IconLink size={16} />
               Shareable link
             </div>
-            <p className="text-xs text-white/45 break-all mb-3">
+            <p className="text-xs text-[var(--ios-label-tertiary)] break-all mb-3">
               {getGroupJoinLink(chat) || 'Set a group username in Group info to get a shareable link'}
             </p>
             <div className="flex gap-2">

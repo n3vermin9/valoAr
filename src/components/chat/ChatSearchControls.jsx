@@ -2,7 +2,7 @@ import { IconChevronUp, IconChevronDown } from '@tabler/icons-react'
 import { formatSearchMatchLabel } from '../../utils/chatSearch'
 import { storyGlassBlur } from '../../utils/designSystem'
 
-const controlSurfaceClass = `${storyGlassBlur} liquid-glass-pill inline-flex items-center justify-center h-12 min-h-12 text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60`
+const controlSurfaceClass = `${storyGlassBlur} liquid-glass-pill inline-flex items-center justify-center h-12 min-h-12 text-[var(--ios-label)] transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60`
 
 export default function ChatSearchControls({
   matchIndex,

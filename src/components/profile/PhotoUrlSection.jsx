@@ -4,17 +4,18 @@ import { IconPlus, IconX, IconCheck } from '@tabler/icons-react'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import FieldHint from '../ui/FieldHint'
 import {
-  chatFloatingButtonClass,
   compactInputAffixClass,
   photoHeroFrameClass,
   photoHeroImageClass,
+  photoHeroTopScrimClass,
+  photoOverlayButtonClass,
   sectionLabelClass,
 } from '../../utils/designSystem'
 import { storyOpenOriginFromRect } from '../../utils/storyHelpers'
 import AppTextInput from '../ui/AppTextInput'
 
 const photoControlSpring = { type: 'spring', stiffness: 520, damping: 30 }
-const photoOverlayControlClass = `${chatFloatingButtonClass} text-white/80`
+const photoOverlayControlClass = photoOverlayButtonClass
 /** Same bottom fade as PhotoHeroView on profile viewing. */
 const photoHeroScrimClass =
   'absolute bottom-0 inset-x-0 z-[10] pointer-events-none bg-gradient-to-t from-black via-black/80 to-transparent h-32'
@@ -158,8 +159,8 @@ export function PhotoUrlInput({
 
   if (layout === 'hero') {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-5 bg-white/10">
-        <div className={`${compactInputAffixClass} border border-white/10 w-full max-w-sm`}>
+      <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-5 bg-[var(--ios-fill-tertiary)]">
+        <div className={`${compactInputAffixClass} border border-[var(--ios-hairline)] w-full max-w-sm`}>
           <AppTextInput
             bare
             label="Photo URL"
@@ -186,7 +187,7 @@ export function PhotoUrlInput({
 
   return (
     <div className="mb-2">
-      <div className={`${compactInputAffixClass} border border-white/10`}>
+      <div className={`${compactInputAffixClass} border border-[var(--ios-hairline)]`}>
         <AppTextInput
           bare
           label="Photo URL"
@@ -268,7 +269,7 @@ function SamplePhotoPicker({ photos, updatePhoto, variant = 'default' }) {
             key={url}
             type="button"
             onClick={() => updatePhoto(0, url)}
-            className="rounded-[var(--ios-radius-lg)] overflow-hidden border border-white/12 bg-white/[0.04] transition-colors hover:border-white/28 active:scale-[0.98]"
+            className="rounded-[var(--ios-radius-lg)] overflow-hidden border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] transition-colors hover:border-[var(--ios-separator)] active:scale-[0.98]"
           >
             <img
               src={url}
@@ -497,6 +498,11 @@ function HeroPhotoSection({
               />
             )}
 
+            <div
+              aria-hidden
+              className={photoHeroTopScrimClass}
+              style={{ height: 'calc(var(--ios-safe-top) + 4.5rem)' }}
+            />
             <div aria-hidden className={photoHeroScrimClass} />
 
             {hasMultiplePhotos ? (
@@ -608,7 +614,7 @@ function PhotoUrlSlotPreview({ index, url, updatePhoto, filledInVisible, placeho
   return (
     <div className={`mb-4 w-full relative ${filledInVisible === 1 ? '' : 'flex justify-start'}`}>
       <div
-        className={`overflow-hidden border border-white/10 ${
+        className={`overflow-hidden border border-[var(--ios-hairline)] ${
           filledInVisible === 1
             ? 'w-full aspect-square rounded-2xl'
             : 'w-24 h-24 rounded-2xl shrink-0'
@@ -671,7 +677,7 @@ export default function PhotoUrlSection({
 
   return (
     <div>
-      {label ? <label className="text-sm text-white/60 mb-3 block">{label}</label> : null}
+      {label ? <label className="text-sm text-[var(--ios-label-secondary)] mb-3 block">{label}</label> : null}
 
       {showSamplePhotos && (primarySampleSelected || !photos[0]?.trim()) ? (
         <SamplePhotoPicker photos={photos} updatePhoto={updatePhoto} />
@@ -696,7 +702,7 @@ export default function PhotoUrlSection({
         <button
           type="button"
           onClick={() => setVisiblePhotoSlots((n) => Math.min(n + 1, maxSlots))}
-          className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 mt-1"
+          className="flex items-center gap-1.5 text-sm text-[var(--ios-blue)] hover:opacity-80 mt-1"
         >
           <IconPlus size={16} />
           add more

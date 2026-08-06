@@ -81,7 +81,7 @@ export function CardSkeleton({ className = '' }) {
       role="status"
       aria-label="Loading"
     >
-      <div className="rounded-[var(--ios-radius-lg)] overflow-hidden border border-white/10 bg-white/5">
+      <div className="rounded-[var(--ios-radius-lg)] overflow-hidden border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)]">
         <Skeleton className="aspect-square w-full !rounded-none" rounded="sm" />
         <div className="px-3.5 py-3 space-y-2.5">
           <Skeleton className="h-4 w-[55%]" rounded="sm" />

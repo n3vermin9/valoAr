@@ -34,7 +34,7 @@ export default function StoryRing({
     : seen || hasStories
       ? 'bg-neutral-500/90'
       : isOwn
-        ? 'border border-dashed border-white/35 bg-transparent'
+        ? 'border border-dashed border-[var(--ios-separator)] bg-transparent'
         : ''
 
   const useDivInteractive = Component === 'div' && onClick
@@ -98,7 +98,7 @@ export default function StoryRing({
             e.stopPropagation()
             onAddClick?.()
           }}
-          className={`absolute -bottom-0.5 -right-0.5 ${badgeClass} rounded-full bg-[var(--ios-blue)] border-2 border-black flex items-center justify-center z-10`}
+          className={`absolute -bottom-0.5 -right-0.5 ${badgeClass} rounded-full bg-[var(--ios-blue)] border-2 border-[var(--ios-bg)] flex items-center justify-center z-10`}
           aria-label="Add story"
         >
           <IconPlus size={badgeIconSize} stroke={2.5} />

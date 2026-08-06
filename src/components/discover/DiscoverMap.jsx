@@ -725,7 +725,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10 shrink-0"
+                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] shrink-0"
                 aria-label="Close"
               >
                 <IconX size={18} stroke={2} />
@@ -739,7 +739,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
                 return (
                   <div
                     key={meetup.id}
-                    className="rounded-[var(--ios-radius-md)] border border-white/10 bg-white/[0.05] p-2.5"
+                    className="rounded-[var(--ios-radius-md)] border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] p-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
@@ -781,7 +781,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
         ) : (
           <>
             <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-2xl shrink-0">
+              <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] flex items-center justify-center text-2xl shrink-0">
                 {place.emoji}
               </div>
               <div className="min-w-0 flex-1">
@@ -793,7 +793,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10 shrink-0"
+                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] shrink-0"
                 aria-label="Close"
               >
                 <IconX size={18} stroke={2} />
@@ -814,7 +814,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
                       className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] border transition-colors ${
                         selectedSub?.id === sub.id
                           ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
-                          : 'border-white/10 bg-white/[0.06] text-[var(--ios-label-secondary)]'
+                          : 'border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)]'
                       }`}
                     >
                       <span>{sub.emoji}</span>
@@ -826,7 +826,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
             )}
 
             {photoUrl && !photoFailed ? (
-              <div className="mt-4 rounded-[var(--ios-radius-md)] overflow-hidden border border-white/10">
+              <div className="mt-4 rounded-[var(--ios-radius-md)] overflow-hidden border border-[var(--ios-hairline)]">
                 <img
                   src={photoUrl}
                   alt=""
@@ -892,7 +892,7 @@ function MeetupManagerCard({ meetup, isMember, onAction, onOpenInfo }) {
           onOpenInfo?.(meetup)
         }
       }}
-      className="rounded-[var(--ios-radius-md)] border border-white/10 bg-white/[0.05] p-2.5 cursor-pointer hover:bg-white/[0.08] transition-colors"
+      className="rounded-[var(--ios-radius-md)] border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] p-2.5 cursor-pointer hover:bg-[var(--ios-hover-fill)] transition-colors"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
@@ -1099,7 +1099,7 @@ function MeetupManager({
                             setPlaceSearchQuery('')
                             setSearchActive(false)
                           }}
-                          className="p-0.5 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                          className="p-0.5 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)]"
                           aria-label="Clear search"
                         >
                           <IconX size={14} stroke={2} />
@@ -1109,7 +1109,7 @@ function MeetupManager({
                     <button
                       type="button"
                       onClick={() => onExpandedChange(false)}
-                      className="shrink-0 p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                      className="shrink-0 p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)]"
                       aria-label="Close meetups manager"
                     >
                       <IconX size={18} stroke={2} />
@@ -1132,7 +1132,7 @@ function MeetupManager({
                       <button
                         type="button"
                         onClick={() => setSearchActive(true)}
-                        className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                        className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)]"
                         aria-label="Search places"
                       >
                         <IconSearch size={18} stroke={2} />
@@ -1140,7 +1140,7 @@ function MeetupManager({
                       <button
                         type="button"
                         onClick={() => onExpandedChange(false)}
-                        className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+                        className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)]"
                         aria-label="Close meetups manager"
                       >
                         <IconX size={18} stroke={2} />
@@ -1161,9 +1161,9 @@ function MeetupManager({
                     key={place.id}
                     type="button"
                     onClick={() => handleSelectPlace(place)}
-                    className="w-full flex items-center gap-3 rounded-[var(--ios-radius-md)] px-2 py-2 text-left hover:bg-white/[0.06] transition-colors"
+                    className="w-full flex items-center gap-3 rounded-[var(--ios-radius-md)] px-2 py-2 text-left hover:bg-[var(--ios-hover-fill)] transition-colors"
                   >
-                    <span className="w-9 h-9 rounded-full bg-[var(--ios-fill-tertiary)] border border-white/10 flex items-center justify-center text-lg shrink-0">
+                    <span className="w-9 h-9 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] flex items-center justify-center text-lg shrink-0">
                       {place.emoji}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -1180,7 +1180,7 @@ function MeetupManager({
             <div className="space-y-3">
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5 inline-flex items-center gap-2">
-                  <IconClockHour4 size={14} stroke={2} className="text-amber-300" />
+                  <IconClockHour4 size={14} stroke={2} className="text-[var(--ios-orange)]" />
                   Your meetups
                 </p>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -1872,7 +1872,7 @@ export default function DiscoverMap({
           <button
             type="button"
             onClick={() => setShowSettings(false)}
-            className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-white/10"
+            className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)]"
             aria-label="Close map settings"
           >
             <IconX size={20} stroke={2} />
@@ -1901,7 +1901,7 @@ export default function DiscoverMap({
           <SegmentedField
             label="Theme"
             value={settings.theme}
-            onChange={(themeId) => updateSettings({ theme: themeId })}
+            onChange={(themeId) => updateSettings({ theme: themeId, themeChosen: true })}
             options={MAP_THEMES.map((t) => ({ id: t.id, label: t.label }))}
           />
         </div>

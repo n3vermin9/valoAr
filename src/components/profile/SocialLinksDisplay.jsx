@@ -8,7 +8,7 @@ const SOCIAL_ICONS = {
 }
 
 const iconButtonClass =
-  'inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/10 border border-white/10 text-white/85 hover:bg-white/15 hover:text-white transition-colors'
+  'inline-flex items-center justify-center w-10 h-10 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] text-[var(--ios-label-secondary)] hover:bg-[var(--ios-fill-secondary)] hover:text-[var(--ios-label)] transition-colors'
 
 export default function SocialLinksDisplay({ socials: rawSocials, compact = false, visible = true }) {
   if (!visible) return null
@@ -16,11 +16,11 @@ export default function SocialLinksDisplay({ socials: rawSocials, compact = fals
   if (!hasSocialLinks(socials)) return null
 
   const buttonClass = compact
-    ? 'inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/10 border border-white/10 text-white/85 hover:bg-white/15 hover:text-white transition-colors'
+    ? 'inline-flex items-center justify-center w-8 h-8 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] text-[var(--ios-label-secondary)] hover:bg-[var(--ios-fill-secondary)] hover:text-[var(--ios-label)] transition-colors'
     : iconButtonClass
 
   return (
-    <div className={compact ? 'mt-2.5' : 'mt-1 pt-3.5 border-t border-white/[0.06] text-center'}>
+    <div className={compact ? 'mt-2.5' : 'mt-1 pt-3.5 border-t border-[var(--ios-hairline)] text-center'}>
       <div className={`flex flex-wrap gap-2 ${compact ? '' : 'justify-center'}`}>
         {SOCIAL_PLATFORMS.map(({ id, label }) => {
           const value = socials[id]

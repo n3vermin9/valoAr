@@ -19,7 +19,7 @@ import {
   compactInputAffixClass,
   compactInputInnerClass,
   fieldLabelClass,
-  chatFloatingButtonClass,
+  photoOverlayButtonClass,
 } from '../../../utils/designSystem'
 
 function EditFieldSection({ children }) {
@@ -59,12 +59,12 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
 
   const usernameBorder =
     !usernameChanged
-      ? 'border-white/10'
+      ? 'border-[var(--ios-hairline)]'
       : usernameStatus === 'available'
         ? 'border-green-500'
         : usernameStatus === 'taken' || usernameStatus === 'invalid'
           ? 'border-red-500'
-          : 'border-white/10'
+          : 'border-[var(--ios-hairline)]'
 
   const updatePhoto = (index, url) => {
     setPhotos((prev) => {
@@ -126,7 +126,7 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
           <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
             <ChevronBack
               onClick={handleBack}
-              buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+              buttonClassName={photoOverlayButtonClass}
               className="w-6 h-6"
             />
           </div>
@@ -152,7 +152,17 @@ function GroupInfoEditor({ chat, chatId, user, locationState }) {
             marginTop: { type: 'spring', stiffness: 420, damping: 36 },
             paddingTop: { type: 'spring', stiffness: 420, damping: 36 },
           }}
-          className="relative z-10 bg-gradient-to-b from-transparent via-[color-mix(in_srgb,var(--ios-bg)_95%,transparent)] to-[var(--ios-bg)]"
+          className="relative z-10"
+          style={{
+            background: `linear-gradient(
+              to bottom,
+              transparent 0,
+              transparent 3.25rem,
+              color-mix(in srgb, var(--ios-bg) 72%, transparent) 4.75rem,
+              var(--ios-bg) 6.25rem,
+              var(--ios-bg) 100%
+            )`,
+          }}
         >
           <div className="space-y-4 pb-4">
             <EditFieldSection>
@@ -269,11 +279,11 @@ export default function GroupSettingsInfo() {
         <div className="absolute top-[max(0.75rem,var(--ios-safe-top))] left-[var(--ios-page-x-lg)] z-30">
           <ChevronBack
             onClick={handleBack}
-            buttonClassName={`${chatFloatingButtonClass} text-white/80`}
+            buttonClassName={photoOverlayButtonClass}
             className="w-6 h-6"
           />
         </div>
-        <p className="text-center text-white/60 mt-12 px-6">You cannot edit group info</p>
+        <p className="text-center text-[var(--ios-label-secondary)] mt-12 px-6">You cannot edit group info</p>
       </div>
     )
   }

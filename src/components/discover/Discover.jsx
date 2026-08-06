@@ -403,7 +403,7 @@ export default function Discover() {
   const discoverSearchButton = (
     <button
       onClick={() => setShowSearchPage(true)}
-      className="p-2 hover:bg-white/10 rounded-full transition-colors"
+      className="p-2 hover:bg-[var(--ios-hover-fill)] rounded-full transition-colors"
       aria-label="Search by username"
     >
       <IconSearch size={20} stroke={2} />
@@ -444,7 +444,7 @@ export default function Discover() {
         style={{ height: pullY > 0 || refreshing ? Math.max(pullY, refreshing ? 28 : 0) : 0 }}
       >
         {(pullY > 0 || refreshing) && (
-          <span className="text-xs text-white/50 py-1">
+          <span className="text-xs text-[var(--ios-label-tertiary)] py-1">
             {refreshing
               ? 'Refreshing…'
               : pullY >= PULL_THRESHOLD
@@ -572,7 +572,7 @@ export default function Discover() {
         <button
           type="button"
           onClick={refreshDiscover}
-          className="mt-4 px-5 py-2.5 rounded-full bg-white/10 border border-white/10 text-sm font-medium"
+          className="mt-4 px-5 py-2.5 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] text-sm font-medium"
         >
           Try again
         </button>
@@ -769,10 +769,10 @@ function DiscoverSearchPage({
           {...pageSwitchMotion}
           className="fixed inset-0 z-[70] bg-[var(--ios-bg)] origin-center flex flex-col"
         >
-          <div className="flex items-center gap-2 px-4 pt-[max(0.5rem,var(--ios-safe-top))] pb-2 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-2 px-4 pt-[max(0.5rem,var(--ios-safe-top))] pb-2 border-b border-[var(--ios-hairline)] shrink-0">
             <ChevronBack onClick={onClose} />
             <div className={`flex-1 min-w-0 ${searchFieldShellClass}`}>
-              <IconSearch size={16} stroke={2} className="text-white/50 shrink-0" />
+              <IconSearch size={16} stroke={2} className="text-[var(--ios-label-tertiary)] shrink-0" />
               <input
                 type="search"
                 autoFocus={allowAutofocus()}
@@ -792,19 +792,19 @@ function DiscoverSearchPage({
 
           <div className="flex-1 min-h-0 overflow-y-auto pb-[max(1.5rem,var(--ios-safe-bottom))]">
             {!hasQuery && (
-              <p className="px-4 pt-4 text-sm text-white/50">Search by username or public group</p>
+              <p className="px-4 pt-4 text-sm text-[var(--ios-label-tertiary)]">Search by username or public group</p>
             )}
 
             {hasQuery && !canSearch && (
-              <p className="px-4 pt-4 text-sm text-white/50">Keep typing…</p>
+              <p className="px-4 pt-4 text-sm text-[var(--ios-label-tertiary)]">Keep typing…</p>
             )}
 
             {canSearch && searchLoading && (
-              <p className="px-4 pt-4 text-sm text-white/50">Searching…</p>
+              <p className="px-4 pt-4 text-sm text-[var(--ios-label-tertiary)]">Searching…</p>
             )}
 
             {canSearch && !searchLoading && !hasResults && (
-              <p className="px-4 pt-4 text-sm text-white/50">No users or groups found</p>
+              <p className="px-4 pt-4 text-sm text-[var(--ios-label-tertiary)]">No users or groups found</p>
             )}
 
             {userResults.map((result) => (
@@ -812,7 +812,7 @@ function DiscoverSearchPage({
                 key={result.id}
                 type="button"
                 onClick={() => onSelectProfile(result.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--ios-hover-fill)] transition-colors"
               >
                 <img
                   src={result.photos?.[0] || sad}
@@ -821,13 +821,13 @@ function DiscoverSearchPage({
                 />
                 <div className="text-left min-w-0">
                   <UsernameLabel username={result.username} className="font-medium" badgeSize={14} />
-                  <p className="text-sm text-white/50">{result.age} years old</p>
+                  <p className="text-sm text-[var(--ios-label-tertiary)]">{result.age} years old</p>
                 </div>
               </button>
             ))}
 
             {groupResults.length > 0 && userResults.length > 0 && (
-              <div className="mx-4 my-2 border-t border-white/10" aria-hidden />
+              <div className="mx-4 my-2 border-t border-[var(--ios-hairline)]" aria-hidden />
             )}
 
             {groupResults.map((group) => (
@@ -835,12 +835,12 @@ function DiscoverSearchPage({
                 key={group.id}
                 type="button"
                 onClick={() => onSelectGroup(group.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--ios-hover-fill)] transition-colors"
               >
                 <GroupAvatar photoUrl={group.photoUrl} size={48} />
                 <div className="text-left min-w-0">
                   <p className="font-medium truncate">{getGroupDisplayName(group)}</p>
-                  <p className="text-sm text-white/50 truncate">
+                  <p className="text-sm text-[var(--ios-label-tertiary)] truncate">
                     {group.username ? `@${group.username} · ` : ''}
                     {group.participants?.length || 0} members · Public
                   </p>

@@ -88,7 +88,7 @@ export default function HobbiesSelect({
 
       <div className="min-h-8 flex flex-wrap gap-1.5 mb-2">
         {selected.length === 0 ? (
-          <span className="text-[12px] text-white/35 leading-8">Pick up to {max}</span>
+          <span className="text-[12px] text-[var(--ios-label-tertiary)] leading-8">Pick up to {max}</span>
         ) : (
           selected.map((id) => (
             <button
@@ -107,7 +107,7 @@ export default function HobbiesSelect({
       <div className="relative mb-2">
         <IconSearch
           size={13}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ios-label-tertiary)] pointer-events-none"
         />
         <AppTextInput
           label="Search hobbies"
@@ -115,15 +115,15 @@ export default function HobbiesSelect({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search…"
-          className="!h-8 !min-h-8 pl-8 pr-3 !text-[13px] bg-white/[0.06] border-white/5"
+          className="!h-8 !min-h-8 pl-8 pr-3 !text-[13px] bg-[var(--ios-fill-tertiary)] border-[var(--ios-hairline)]"
         />
       </div>
 
       <div
-        className={`${LIST_HEIGHT} rounded-2xl bg-white/[0.03] overflow-y-auto overscroll-contain`}
+        className={`${LIST_HEIGHT} rounded-2xl bg-[var(--ios-fill-tertiary)] overflow-y-auto overscroll-contain`}
       >
         {filtered.length === 0 && !canCreate ? (
-          <p className="px-3 py-4 text-center text-white/35 text-[12px]">No hobbies match</p>
+          <p className="px-3 py-4 text-center text-[var(--ios-label-tertiary)] text-[12px]">No hobbies match</p>
         ) : null}
         {filtered.length > 0 || canCreate ? (
           <div className="flex flex-wrap gap-1.5 p-2.5 content-start">
@@ -139,11 +139,11 @@ export default function HobbiesSelect({
                   className={`px-2.5 py-1 rounded-full text-[12px] font-medium leading-none transition-colors disabled:opacity-30 ${
                     on
                       ? 'bg-blue-500/70 text-white'
-                      : 'bg-transparent text-white/50 hover:bg-white/[0.06] hover:text-white/70'
+                      : 'bg-transparent text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] hover:text-[var(--ios-label)]'
                   }`}
                 >
                   {hobby.label}
-                  {hobby.custom ? <span className="ml-1 text-white/35">custom</span> : null}
+                  {hobby.custom ? <span className="ml-1 text-[var(--ios-label-tertiary)]">custom</span> : null}
                 </button>
               )
             })}
@@ -152,7 +152,7 @@ export default function HobbiesSelect({
                 type="button"
                 disabled={creatingInterest || selected.length >= max}
                 onClick={handleCreateInterest}
-                className="px-2.5 py-1 rounded-full text-[12px] font-medium leading-none bg-blue-500/20 text-blue-200 border border-blue-400/20 disabled:opacity-35"
+                className="px-2.5 py-1 rounded-full text-[12px] font-medium leading-none bg-blue-500/15 text-[var(--chat-accent)] border border-blue-400/20 disabled:opacity-35"
               >
                 {creatingInterest ? 'Adding…' : `Add “${cleanQuery}”`}
               </button>
@@ -197,10 +197,10 @@ export function HobbiesDisplay({
             highlightSet.has(id)
               ? `${card ? 'px-1.5 py-0.5 text-[10.5px] whitespace-nowrap' : 'px-3 py-1.5 text-[12px]'} rounded-full bg-blue-500/10 text-blue-100 font-medium leading-none border border-blue-400/55 shadow-[0_0_0_1px_rgba(96,165,250,0.12)]`
               : organic
-                ? 'px-3 py-1.5 rounded-full bg-white/[0.08] text-white/85 text-[12px] font-medium leading-none border border-transparent'
+                ? 'px-3 py-1.5 rounded-full bg-[var(--ios-fill-tertiary)] text-[var(--ios-label)] text-[12px] font-medium leading-none border border-transparent'
                 : card
-                  ? 'px-1.5 py-0.5 rounded-full bg-white/10 text-white/75 text-[10.5px] whitespace-nowrap font-medium leading-none border border-transparent'
-                  : 'px-2.5 py-1 rounded-full bg-white/10 text-white/80 text-[12px] font-medium leading-none border border-transparent'
+                  ? 'px-1.5 py-0.5 rounded-full bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)] text-[10.5px] whitespace-nowrap font-medium leading-none border border-transparent'
+                  : 'px-2.5 py-1 rounded-full bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)] text-[12px] font-medium leading-none border border-transparent'
           }
           title={getHobbyLabel(id)}
         >
@@ -211,8 +211,8 @@ export function HobbiesDisplay({
         <span
           className={
             organic
-              ? 'px-3 py-1.5 rounded-full bg-white/[0.06] text-white/45 text-[12px] font-medium leading-none'
-              : 'px-2.5 py-1 rounded-full bg-white/10 text-white/50 text-[12px] font-medium leading-none'
+              ? 'px-3 py-1.5 rounded-full bg-white/[0.06] text-[var(--ios-label-tertiary)] text-[12px] font-medium leading-none'
+              : 'px-2.5 py-1 rounded-full bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-tertiary)] text-[12px] font-medium leading-none'
           }
         >
           +{extra}

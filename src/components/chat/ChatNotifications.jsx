@@ -20,15 +20,15 @@ function NotificationTitle({ username }) {
     const groupName = username.slice(0, idx)
     const senderName = username.slice(idx + sep.length)
     return (
-      <p className="font-semibold text-sm truncate text-white flex items-center gap-1 min-w-0">
+      <p className="font-semibold text-sm truncate text-[var(--ios-label)] flex items-center gap-1 min-w-0">
         <span className="truncate shrink">{groupName}</span>
-        <span className="shrink-0 text-white/60">·</span>
+        <span className="shrink-0 text-[var(--ios-label-secondary)]">·</span>
         <UsernameLabel username={senderName} className="truncate min-w-0" badgeSize={12} />
       </p>
     )
   }
   return (
-    <UsernameLabel username={username} className="font-semibold text-sm truncate text-white" badgeSize={12} />
+    <UsernameLabel username={username} className="font-semibold text-sm truncate text-[var(--ios-label)]" badgeSize={12} />
   )
 }
 
@@ -198,11 +198,11 @@ function SwipeableNotification({ notification, onDismiss, onOpen }) {
           <img
             src={notification.photo || sad}
             alt=""
-            className="w-11 h-11 rounded-full object-cover shrink-0 ring-1 ring-white/10"
+            className="w-11 h-11 rounded-full object-cover shrink-0 ring-1 ring-[var(--ios-hairline)]"
           />
           <div className="flex-1 min-w-0">
             <NotificationTitle username={notification.username} />
-            <p className="text-xs text-white/70 truncate mt-0.5">
+            <p className="text-xs text-[var(--ios-label-secondary)] truncate mt-0.5">
               <IosEmojiText text={preview} size={12} />
             </p>
           </div>

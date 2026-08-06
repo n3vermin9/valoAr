@@ -106,17 +106,29 @@ const LEGACY_THEME_MAP = {
   dark_all: 'dark',
 }
 
+/** Until the user picks a map theme, tiles follow the app appearance. */
+function getDefaultMapSettings() {
+  const light =
+    typeof document !== 'undefined' &&
+    document.documentElement.classList.contains('theme-light')
+  return { ...DEFAULT_MAP_SETTINGS, theme: light ? 'light' : 'dark' }
+}
+
 export function loadMapSettings() {
+  const defaults = getDefaultMapSettings()
   try {
     const raw = localStorage.getItem(MAP_SETTINGS_KEY)
-    if (!raw) return DEFAULT_MAP_SETTINGS
-    const parsed = { ...DEFAULT_MAP_SETTINGS, ...JSON.parse(raw) }
+    if (!raw) return defaults
+    const parsed = { ...defaults, ...JSON.parse(raw) }
     if (LEGACY_THEME_MAP[parsed.theme]) {
       parsed.theme = LEGACY_THEME_MAP[parsed.theme]
     }
+    if (!parsed.themeChosen) {
+      parsed.theme = defaults.theme
+    }
     return parsed
   } catch {
-    return DEFAULT_MAP_SETTINGS
+    return defaults
   }
 }
 

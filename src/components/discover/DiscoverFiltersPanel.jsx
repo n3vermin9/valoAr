@@ -32,7 +32,7 @@ export default function DiscoverFiltersPanel({ filters, onChange, userId }) {
         />
       </section>
 
-      <section className="border-t border-white/10 pt-8">
+      <section className="border-t border-[var(--ios-hairline)] pt-8">
         <p className={`${typoCaptionClass} mb-2`}>Interests</p>
         <HobbiesSelect
           value={draft.hobbies}
@@ -46,7 +46,7 @@ export default function DiscoverFiltersPanel({ filters, onChange, userId }) {
         type="button"
         onClick={clear}
         disabled={!active}
-        className="w-full py-3 rounded-full bg-white/10 text-white/80 disabled:opacity-40"
+        className="w-full py-3 rounded-full bg-[var(--ios-fill-tertiary)] text-[var(--ios-label)] disabled:opacity-40"
       >
         Clear Discover filters
       </button>

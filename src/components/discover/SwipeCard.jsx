@@ -45,7 +45,7 @@ export default function SwipeCard({
 
   return (
     <div className="relative w-full max-w-[18rem] mx-auto max-h-full">
-      <div className="relative flex flex-col rounded-[var(--ios-radius-lg)] overflow-hidden bg-white/5 border border-white/10 shadow-2xl">
+      <div className="relative flex flex-col rounded-[var(--ios-radius-lg)] overflow-hidden bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] shadow-2xl">
         <div className="relative">
           <div
             ref={galleryRef}
@@ -89,7 +89,7 @@ export default function SwipeCard({
           </button>
 
           {bio && (
-            <p className="text-xs text-white/70 mt-1.5 leading-relaxed whitespace-pre-wrap break-words">
+            <p className="text-xs text-[var(--ios-label-secondary)] mt-1.5 leading-relaxed whitespace-pre-wrap break-words">
               {bio}
             </p>
           )}
@@ -97,7 +97,7 @@ export default function SwipeCard({
           <ProfileLookingFor
             gender={profile.gender}
             interestedIn={profile.interestedIn}
-            className="text-xs text-white/50 mt-1.5"
+            className="text-xs text-[var(--ios-label-tertiary)] mt-1.5"
           />
 
           <HobbiesDisplay
@@ -111,7 +111,7 @@ export default function SwipeCard({
           <SocialLinksDisplay socials={profile.socials} compact visible={alreadyMatched} />
         </div>
 
-        <div className="flex items-center gap-2 px-3.5 py-3 shrink-0 border-t border-white/5">
+        <div className="flex items-center gap-2 px-3.5 py-3 shrink-0 border-t border-[var(--ios-hairline)]">
           <button
             type="button"
             onClick={() => onSwipe('pass')}
@@ -119,7 +119,7 @@ export default function SwipeCard({
             className={`${profileActionBtnClass} !h-9`}
             aria-label="Pass"
           >
-            <IconX size={18} className="text-white/70" stroke={3} />
+            <IconX size={18} className="text-[var(--ios-label-secondary)]" stroke={3} />
           </button>
           <button
             type="button"
@@ -135,7 +135,7 @@ export default function SwipeCard({
                   : 'Send friend request with message'
             }
           >
-            <IconMessageCircle size={18} className="text-white/70" stroke={3} />
+            <IconMessageCircle size={18} className="text-[var(--ios-label-secondary)]" stroke={3} />
           </button>
           <button
             type="button"
@@ -144,7 +144,7 @@ export default function SwipeCard({
             className={`${profileActionBtnClass} !h-9`}
             aria-label="Send friend request"
           >
-            <IconHeart size={18} className="text-white/70" stroke={3} />
+            <IconHeart size={18} className="text-[var(--ios-label-secondary)]" stroke={3} />
           </button>
         </div>
       </div>
