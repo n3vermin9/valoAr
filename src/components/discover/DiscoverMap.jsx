@@ -46,6 +46,8 @@ import {
   typoSubheadClass,
   fieldLabelClass,
   pageSwitchMotion,
+  tabSlideVariants,
+  tabSlideTransition,
 } from '../../utils/designSystem'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
@@ -664,6 +666,7 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
   const [selectedSub, setSelectedSub] = useState(null)
   const [photoFailed, setPhotoFailed] = useState(false)
   const [showMeetups, setShowMeetups] = useState(false)
+  const [panelDir, setPanelDir] = useState(1)
   const [joinTarget, setJoinTarget] = useState(null)
   const [joining, setJoining] = useState(false)
   const typeLabel = PLACE_TYPES.find((t) => t.id === place.type)?.label || 'Place'
@@ -675,12 +678,23 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
     setSelectedSub(null)
     setPhotoFailed(false)
     setShowMeetups(false)
+    setPanelDir(1)
     setJoinTarget(null)
   }, [place.id, photoUrl])
 
   useEffect(() => {
     if (!hasMeetups) setShowMeetups(false)
   }, [hasMeetups])
+
+  const openMeetups = () => {
+    setPanelDir(1)
+    setShowMeetups(true)
+  }
+
+  const backToPlace = () => {
+    setPanelDir(-1)
+    setShowMeetups(false)
+  }
 
   const handleMeetupAction = (meetup, isMember) => {
     if (isMember) {
@@ -707,176 +721,195 @@ function PlaceCard({ place, isAdmin, meetups, userId, onClose, onEdit, onCreateM
       style={mapFocusCardAnchorStyle}
       {...mapCardMotion}
     >
-      <div className="discover-map-place-card relative pointer-events-auto p-4 max-h-[60vh] overflow-y-auto">
-        {showMeetups && hasMeetups ? (
-          <>
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <button
-                type="button"
-                onClick={() => setShowMeetups(false)}
-                className="inline-flex items-center gap-1 text-[13px] text-[var(--ios-blue)] shrink-0"
-              >
-                <IconChevronLeft size={16} stroke={2} />
-                Place
-              </button>
-              <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">
-                Meetups here · {meetups.length}
-              </p>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] shrink-0"
-                aria-label="Close"
-              >
-                <IconX size={18} stroke={2} />
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {meetups.map((meetup) => {
-                const isMember = meetup.participants?.includes(userId)
-                const full = (meetup.participants?.length || 0) >= meetup.maxMembers
-                return (
-                  <div
-                    key={meetup.id}
-                    className="rounded-[var(--ios-radius-md)] border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] p-2.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[14px] font-medium text-[var(--ios-label)] truncate">{meetup.title}</p>
-                        <p className="text-[12px] text-[var(--ios-label-secondary)]">
-                          {formatMeetupTime(meetup.startAt)} · {meetup.participants?.length || 0}/{meetup.maxMembers}
-                          {meetup.privacy === 'friends' ? ' · Friends' : ''}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleMeetupAction(meetup, isMember)}
-                        disabled={full && !isMember}
-                        className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium bg-[var(--ios-blue)] text-white disabled:opacity-50"
-                      >
-                        {isMember ? 'Open' : full ? 'Full' : 'Join'}
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <ConfirmDialog
-              isOpen={Boolean(joinTarget)}
-              onClose={() => !joining && setJoinTarget(null)}
-              onConfirm={handleConfirmJoin}
-              title="Join this meetup?"
-              message={
-                joinTarget
-                  ? `Join "${joinTarget.title}" at ${place.name || 'this place'}? You'll be added to the group chat.`
-                  : 'Join this meetup and enter the group chat?'
-              }
-              confirmLabel="Join"
-              loading={joining}
-              overlayClassName="z-[1200]"
-            />
-          </>
-        ) : (
-          <>
-            <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] flex items-center justify-center text-2xl shrink-0">
-                {place.emoji}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={typoHeadlineClass}>{place.name}</p>
-                <p className={`${typoSubheadClass} mt-0.5`}>
-                  {selectedSub ? `${typeLabel} · ${selectedSub.name}` : typeLabel}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] shrink-0"
-                aria-label="Close"
-              >
-                <IconX size={18} stroke={2} />
-              </button>
-            </div>
-
-            {subplaces.length > 0 && (
-              <div className="mt-3">
-                <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5">
-                  Choose a spot
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {subplaces.map((sub) => (
-                    <button
-                      key={sub.id}
-                      type="button"
-                      onClick={() => setSelectedSub((cur) => (cur?.id === sub.id ? null : sub))}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] border transition-colors ${
-                        selectedSub?.id === sub.id
-                          ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
-                          : 'border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)]'
-                      }`}
-                    >
-                      <span>{sub.emoji}</span>
-                      <span className="truncate max-w-[8rem]">{sub.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {photoUrl && !photoFailed ? (
-              <div className="mt-4 rounded-[var(--ios-radius-md)] overflow-hidden border border-[var(--ios-hairline)]">
-                <img
-                  src={photoUrl}
-                  alt=""
-                  className="w-full aspect-[16/10] object-cover"
-                  onError={() => setPhotoFailed(true)}
-                />
-              </div>
-            ) : null}
-
-            <Button
-              variant="filled"
-              fullWidth
-              className="mt-4"
-              onClick={() => onCreateMeetup(selectedSub)}
+      <div className="discover-map-place-card relative pointer-events-auto p-4 max-h-[60vh] overflow-hidden">
+        <AnimatePresence mode="wait" initial={false} custom={panelDir}>
+          {showMeetups && hasMeetups ? (
+            <motion.div
+              key="meetups"
+              custom={panelDir}
+              variants={tabSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={tabSlideTransition}
+              className="overflow-y-auto max-h-[calc(60vh-2rem)]"
             >
-              <span className="inline-flex items-center gap-2">
-                <IconCalendarPlus size={16} stroke={2} />
-                Create meetup
-              </span>
-            </Button>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <button
+                  type="button"
+                  onClick={backToPlace}
+                  className="inline-flex items-center gap-1 text-[13px] text-[var(--ios-blue)] shrink-0"
+                >
+                  <IconChevronLeft size={16} stroke={2} />
+                  Place
+                </button>
+                <p className="text-[13px] font-medium text-[var(--ios-label)] truncate">
+                  Meetups here · {meetups.length}
+                </p>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] shrink-0"
+                  aria-label="Close"
+                >
+                  <IconX size={18} stroke={2} />
+                </button>
+              </div>
 
-            {isAdmin && (
-              <Button variant="bordered" fullWidth className="mt-3" onClick={() => onEdit(place)}>
+              <div className="space-y-2">
+                {meetups.map((meetup) => {
+                  const isMember = meetup.participants?.includes(userId)
+                  const full = (meetup.participants?.length || 0) >= meetup.maxMembers
+                  return (
+                    <div
+                      key={meetup.id}
+                      className="rounded-[var(--ios-radius-md)] border border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] p-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[14px] font-medium text-[var(--ios-label)] truncate">{meetup.title}</p>
+                          <p className="text-[12px] text-[var(--ios-label-secondary)]">
+                            {formatMeetupTime(meetup.startAt)} · {meetup.participants?.length || 0}/{meetup.maxMembers}
+                            {meetup.privacy === 'friends' ? ' · Friends' : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleMeetupAction(meetup, isMember)}
+                          disabled={full && !isMember}
+                          className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium bg-[var(--ios-blue)] text-white disabled:opacity-50"
+                        >
+                          {isMember ? 'Open' : full ? 'Full' : 'Join'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <ConfirmDialog
+                isOpen={Boolean(joinTarget)}
+                onClose={() => !joining && setJoinTarget(null)}
+                onConfirm={handleConfirmJoin}
+                title="Join this meetup?"
+                message={
+                  joinTarget
+                    ? `Join "${joinTarget.title}" at ${place.name || 'this place'}? You'll be added to the group chat.`
+                    : 'Join this meetup and enter the group chat?'
+                }
+                confirmLabel="Join"
+                loading={joining}
+                overlayClassName="z-[1200]"
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="place"
+              custom={panelDir}
+              variants={tabSlideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={tabSlideTransition}
+              className="overflow-y-auto max-h-[calc(60vh-2rem)]"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-[var(--ios-fill-tertiary)] border border-[var(--ios-hairline)] flex items-center justify-center text-2xl shrink-0">
+                  {place.emoji}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={typoHeadlineClass}>{place.name}</p>
+                  <p className={`${typoSubheadClass} mt-0.5`}>
+                    {selectedSub ? `${typeLabel} · ${selectedSub.name}` : typeLabel}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-1 rounded-full text-[var(--ios-label-secondary)] hover:bg-[var(--ios-hover-fill)] shrink-0"
+                  aria-label="Close"
+                >
+                  <IconX size={18} stroke={2} />
+                </button>
+              </div>
+
+              {subplaces.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[11px] uppercase tracking-wide text-[var(--ios-label-tertiary)] mb-1.5">
+                    Choose a spot
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {subplaces.map((sub) => (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => setSelectedSub((cur) => (cur?.id === sub.id ? null : sub))}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] border transition-colors ${
+                          selectedSub?.id === sub.id
+                            ? 'border-[var(--ios-blue)] bg-[var(--ios-blue)]/15 text-[var(--ios-label)]'
+                            : 'border-[var(--ios-hairline)] bg-[var(--ios-fill-tertiary)] text-[var(--ios-label-secondary)]'
+                        }`}
+                      >
+                        <span>{sub.emoji}</span>
+                        <span className="truncate max-w-[8rem]">{sub.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {photoUrl && !photoFailed ? (
+                <div className="mt-4 rounded-[var(--ios-radius-md)] overflow-hidden border border-[var(--ios-hairline)]">
+                  <img
+                    src={photoUrl}
+                    alt=""
+                    className="w-full aspect-[16/10] object-cover"
+                    onError={() => setPhotoFailed(true)}
+                  />
+                </div>
+              ) : null}
+
+              <Button
+                variant="filled"
+                fullWidth
+                className="mt-4"
+                onClick={() => onCreateMeetup(selectedSub)}
+              >
                 <span className="inline-flex items-center gap-2">
-                  <IconPencil size={16} stroke={2} />
-                  Edit place
+                  <IconCalendarPlus size={16} stroke={2} />
+                  Create meetup
                 </span>
               </Button>
-            )}
 
-            {hasMeetups ? (
-              <button
-                type="button"
-                onClick={() => setShowMeetups(true)}
-                className="mt-3 w-full text-center text-[12px] font-medium text-[var(--ios-blue)] transition-colors"
-              >
-                Meetups here · {meetups.length}
-              </button>
-            ) : null}
-          </>
-        )}
+              {isAdmin && (
+                <Button variant="bordered" fullWidth className="mt-3" onClick={() => onEdit(place)}>
+                  <span className="inline-flex items-center gap-2">
+                    <IconPencil size={16} stroke={2} />
+                    Edit place
+                  </span>
+                </Button>
+              )}
+
+              {hasMeetups ? (
+                <button
+                  type="button"
+                  onClick={openMeetups}
+                  className="mt-3 w-full text-center text-[12px] font-medium text-[var(--ios-blue)] transition-colors"
+                >
+                  Meetups here · {meetups.length}
+                </button>
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   )
 }
 
-function MeetupManagerCard({ meetup, isMember, onAction, onOpenInfo }) {
+function MeetupManagerCard({ meetup, onOpenInfo }) {
   const members = meetup.participants?.length || 0
   const maxMembers = meetup.maxMembers || 0
-  const full = maxMembers > 0 && members >= maxMembers
   const venue = meetup.subplaceName
     ? `${meetup.placeName} · ${meetup.subplaceName}`
     : meetup.placeName || 'Place'
@@ -906,12 +939,12 @@ function MeetupManagerCard({ meetup, isMember, onAction, onOpenInfo }) {
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            onAction(meetup)
+            onOpenInfo?.(meetup)
           }}
-          disabled={full && !isMember}
-          className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium bg-[var(--ios-blue)] text-white disabled:opacity-50"
+          className="shrink-0 px-3 py-1.5 rounded-full text-[13px] font-medium bg-[var(--ios-blue)] text-white hover:brightness-110 transition-colors"
+          aria-label="Meetup info"
         >
-          {isMember ? 'Open' : full ? 'Full' : 'Join'}
+          Info
         </button>
       </div>
     </div>
@@ -1009,25 +1042,21 @@ function MeetupManager({
   }
 
   const panelChromeClass =
-    'w-full overflow-hidden border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/98 shadow-[0_10px_26px_rgba(0,0,0,0.35)] transform-gpu'
+    'w-full overflow-hidden border border-[var(--ios-separator)] bg-[var(--ios-bg-secondary)]/98 shadow-[0_10px_26px_rgba(0,0,0,0.35)]'
   const headerSlotClass = 'relative h-10 w-full'
-  const expandedMaxHeight = isSearching ? 340 : 560
+  const panelExpandTransition = { duration: 0.28, ease: [0.32, 0.72, 0, 1] }
+  const EXPANDED_MAX_HEIGHT = 520
 
   return (
     <div className="relative w-full pointer-events-auto">
       <motion.div
         initial={false}
         animate={{
-          maxHeight: expanded ? expandedMaxHeight : 48,
+          maxHeight: expanded ? EXPANDED_MAX_HEIGHT : 48,
           borderRadius: expanded ? 20 : 999,
         }}
-        transition={
-          expanded
-            ? { type: 'spring', stiffness: 420, damping: 34, mass: 0.8 }
-            : { duration: 0.22, ease: [0.4, 0, 0.2, 1] }
-        }
+        transition={panelExpandTransition}
         className={panelChromeClass}
-        style={{ willChange: 'max-height, border-radius' }}
       >
         <div className="relative min-h-12">
           <motion.button
@@ -1040,11 +1069,8 @@ function MeetupManager({
               }
             }}
             initial={false}
-            animate={{
-              opacity: expanded ? 0 : 1,
-              y: expanded ? -4 : 0,
-            }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            animate={{ opacity: expanded ? 0 : 1 }}
+            transition={{ duration: 0.16, ease: [0.32, 0.72, 0, 1] }}
             className={`absolute inset-0 h-12 px-4 flex items-center gap-2.5 ${
               expanded ? 'pointer-events-none' : 'pointer-events-auto'
             }`}
@@ -1057,14 +1083,11 @@ function MeetupManager({
 
           <motion.div
             initial={false}
-            animate={{
-              opacity: expanded ? 1 : 0,
-              y: expanded ? 0 : 10,
-            }}
+            animate={{ opacity: expanded ? 1 : 0 }}
             transition={{
-              duration: 0.2,
-              ease: [0.22, 1, 0.36, 1],
-              delay: expanded ? 0.05 : 0,
+              duration: 0.18,
+              ease: [0.32, 0.72, 0, 1],
+              delay: expanded ? 0.06 : 0,
             }}
             className={`p-3 ${expanded ? 'pointer-events-auto' : 'pointer-events-none'}`}
             aria-hidden={!expanded}
@@ -1074,10 +1097,10 @@ function MeetupManager({
                 {showSearchBar ? (
                   <motion.div
                     key="search"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.14, ease: [0.32, 0.72, 0, 1] }}
                     className="absolute inset-0 flex items-center gap-1.5"
                   >
                     <div className="flex-1 min-w-0 flex items-center gap-2 rounded-full border border-[var(--ios-separator)] bg-[var(--ios-fill-tertiary)] px-3 h-9 min-h-9 max-h-9">
@@ -1118,10 +1141,10 @@ function MeetupManager({
                 ) : (
                   <motion.div
                     key="header"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.14, ease: [0.32, 0.72, 0, 1] }}
                     className="absolute inset-0 flex items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -1191,9 +1214,7 @@ function MeetupManager({
                       <MeetupManagerCard
                         key={meetup.id}
                         meetup={meetup}
-                        isMember
                         onOpenInfo={setInfoMeetup}
-                        onAction={() => onOpenMeetupChat(meetup)}
                       />
                     ))
                   )}
@@ -1212,9 +1233,7 @@ function MeetupManager({
                       <MeetupManagerCard
                         key={meetup.id}
                         meetup={meetup}
-                        isMember={false}
                         onOpenInfo={setInfoMeetup}
-                        onAction={() => setJoinTarget(meetup)}
                       />
                     ))
                   )}

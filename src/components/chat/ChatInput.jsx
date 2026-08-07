@@ -488,7 +488,8 @@ export default function ChatInput({
                 onMouseDown={keepComposerFocus}
                 onPointerDown={keepComposerFocus}
                 onClick={handleSend}
-                className={`${actionButtonClass} text-[var(--ios-blue)] hover:brightness-110`}
+                className={`${actionButtonClass} text-white hover:brightness-110`}
+                aria-label="Send message"
               >
                 <IconSend size={20} />
               </button>

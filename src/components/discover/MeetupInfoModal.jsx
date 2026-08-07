@@ -83,7 +83,12 @@ export default function MeetupInfoModal({
   }
 
   return (
-    <Modal isOpen onClose={onClose} glass overlayClassName="z-[1300]">
+    <Modal
+      isOpen
+      onClose={onClose}
+      overlayClassName="z-[1300]"
+      className="!bg-[var(--ios-bg-secondary)] border-[var(--ios-separator)]"
+    >
       <div className="p-4 pb-5">
         <div className="flex items-center justify-between gap-3 mb-4 px-1">
           <h3 className={typoTitle3Class}>Meetup</h3>

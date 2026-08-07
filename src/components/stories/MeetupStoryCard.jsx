@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IconCalendarPlus, IconClockHour4, IconMapPin, IconUsers } from '@tabler/icons-react'
+import { IconClockHour4, IconMapPin } from '@tabler/icons-react'
 import {
   parseMeetupStoryContent,
   getMeetupMapCoords,
@@ -146,11 +146,10 @@ export default function MeetupStoryCard({
               stopControlEvent(e)
               onJoinClick?.()
             }}
-            className={`${btnFilledClass} w-full justify-center gap-2 pointer-events-auto ${
+            className={`${btnFilledClass} w-full justify-center pointer-events-auto ${
               compact || isStoryVariant ? 'h-10 text-[15px]' : 'py-3 text-[17px]'
             } font-semibold`}
           >
-            <IconCalendarPlus size={compact || isStoryVariant ? 16 : 18} stroke={2} />
             Join
           </button>
         )
@@ -163,11 +162,10 @@ export default function MeetupStoryCard({
               stopControlEvent(e)
               onOpenChat?.()
             }}
-            className={`${btnFilledClass} w-full justify-center gap-2 pointer-events-auto ${
+            className={`${btnFilledClass} w-full justify-center pointer-events-auto ${
               compact || isStoryVariant ? 'h-10 text-[15px]' : 'py-3 text-[17px]'
             } font-semibold`}
           >
-            <IconUsers size={compact || isStoryVariant ? 16 : 18} stroke={2} />
             Open meetup chat
           </button>
         )
@@ -185,11 +183,10 @@ export default function MeetupStoryCard({
             stopControlEvent(e)
             onOpenChat?.()
           }}
-          className={`${btnFilledClass} w-full justify-center gap-2 pointer-events-auto ${
+          className={`${btnFilledClass} w-full justify-center pointer-events-auto ${
             compact || isStoryVariant ? 'h-10 text-[15px]' : 'py-3 text-[17px]'
           } font-semibold`}
         >
-          <IconUsers size={compact || isStoryVariant ? 16 : 18} stroke={2} />
           Open meetup chat
         </button>
       )
